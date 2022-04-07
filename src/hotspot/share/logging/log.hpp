@@ -25,10 +25,14 @@
 #define SHARE_LOGGING_LOG_HPP
 
 #include "logging/logLevel.hpp"
+#include "logging/logOutputList.hpp"
 #include "logging/logPrefix.hpp"
 #include "logging/logTagSet.hpp"
 #include "logging/logTag.hpp"
 #include "utilities/debug.hpp"
+#include "utilities/ostream.hpp"
+#include <cstdio>
+#include <functional>
 
 class LogMessageBuffer;
 
@@ -47,6 +51,7 @@ class LogMessageBuffer;
 #define log_info(...)    (!log_is_enabled(Info, __VA_ARGS__))    ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::write<LogLevel::Info>
 #define log_debug(...)   (!log_is_enabled(Debug, __VA_ARGS__))   ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::write<LogLevel::Debug>
 #define log_trace(...)   (!log_is_enabled(Trace, __VA_ARGS__))   ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::write<LogLevel::Trace>
+#define log_loc(...)     (!log_is_enabled(Debug, __VA_ARGS__))   ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::write_source_loc<LogLevel::Debug>(__FILE__,__func__,__LINE__)
 
 // Macros for logging that should be excluded in product builds.
 // Available for levels Info, Debug and Trace. Includes test macro that
@@ -135,6 +140,31 @@ class LogImpl {
   static void write(const LogMessageBuffer& msg) {
     LogTagSetMapping<T0, T1, T2, T3, T4>::tagset().log(msg);
   };
+
+  template <LogLevelType level>
+  class SourceLocWriter : public StackObj {
+    const char* file;
+    const char* fun;
+    int line;
+  public:
+    SourceLocWriter(const char* file, const char* fun, int line) {
+      this->file = file;
+      this->fun = fun;
+      this->line = line;
+    }
+
+    template<typename... Args>
+    void operator() (const char* fmt, Args... args) {
+      stringStream ss;
+      ss.print("[%s:%s:%d] %s", file, fun, line, fmt);
+      LogImpl::write<level>(ss.as_string(), args...);
+    }
+  };
+
+  template <LogLevelType Level>
+  static SourceLocWriter<Level> write_source_loc(const char* file, const char* fun, int line){
+    return SourceLocWriter<Level>{file, fun, line};
+  }
 
   template <LogLevelType Level>
   ATTRIBUTE_PRINTF(1, 2)

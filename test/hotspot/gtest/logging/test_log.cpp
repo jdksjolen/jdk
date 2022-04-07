@@ -47,6 +47,28 @@ TEST_VM_F(LogTest, prefix) {
   log_trace(logging, test)(LOG_LINE_STR);
   EXPECT_TRUE(file_contains_substring(TestLogFileName, LOG_PREFIX_STR LOG_LINE_STR));
 }
+
+TEST_VM_F(LogTest, loc_basic) {
+  ResourceMark rm;
+  set_log_config(TestLogFileName, "logging+test=debug");
+  log_loc(logging, test)(LOG_LINE_STR);
+  FILE* fp = os::fopen(TestLogFileName, "r");
+  char* l = read_line(fp);
+  fclose(fp);
+  FAIL() << l;
+}
+
+TEST_VM_F(LogTest, loc_fmt_arg) {
+  ResourceMark rm;
+  set_log_config(TestLogFileName, "logging+test=debug");
+  log_loc(logging, test)("%d", 1337);
+  FILE* fp = os::fopen(TestLogFileName, "r");
+  char* l = read_line(fp);
+  fclose(fp);
+  FAIL() << l;
+}
+
+
 #endif
 
 TEST_VM_F(LogTest, large_message) {
