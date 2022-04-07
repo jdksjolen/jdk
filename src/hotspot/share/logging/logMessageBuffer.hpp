@@ -26,6 +26,7 @@
 
 #include "logging/logDecorations.hpp"
 #include "logging/logLevel.hpp"
+#include "logging/logPrefix.hpp"
 #include "memory/allocation.hpp"
 
 class LogMessageBuffer : public StackObj {
@@ -48,7 +49,7 @@ class LogMessageBuffer : public StackObj {
 
   bool _allocated;
   LogLevelType _least_detailed_level;
-  size_t (*_prefix_fn)(char*, size_t);
+  PrefixWriter _prefix_fn;
 
   void initialize_buffers();
 
@@ -110,7 +111,7 @@ class LogMessageBuffer : public StackObj {
   // using set_prefix(). Lines added to the LogMessageBuffer after a prefix
   // function has been set will be prefixed automatically.
   // Setting this to NULL will disable prefixing.
-  void set_prefix(size_t (*prefix_fn)(char*, size_t)) {
+  void set_prefix(PrefixWriter prefix_fn) {
     _prefix_fn = prefix_fn;
   }
 

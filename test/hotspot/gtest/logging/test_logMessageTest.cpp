@@ -183,7 +183,7 @@ TEST_VM_F(LogMessageTest, message_with_many_lines) {
     << "couldn't find all lines in multiline message";
 }
 
-static size_t dummy_prefixer(char* buf, size_t len) {
+static size_t dummy_prefixer(char* buf, size_t len, void* state) {
   static int i = 0;
   const char* prefix = "some prefix: ";
   const size_t prefix_len = strlen(prefix);

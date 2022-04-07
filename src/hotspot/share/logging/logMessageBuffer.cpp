@@ -99,7 +99,7 @@ void LogMessageBuffer::vwrite(LogLevelType level, const char* fmt, va_list args)
     char* current_buffer_position = _message_buffer + _message_buffer_size;
 
     if (_prefix_fn != NULL) {
-      written += _prefix_fn(current_buffer_position, remaining_buffer_length);
+      written += _prefix_fn(current_buffer_position, remaining_buffer_length, nullptr);
       current_buffer_position += written;
       if (remaining_buffer_length < written) {
         remaining_buffer_length = 0;

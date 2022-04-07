@@ -95,19 +95,20 @@ DEBUG_ONLY(size_t Test_log_prefix_prefixer(char* buf, size_t len);)
   LOG_PREFIX(GCId::print_prefix, LOG_TAGS(gc, verify)) \
   LOG_PREFIX(GCId::print_prefix, LOG_TAGS(gc, verify, start))
 
+typedef size_t (*PrefixWriter)(char* buf, size_t size, void* state);
 
 // The empty prefix, used when there's no prefix defined.
 template <LogTagType T0, LogTagType T1, LogTagType T2, LogTagType T3, LogTagType T4, LogTagType GuardTag = LogTag::__NO_TAG>
 struct LogPrefix : public AllStatic {
   STATIC_ASSERT(GuardTag == LogTag::__NO_TAG);
-  static size_t prefix(char* buf, size_t len) {
+  static size_t prefix(char* buf, size_t len, void* state) {
     return 0;
   }
 };
 
 #define LOG_PREFIX(fn, ...) \
 template <> struct LogPrefix<__VA_ARGS__> { \
-  static size_t prefix(char* buf, size_t len) { \
+  static size_t prefix(char* buf, size_t len, void* state) {    \
     size_t ret = fn(buf, len); \
     /* Either prefix did fit (strlen(buf) == ret && ret < len) */ \
     /* or the prefix didn't fit in buffer (ret > len && strlen(buf) < len) */ \

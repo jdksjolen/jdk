@@ -24,11 +24,16 @@
 #ifndef SHARE_LOGGING_LOG_HPP
 #define SHARE_LOGGING_LOG_HPP
 
+#include "jvm_io.h"
 #include "logging/logLevel.hpp"
+#include "logging/logOutputList.hpp"
 #include "logging/logPrefix.hpp"
 #include "logging/logTagSet.hpp"
 #include "logging/logTag.hpp"
 #include "utilities/debug.hpp"
+#include "utilities/ostream.hpp"
+#include <cstdio>
+#include <functional>
 
 class LogMessageBuffer;
 
@@ -47,6 +52,7 @@ class LogMessageBuffer;
 #define log_info(...)    (!log_is_enabled(Info, __VA_ARGS__))    ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::write<LogLevel::Info>
 #define log_debug(...)   (!log_is_enabled(Debug, __VA_ARGS__))   ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::write<LogLevel::Debug>
 #define log_trace(...)   (!log_is_enabled(Trace, __VA_ARGS__))   ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::write<LogLevel::Trace>
+#define log_loc(...)     (!log_is_enabled(Debug, __VA_ARGS__))   ? (void)0 : LogImpl<LOG_TAGS(__VA_ARGS__)>::source_loc_writer<LogLevel::Debug>(__FILE__,__func__,__LINE__).write
 
 // Macros for logging that should be excluded in product builds.
 // Available for levels Info, Debug and Trace. Includes test macro that
@@ -135,6 +141,42 @@ class LogImpl {
   static void write(const LogMessageBuffer& msg) {
     LogTagSetMapping<T0, T1, T2, T3, T4>::tagset().log(msg);
   };
+
+  template <LogLevelType level>
+  class SourceLocWriter : public StackObj {
+    const char* _file;
+    const char* _fun;
+    int _line;
+  public:
+    SourceLocWriter(const char* file, const char* fun, int line)
+      : _file(file), _fun(fun), _line(line) {}
+
+    size_t prefix(char* buf, size_t len) {
+      int ret = jio_snprintf(buf, len, "[%s:%s:%d]", _file, _fun, _line);
+      return (size_t)ret;
+    }
+
+    ATTRIBUTE_PRINTF(2, 3)
+    void write(const char* fmt, ...) {
+      va_list ap;
+      va_start(ap, fmt);
+      vwrite(fmt, ap);
+      va_end(ap);
+    }
+    void vwrite(const char* fmt, va_list ap) {
+      PrefixWriter prefix_fn = [](char* buf, size_t len, void* state) -> size_t {
+        return static_cast<SourceLocWriter*>(state)->prefix(buf, len);
+      };
+      LogTagSet tagset = LogTagSetMapping<T0, T1, T2, T3, T4>::tagset();
+      tagset.write_with_prefix(prefix_fn, this, level, fmt, ap);
+    }
+  };
+
+
+  template <LogLevelType Level>
+  static SourceLocWriter<Level> source_loc_writer(const char* file, const char* fun, int line){
+    return SourceLocWriter<Level>{file, fun, line};
+  }
 
   template <LogLevelType Level>
   ATTRIBUTE_PRINTF(1, 2)

@@ -30,10 +30,13 @@
 #include "logging/logPrefix.hpp"
 #include "logging/logTag.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "../runtime/os.hpp"
 
 class LogMessageBuffer;
 
 class outputStream;
+
+extern const size_t vwrite_buffer_size;
 
 // The tagset represents a combination of tags that occur in a log call somewhere.
 // Tagsets are created automatically by the LogTagSetMappings and should never be
@@ -50,7 +53,6 @@ class LogTagSet {
   LogOutputList _output_list;
   LogDecorators _decorators;
 
-  typedef size_t (*PrefixWriter)(char* buf, size_t size);
   PrefixWriter _write_prefix;
 
   // Keep constructor private to prevent incorrect instantiations of this class.
@@ -131,6 +133,67 @@ class LogTagSet {
   ATTRIBUTE_PRINTF(3, 4)
   void write(LogLevelType level, const char* fmt, ...);
 
+  template <typename T>
+  ATTRIBUTE_PRINTF(5, 0)
+  void write_with_prefix(PrefixWriter prefix_writer, T state, LogLevelType level, const char* fmt, va_list args) {
+    assert(level >= LogLevel::First && level <= LogLevel::Last, "Log level:%d is incorrect", level);
+    char buf[vwrite_buffer_size];
+    va_list saved_args;           // For re-format on buf overflow.
+    va_copy(saved_args, args);
+    size_t prefix_len = prefix_writer(buf, sizeof(buf), state);
+    // Check that string fits in buffer; resize buffer if necessary
+    int ret;
+    if (prefix_len < vwrite_buffer_size) {
+      ret = os::vsnprintf(buf + prefix_len, sizeof(buf) - prefix_len, fmt, args);
+    } else {
+      // Buffer too small. Just call printf to find out the length for realloc below.
+      ret = os::vsnprintf(nullptr, 0, fmt, args);
+    }
+
+    assert(ret >= 0, "Log message buffer issue");
+    if (ret < 0) {
+      // Error, just log contents in buf.
+      log(level, buf);
+      log(level, "Log message buffer issue");
+      va_end(saved_args);
+      return;
+    }
+
+
+    size_t newbuf_len = (size_t)ret + prefix_len + 1; // total bytes needed including prefix.
+    if (newbuf_len <= sizeof(buf)) {
+      log(level, buf);
+    } else {
+      // Buffer too small, allocate a large enough buffer using malloc/free to avoid circularity.
+      char* newbuf = (char*)::malloc(newbuf_len * sizeof(char));
+      if (newbuf != nullptr) {
+        prefix_len = prefix_writer(newbuf, newbuf_len, state);
+        ret = os::vsnprintf(newbuf + prefix_len, newbuf_len - prefix_len, fmt, saved_args);
+        assert(ret >= 0, "Log message newbuf issue");
+        // log the contents in newbuf even with error happened.
+        log(level, newbuf);
+        if (ret < 0) {
+          log(level, "Log message newbuf issue");
+        }
+        ::free(newbuf);
+      } else {
+        // Native OOM, use buf to output the least message. At this moment buf is full of either
+        // truncated prefix or truncated prefix + string. Put trunc_msg at the end of buf.
+        const char* trunc_msg = "..(truncated), native OOM";
+        const size_t ltr = strlen(trunc_msg) + 1;
+        ret = os::snprintf(buf + sizeof(buf) - ltr, ltr, "%s", trunc_msg);
+        assert(ret >= 0, "Log message buffer issue");
+        // log the contents in newbuf even with error happened.
+        log(level, buf);
+        if (ret < 0) {
+          log(level, "Log message buffer issue under OOM");
+        }
+      }
+    }
+    va_end(saved_args);
+  }
+
+
   template <LogLevelType Level>
   ATTRIBUTE_PRINTF(2, 3)
   void write(const char* fmt, ...) {
@@ -167,5 +230,4 @@ public:
 template <LogTagType T0, LogTagType T1, LogTagType T2, LogTagType T3, LogTagType T4, LogTagType GuardTag>
 LogTagSet LogTagSetMapping<T0, T1, T2, T3, T4, GuardTag>::_tagset(&LogPrefix<T0, T1, T2, T3, T4>::prefix, T0, T1, T2, T3, T4);
 
-extern const size_t vwrite_buffer_size;
 #endif // SHARE_LOGGING_LOGTAGSET_HPP
