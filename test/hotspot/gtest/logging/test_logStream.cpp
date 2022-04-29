@@ -42,6 +42,23 @@ void LogStreamTest::verify_stream(outputStream* stream) {
   EXPECT_TRUE(file_contains_substring(TestLogFileName, "3 workers\n"));
 }
 
+TEST_VM_F(LogStreamTest, MultiLineDoesntBreak) {
+  ResourceMark rm;
+  Log(gc) log;
+  LogStream stream(log.debug());
+  set_log_config(TestLogFileName, "gc=debug");
+  stream.print("%s","I am \ntwo lines and I'm not formatted correctly.");
+  stream.cr();
+  AsyncLogWriter::flush();
+  FILE* fp = os::fopen(TestLogFileName, "r");
+  char* line = read_line(fp);
+  while (line != nullptr) {
+    ADD_FAILURE() << line;
+    line = read_line(fp);
+  }
+  fclose(fp);
+}
+
 TEST_VM_F(LogStreamTest, from_log) {
   Log(gc) log;
   LogStream stream(log.debug());
