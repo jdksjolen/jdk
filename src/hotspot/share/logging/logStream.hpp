@@ -97,7 +97,7 @@ public:
     return _log_handle.is_enabled();
   }
 
-  void write(const char* s, size_t len);
+  void write(const char* s, size_t len) override;
 };
 
 // Support creation of a LogStream without having to provide a LogTarget pointer.
