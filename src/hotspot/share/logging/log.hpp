@@ -183,7 +183,7 @@ public:
   }
 
   static bool is_enabled() {
-    return LogImpl<T0, T1, T2, T3, T4, GuardTag>::is_level(level);
+    return LogTagSetMapping<T0, T1, T2, T3, T4, GuardTag>::tagset().is_level(level);
   }
 
   static bool develop_is_enabled() {
@@ -194,7 +194,7 @@ public:
   static void print(const char* fmt, ...) ATTRIBUTE_PRINTF(1, 2) {
     va_list args;
     va_start(args, fmt);
-    LogImpl<T0, T1, T2, T3, T4, GuardTag>::vwrite(level, fmt, args);
+    LogTagSetMapping<T0, T1, T2, T3, T4, GuardTag>::tagset().vwrite(level, fmt, args);
     va_end(args);
   }
 
