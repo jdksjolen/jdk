@@ -58,14 +58,14 @@
 // but not the trace message.
 //
 #define LogMessage(...) LogMessageImpl<LOG_TAGS(__VA_ARGS__)>
-template <LogTagType T0, LogTagType T1 = LogTag::__NO_TAG, LogTagType T2 = LogTag::__NO_TAG,
-          LogTagType T3 = LogTag::__NO_TAG, LogTagType T4 = LogTag::__NO_TAG, LogTagType GuardTag = LogTag::__NO_TAG>
 class LogMessageImpl : public LogMessageBuffer {
  private:
   LogTagSet* _tagset;
   bool _has_content;
 
  public:
+  template <LogTagType T0, LogTagType T1 = LogTag::__NO_TAG, LogTagType T2 = LogTag::__NO_TAG,
+            LogTagType T3 = LogTag::__NO_TAG, LogTagType T4 = LogTag::__NO_TAG, LogTagType GuardTag = LogTag::__NO_TAG>
   LogMessageImpl() :
     _tagset(&LogTagSetMapping<T0, T1, T2, T3, T4>::tagset()),
     _has_content(false) {
@@ -91,7 +91,7 @@ class LogMessageImpl : public LogMessageBuffer {
   void vwrite(LogLevelType level, const char* fmt, va_list args) {
     if (!_has_content) {
       _has_content = true;
-      set_prefix(LogPrefix<T0, T1, T2, T3, T4>::prefix);
+      set_prefix(this->_tagset->get_prefix_fn());
     }
     LogMessageBuffer::vwrite(level, fmt, args);
   }

@@ -108,6 +108,10 @@ class LogTagSet {
     _output_list.clear();
   }
 
+  PrefixWriter get_prefix_fn() {
+    return this->_write_prefix;
+  }
+
   void set_output_level(LogOutput* output, LogLevelType level) {
     _output_list.set_output_level(output, level);
   }
