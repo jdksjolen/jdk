@@ -27,6 +27,8 @@
 #include "code/vmreg.inline.hpp"
 #include "interpreter/bytecode.hpp"
 #include "interpreter/interpreter.hpp"
+#include "logging/logLevel.hpp"
+#include "logging/logStream.hpp"
 #include "memory/allocation.inline.hpp"
 #include "memory/resourceArea.hpp"
 #include "oops/methodData.hpp"
@@ -586,13 +588,12 @@ void vframeArray::unpack_to_stack(frame &unpack_frame, int exec_mode, int caller
   Events::log_deopt_message(current, "DEOPT UNPACKING pc=" INTPTR_FORMAT " sp=" INTPTR_FORMAT " mode %d",
                             p2i(unpack_frame.pc()), p2i(unpack_frame.sp()), exec_mode);
 
-  if (TraceDeoptimization) {
-    ResourceMark rm;
-    stringStream st;
-    st.print_cr("DEOPT UNPACKING thread=" INTPTR_FORMAT " vframeArray=" INTPTR_FORMAT " mode=%d",
+  if (Log(deoptimization)::is_trace()) {
+    LogMessage(deoptimization) lm;
+    NonInterleavingLogStream log(LogLevelType::Trace, lm);
+    log.print_cr("DEOPT UNPACKING thread=" INTPTR_FORMAT " vframeArray=" INTPTR_FORMAT " mode=%d",
                 p2i(current), p2i(this), exec_mode);
-    st.print_cr("   Virtual frames (outermost/oldest first):");
-    tty->print_raw(st.freeze());
+    log.print_cr("   Virtual frames (outermost/oldest first):");
   }
 
   // Do the unpacking of interpreter frames; the frame at index 0 represents the top activation, so it has no callee
@@ -614,11 +615,11 @@ void vframeArray::unpack_to_stack(frame &unpack_frame, int exec_mode, int caller
       callee_parameters = callee->size_of_parameters() + (has_member_arg ? 1 : 0);
       callee_locals     = callee->max_locals();
     }
-    if (TraceDeoptimization) {
-      ResourceMark rm;
-      stringStream st;
-      st.print("      VFrame %d (" INTPTR_FORMAT ")", index, p2i(elem));
-      st.print(" - %s", elem->method()->name_and_sig_as_C_string());
+    if (Log(deoptimization)::is_trace()) {
+      LogMessage(deoptimization) lm;
+      NonInterleavingLogStream log(LogLevelType::Trace, lm);
+      log.print("      VFrame %d (" INTPTR_FORMAT ")", index, p2i(elem));
+      log.print(" - %s", elem->method()->name_and_sig_as_C_string());
       int bci = elem->raw_bci();
       const char* code_name;
       if (bci == SynchronizationEntryBCI) {
@@ -627,10 +628,9 @@ void vframeArray::unpack_to_stack(frame &unpack_frame, int exec_mode, int caller
         Bytecodes::Code code = elem->method()->code_at(bci);
         code_name = Bytecodes::name(code);
       }
-      st.print(" - %s", code_name);
-      st.print(" @ bci=%d ", bci);
-      st.print_cr("sp=" PTR_FORMAT, p2i(elem->iframe()->sp()));
-      tty->print_raw(st.freeze());
+      log.print(" - %s", code_name);
+      log.print(" @ bci=%d ", bci);
+      log.print_cr("sp=" PTR_FORMAT, p2i(elem->iframe()->sp()));
     }
     elem->unpack_on_stack(caller_actual_parameters,
                           callee_parameters,
@@ -646,9 +646,6 @@ void vframeArray::unpack_to_stack(frame &unpack_frame, int exec_mode, int caller
     caller_actual_parameters = callee_parameters;
   }
   deallocate_monitor_chunks();
-  if (TraceDeoptimization) {
-    tty->cr();
-  }
 }
 
 void vframeArray::deallocate_monitor_chunks() {

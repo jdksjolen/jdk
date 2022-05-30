@@ -32,6 +32,8 @@
 #include "memory/allStatic.hpp"
 #include "memory/resourceArea.hpp"
 #include "utilities/macros.hpp"
+#include "utilities/ostream.hpp"
+#include "utilities/xmlstream.hpp"
 
 class AdapterHandlerEntry;
 class AdapterFingerPrint;
@@ -577,6 +579,7 @@ class SharedRuntime: AllStatic {
   static address nof_megamorphic_interface_calls_addr() { return (address)&_nof_megamorphic_interface_calls; }
   static void print_call_statistics(uint64_t comp_total);
   static void print_statistics();
+  static void print_statistics_on(outputStream* tty, xmlStream* xtty);
   static void print_ic_miss_histogram();
 
 #endif // PRODUCT

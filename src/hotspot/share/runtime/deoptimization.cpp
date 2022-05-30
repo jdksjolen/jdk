@@ -23,7 +23,6 @@
  */
 
 #include "precompiled.hpp"
-#include "jvm.h"
 #include "classfile/javaClasses.inline.hpp"
 #include "classfile/symbolTable.hpp"
 #include "classfile/systemDictionary.hpp"
@@ -39,6 +38,7 @@
 #include "interpreter/bytecode.hpp"
 #include "interpreter/interpreter.hpp"
 #include "interpreter/oopMapCache.hpp"
+#include "jvm.h"
 #include "logging/log.hpp"
 #include "logging/logLevel.hpp"
 #include "logging/logMessage.hpp"
@@ -187,12 +187,12 @@ JRT_BLOCK_ENTRY(Deoptimization::UnrollBlock*, Deoptimization::fetch_unroll_info(
 JRT_END
 
 #if COMPILER2_OR_JVMCI
-// print information about reallocated objects
+// Print information about reallocated objects
 static void print_objects(JavaThread* deoptee_thread,
                           GrowableArray<ScopeValue*>* objects, bool realloc_failures) {
-  ResourceMark rm;
-  stringStream st;  // change to logStream with logging
-  st.print_cr("REALLOC OBJECTS in thread " INTPTR_FORMAT, p2i(deoptee_thread));
+  LogMessage(deoptimization) lm;
+  NonInterleavingLogStream stream(LogLevelType::Trace, lm);
+  stream.print_cr("REALLOC OBJECTS in thread " INTPTR_FORMAT, p2i(deoptee_thread));
   fieldDescriptor fd;
 
   for (int i = 0; i < objects->length(); i++) {
@@ -200,21 +200,20 @@ static void print_objects(JavaThread* deoptee_thread,
     Klass* k = java_lang_Class::as_Klass(sv->klass()->as_ConstantOopReadValue()->value()());
     Handle obj = sv->value();
 
-    st.print("     object <" INTPTR_FORMAT "> of type ", p2i(sv->value()()));
-    k->print_value_on(&st);
+    stream.print("     object <" INTPTR_FORMAT "> of type ", p2i(sv->value()()));
+    k->print_value_on(&stream);
     assert(obj.not_null() || realloc_failures, "reallocation was missed");
     if (obj.is_null()) {
-      st.print(" allocation failed");
+      stream.print(" allocation failed");
     } else {
-      st.print(" allocated (" SIZE_FORMAT " bytes)", obj->size() * HeapWordSize);
+      stream.print(" allocated (" SIZE_FORMAT " bytes)", obj->size() * HeapWordSize);
     }
-    st.cr();
+    stream.cr();
 
     if (Verbose && !obj.is_null()) {
-      k->oop_print_on(obj(), &st);
+      k->oop_print_on(obj(), &stream);
     }
   }
-  tty->print_raw(st.freeze());
 }
 
 static bool rematerialize_objects(JavaThread* thread, int exec_mode, CompiledMethod* compiled_method,
@@ -247,10 +246,7 @@ static bool rematerialize_objects(JavaThread* thread, int exec_mode, CompiledMet
     assert(oopDesc::is_oop_or_null(result), "must be oop");
     return_value = Handle(thread, result);
     assert(Universe::heap()->is_in_or_null(result), "must be heap pointer");
-    if (TraceDeoptimization) {
-      tty->print_cr("SAVED OOP RESULT " INTPTR_FORMAT " in thread " INTPTR_FORMAT, p2i(result), p2i(thread));
-      tty->cr();
-    }
+    log_trace(deoptimization)("SAVED OOP RESULT " INTPTR_FORMAT " in thread " INTPTR_FORMAT "\n", p2i(result), p2i(thread));
   }
   if (objects != NULL) {
     if (exec_mode == Deoptimization::Unpack_none) {
@@ -267,7 +263,7 @@ static bool rematerialize_objects(JavaThread* thread, int exec_mode, CompiledMet
     }
     bool skip_internal = (compiled_method != NULL) && !compiled_method->is_compiled_by_jvmci();
     Deoptimization::reassign_fields(&deoptee, &map, objects, realloc_failures, skip_internal);
-    if (TraceDeoptimization) {
+    if (Log(deoptimization)::is_trace()) {
       print_objects(deoptee_thread, objects, realloc_failures);
     }
   }
@@ -656,9 +652,7 @@ Deoptimization::UnrollBlock* Deoptimization::fetch_unroll_info_helper(JavaThread
   info->set_initial_info((intptr_t) array->sender().initial_deoptimization_info());
 
   if (array->frames() > 1) {
-    if (VerifyStack && TraceDeoptimization) {
-      tty->print_cr("Deoptimizing method containing inlining");
-    }
+    log_trace(deoptimization, verifystack)("Deoptimizing method containing inlining");
   }
 
   array->set_unroll_block(info);
@@ -1559,9 +1553,9 @@ vframeArray* Deoptimization::create_vframeArray(JavaThread* thread, frame fr, Re
   // Compare the vframeArray to the collected vframes
   assert(array->structural_compare(thread, chunk), "just checking");
 
-  if (TraceDeoptimization) {
-    ResourceMark rm;
-    stringStream st;
+  if (Log(deoptimization)::is_trace()) {
+    LogMessage(deoptimization) lm;
+    NonInterleavingLogStream st(LogLevelType::Trace, lm);
     st.print_cr("DEOPT PACKING thread=" INTPTR_FORMAT " vframeArray=" INTPTR_FORMAT, p2i(thread), p2i(array));
     st.print("   ");
     fr.print_on(&st);
@@ -1576,14 +1570,11 @@ vframeArray* Deoptimization::create_vframeArray(JavaThread* thread, frame fr, Re
         Bytecodes::Code code = vf->method()->code_at(bci);
         code_name = Bytecodes::name(code);
       }
-
       st.print("      VFrame %d (" INTPTR_FORMAT ")", index, p2i(vf));
       st.print(" - %s", vf->method()->name_and_sig_as_C_string());
       st.print(" - %s", code_name);
       st.print_cr(" @ bci=%d ", bci);
     }
-    tty->print_raw(st.freeze());
-    tty->cr();
   }
 
   return array;
@@ -1982,73 +1973,70 @@ JRT_ENTRY(void, Deoptimization::uncommon_trap_inner(JavaThread* current, jint tr
     }
 
     // Print a bunch of diagnostics, if requested.
-    if (TraceDeoptimization || LogCompilation || is_receiver_constraint_failure) {
-      ResourceMark rm;
-      ttyLocker ttyl;
-      char buf[100];
-      if (xtty != NULL) {
-        xtty->begin_head("uncommon_trap thread='" UINTX_FORMAT "' %s",
-                         os::current_thread_id(),
-                         format_trap_request(buf, sizeof(buf), trap_request));
+    auto print_diagnostics_on = [&](xmlStream *xtty, NonInterleavingLogStream *trace_deopt_stream) {
+        char buf[100];
+        if (xtty != NULL) {
+          xtty->begin_head("uncommon_trap thread='" UINTX_FORMAT "' %s",
+                           os::current_thread_id(),
+                           format_trap_request(buf, sizeof(buf), trap_request));
 #if INCLUDE_JVMCI
-        if (speculation != 0) {
-          xtty->print(" speculation='" JLONG_FORMAT "'", speculation);
-        }
+          if (speculation != 0) {
+            xtty->print(" speculation='" JLONG_FORMAT "'", speculation);
+          }
 #endif
-        nm->log_identity(xtty);
-      }
-      Symbol* class_name = NULL;
-      bool unresolved = false;
-      if (unloaded_class_index >= 0) {
-        constantPoolHandle constants (current, trap_method->constants());
-        if (constants->tag_at(unloaded_class_index).is_unresolved_klass()) {
-          class_name = constants->klass_name_at(unloaded_class_index);
-          unresolved = true;
+          nm->log_identity(xtty);
+        }
+        Symbol* class_name = NULL;
+        bool unresolved = false;
+        if (unloaded_class_index >= 0) {
+          constantPoolHandle constants (current, trap_method->constants());
+          if (constants->tag_at(unloaded_class_index).is_unresolved_klass()) {
+            class_name = constants->klass_name_at(unloaded_class_index);
+            unresolved = true;
+            if (xtty != NULL)
+              xtty->print(" unresolved='1'");
+          } else if (constants->tag_at(unloaded_class_index).is_symbol()) {
+            class_name = constants->symbol_at(unloaded_class_index);
+          }
           if (xtty != NULL)
-            xtty->print(" unresolved='1'");
-        } else if (constants->tag_at(unloaded_class_index).is_symbol()) {
-          class_name = constants->symbol_at(unloaded_class_index);
+            xtty->name(class_name);
         }
-        if (xtty != NULL)
-          xtty->name(class_name);
-      }
-      if (xtty != NULL && trap_mdo != NULL && (int)reason < (int)MethodData::_trap_hist_limit) {
-        // Dump the relevant MDO state.
-        // This is the deopt count for the current reason, any previous
-        // reasons or recompiles seen at this point.
-        int dcnt = trap_mdo->trap_count(reason);
-        if (dcnt != 0)
-          xtty->print(" count='%d'", dcnt);
-        ProfileData* pdata = trap_mdo->bci_to_data(trap_bci);
-        int dos = (pdata == NULL)? 0: pdata->trap_state();
-        if (dos != 0) {
-          xtty->print(" state='%s'", format_trap_state(buf, sizeof(buf), dos));
-          if (trap_state_is_recompiled(dos)) {
-            int recnt2 = trap_mdo->overflow_recompile_count();
-            if (recnt2 != 0)
-              xtty->print(" recompiles2='%d'", recnt2);
+        if (xtty != NULL && trap_mdo != NULL && (int)reason < (int)MethodData::_trap_hist_limit) {
+          // Dump the relevant MDO state.
+          // This is the deopt count for the current reason, any previous
+          // reasons or recompiles seen at this point.
+          int dcnt = trap_mdo->trap_count(reason);
+          if (dcnt != 0)
+            xtty->print(" count='%d'", dcnt);
+          ProfileData* pdata = trap_mdo->bci_to_data(trap_bci);
+          int dos = (pdata == NULL)? 0: pdata->trap_state();
+          if (dos != 0) {
+            xtty->print(" state='%s'", format_trap_state(buf, sizeof(buf), dos));
+            if (trap_state_is_recompiled(dos)) {
+              int recnt2 = trap_mdo->overflow_recompile_count();
+              if (recnt2 != 0)
+                xtty->print(" recompiles2='%d'", recnt2);
+            }
           }
         }
-      }
-      if (xtty != NULL) {
-        xtty->stamp();
-        xtty->end_head();
-      }
-      if (TraceDeoptimization) {  // make noise on the tty
-        stringStream st;
-        st.print("UNCOMMON TRAP method=%s", trap_scope->method()->name_and_sig_as_C_string());
-        st.print("  bci=%d pc=" INTPTR_FORMAT ", relative_pc=" INTPTR_FORMAT JVMCI_ONLY(", debug_id=%d"),
-                 trap_scope->bci(), p2i(fr.pc()), fr.pc() - nm->code_begin() JVMCI_ONLY(COMMA debug_id));
-        st.print(" compiler=%s compile_id=%d", nm->compiler_name(), nm->compile_id());
+        if (xtty != NULL) {
+          xtty->stamp();
+          xtty->end_head();
+        }
+        if (trace_deopt_stream != nullptr) {  // make noise on the tty
+          trace_deopt_stream->print("UNCOMMON TRAP method=%s", trap_scope->method()->name_and_sig_as_C_string());
+          trace_deopt_stream->print("  bci=%d pc=" INTPTR_FORMAT ", relative_pc=" INTPTR_FORMAT JVMCI_ONLY(", debug_id=%d"),
+                   trap_scope->bci(), p2i(fr.pc()), fr.pc() - nm->code_begin() JVMCI_ONLY(COMMA debug_id));
+          trace_deopt_stream->print(" compiler=%s compile_id=%d", nm->compiler_name(), nm->compile_id());
 #if INCLUDE_JVMCI
-        if (nm->is_nmethod()) {
-          const char* installed_code_name = nm->as_nmethod()->jvmci_name();
-          if (installed_code_name != NULL) {
-            st.print(" (JVMCI: installed code name=%s) ", installed_code_name);
+          if (nm->is_nmethod()) {
+            const char* installed_code_name = nm->as_nmethod()->jvmci_name();
+            if (installed_code_name != NULL) {
+              trace_deopt_stream->print(" (JVMCI: installed code name=%s) ", installed_code_name);
+            }
           }
-        }
 #endif
-        st.print(" (@" INTPTR_FORMAT ") thread=" UINTX_FORMAT " reason=%s action=%s unloaded_class_index=%d" JVMCI_ONLY(" debug_id=%d"),
+          trace_deopt_stream->print(" (@" INTPTR_FORMAT ") thread=" UINTX_FORMAT " reason=%s action=%s unloaded_class_index=%d" JVMCI_ONLY(" debug_id=%d"),
                    p2i(fr.pc()),
                    os::current_thread_id(),
                    trap_reason_name(reason),
@@ -2058,23 +2046,32 @@ JRT_ENTRY(void, Deoptimization::uncommon_trap_inner(JavaThread* current, jint tr
                    , debug_id
 #endif
                    );
-        if (class_name != NULL) {
-          st.print(unresolved ? " unresolved class: " : " symbol: ");
-          class_name->print_symbol_on(&st);
+          if (class_name != NULL) {
+            trace_deopt_stream->print(unresolved ? " unresolved class: " : " symbol: ");
+            class_name->print_symbol_on(trace_deopt_stream);
+          }
+          trace_deopt_stream->cr();
         }
-        st.cr();
-        tty->print_raw(st.freeze());
-      }
-      if (xtty != NULL) {
-        // Log the precise location of the trap.
-        for (ScopeDesc* sd = trap_scope; ; sd = sd->sender()) {
-          xtty->begin_elem("jvms bci='%d'", sd->bci());
-          xtty->method(sd->method());
-          xtty->end_elem();
-          if (sd->is_top())  break;
+        if (xtty != NULL) {
+          // Log the precise location of the trap.
+          for (ScopeDesc* sd = trap_scope; ; sd = sd->sender()) {
+            xtty->begin_elem("jvms bci='%d'", sd->bci());
+            xtty->method(sd->method());
+            xtty->end_elem();
+            if (sd->is_top())  break;
+          }
+          xtty->tail("uncommon_trap");
         }
-        xtty->tail("uncommon_trap");
-      }
+    };
+    if (Log(deoptimization)::is_trace()) {
+      LogMessage(deoptimization) lm;
+      NonInterleavingLogStream stream(LogLevelType::Trace, lm);
+      xmlStream xml(&stream);
+      print_diagnostics_on(&xml, &stream);
+    }
+    if (LogCompilation || is_receiver_constraint_failure) {
+      ttyLocker ttyl;
+      print_diagnostics_on(xtty, nullptr);
     }
     // (End diagnostic printout.)
 
@@ -2708,15 +2705,21 @@ jint Deoptimization::deoptimization_count(const char *reason_str, const char *ac
 }
 
 void Deoptimization::print_statistics() {
+  ttyLocker ttyl;
+  Deoptimization::print_statistics_on(tty, xtty);
+}
+
+void Deoptimization::print_statistics_on(outputStream* tty, xmlStream *xtty) {
   juint total = total_deoptimization_count();
   juint account = total;
+  auto print_stat_line = [&](const char *name, int r) {
+    tty->print_cr("  %4d (%4.1f%%) %s", (int)(r), ((r) * 100.0) / total, name);
+  };
+
   if (total != 0) {
-    ttyLocker ttyl;
     if (xtty != NULL)  xtty->head("statistics type='deoptimization'");
     tty->print_cr("Deoptimization traps recorded:");
-    #define PRINT_STAT_LINE(name, r) \
-      tty->print_cr("  %4d (%4.1f%%) %s", (int)(r), ((r) * 100.0) / total, name);
-    PRINT_STAT_LINE("total", total);
+    print_stat_line("total", total);
     // For each non-zero entry in the histogram, print the reason,
     // the action, and (if specifically known) the type of bytecode.
     for (int reason = 0; reason < Reason_LIMIT; reason++) {
@@ -2741,9 +2744,8 @@ void Deoptimization::print_statistics() {
       }
     }
     if (account != 0) {
-      PRINT_STAT_LINE("unaccounted", account);
+      print_stat_line("unaccounted", account);
     }
-    #undef PRINT_STAT_LINE
     if (xtty != NULL)  xtty->tail("statistics");
   }
 }

@@ -2236,6 +2236,10 @@ JRT_END
 
 void SharedRuntime::print_statistics() {
   ttyLocker ttyl;
+  print_statistics_on(tty, xtty);
+}
+
+void SharedRuntime::print_statistics_on(outputStream *tty, xmlStream* xtty) {
   if (xtty != NULL)  xtty->head("statistics type='SharedRuntime'");
 
   SharedRuntime::print_ic_miss_histogram();

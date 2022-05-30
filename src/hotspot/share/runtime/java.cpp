@@ -257,8 +257,15 @@ void print_statistics() {
 #else // COMPILER2
 #if INCLUDE_JVMCI
 #ifndef COMPILER1
-  if ((TraceDeoptimization || LogVMOutput || LogCompilation) && UseCompiler) {
-    FlagSetting fs(DisplayVMOutput, DisplayVMOutput && TraceDeoptimization);
+  if(Log(deoptimization)::is_trace()) {
+    LogMessage lm;
+    NonInterleavingLogStream st(LogLevelType::Trace, lm);
+    xmlStream xml(&st);
+    Deoptimization::print_statistics(&st, &xml);
+    SharedRuntime::print_statistics_on(&st, &xml);
+  }
+  if ((LogVMOutput || LogCompilation) && UseCompiler) {
+    FlagSetting fs(DisplayVMOutput, DisplayVMOutput);
     Deoptimization::print_statistics();
     SharedRuntime::print_statistics();
   }

@@ -28,6 +28,7 @@
 #include "interpreter/bytecodes.hpp"
 #include "memory/allocation.hpp"
 #include "runtime/frame.hpp"
+#include "utilities/xmlstream.hpp"
 
 class ProfileData;
 class vframeArray;
@@ -311,6 +312,7 @@ class Deoptimization : AllStatic {
   static void gather_statistics(DeoptReason reason, DeoptAction action,
                                 Bytecodes::Code bc = Bytecodes::_illegal);
   static void print_statistics();
+  static void print_statistics_on(outputStream* tty, xmlStream *xtty);
 
   // How much room to adjust the last frame's SP by, to make space for
   // the callee's interpreter frame (which expects locals to be next to

@@ -40,8 +40,8 @@
 #include "interpreter/interpreter.hpp"
 #include "interpreter/oopMapCache.hpp"
 #include "logging/log.hpp"
-#include "logging/logTag.hpp"
 #include "logging/logStream.hpp"
+#include "logging/logTag.hpp"
 #include "memory/allocation.inline.hpp"
 #include "memory/metadataFactory.hpp"
 #include "memory/metaspaceClosure.hpp"
@@ -1064,16 +1064,26 @@ void Method::print_made_not_compilable(int comp_level, bool is_osr, bool report,
     }
     tty->cr();
   }
-  if ((TraceDeoptimization || LogCompilation) && (xtty != NULL)) {
-    ttyLocker ttyl;
-    xtty->begin_elem("make_not_compilable thread='" UINTX_FORMAT "' osr='%d' level='%d'",
-                     os::current_thread_id(), is_osr, comp_level);
+
+  auto print_on = [&](xmlStream* xml) {
+    xml->begin_elem("make_not_compilable thread='" UINTX_FORMAT "' osr='%d' level='%d'",
+                   os::current_thread_id(), is_osr, comp_level);
     if (reason != NULL) {
-      xtty->print(" reason=\'%s\'", reason);
+      xml->print(" reason=\'%s\'", reason);
     }
-    xtty->method(this);
-    xtty->stamp();
-    xtty->end_elem();
+    xml->method(this);
+    xml->stamp();
+    xml->end_elem();
+  };
+  if (Log(deoptimization)::is_trace()) {
+    LogMessage(deoptimization) lm;
+    NonInterleavingLogStream logStream(LogLevelType::Trace, lm);
+    xmlStream xml(&logStream);
+    print_on(&xml);
+  }
+  if (LogCompilation && (xtty != NULL)) {
+    ttyLocker ttyl;
+    print_on(xtty);
   }
 }
 
