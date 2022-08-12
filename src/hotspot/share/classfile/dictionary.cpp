@@ -88,6 +88,7 @@ void* Dictionary::Config::allocate_node(void* context, size_t size, Value const&
 }
 
 void Dictionary::Config::free_node(void* context, void* memory, Value const& value) {
+  delete value; // Call DictionaryEntry destructor
   FreeHeap(memory);
 }
 
