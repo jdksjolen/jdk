@@ -49,25 +49,15 @@
 #include "utilities/growableArray.hpp"
 #include "utilities/tableStatistics.hpp"
 
-// Optimization: if any dictionary needs resizing, we set this flag,
-// so that we don't have to walk all dictionaries to check if any actually
-// needs resizing, which is costly to do at Safepoint.
-bool Dictionary::_some_dictionary_needs_resizing = false;
-
-// TODO: copied from symbol table
-// We used to not resize at all, so let's be conservative
-// and not set it too short before we decide to resize,
-// to match previous startup behavior
-const double PREF_AVG_LIST_LEN = 8.0;
 // 2^24 is max size, like StringTable.
 const size_t END_SIZE = 24;
 // If a chain gets to 100 something might be wrong
 const size_t REHASH_LEN = 100;
 
 Dictionary::Dictionary(ClassLoaderData* loader_data, int table_size, bool resizable)
-  : _resizable(resizable), _needs_resizing(false), _number_of_entries(0), _loader_data(loader_data) {
+  : _resizable(resizable), _number_of_entries(0), _loader_data(loader_data) {
 
-  size_t start_size_log_2 = ceil_log2(table_size);
+  size_t start_size_log_2 = MAX(ceil_log2(table_size), 2); // 2 is minimum size even though some dictionaries only have one entry
   size_t current_size = ((size_t)1) << start_size_log_2;
   //log_trace(symboltable)("Start size: " SIZE_FORMAT " (" SIZE_FORMAT ")",
   //                       current_size, start_size_log_2);
@@ -110,47 +100,14 @@ DictionaryEntry::~DictionaryEntry() {
 
 const int _resize_load_trigger = 5;       // load factor that will trigger the resize
 
-bool Dictionary::does_any_dictionary_needs_resizing() {
-  return Dictionary::_some_dictionary_needs_resizing;
-}
-
 int Dictionary::table_size() const {
   return 1 << _table->get_size_log2(Thread::current());
 }
 
-void Dictionary::check_if_needs_resize() {
-  if (_resizable == true) {
-    if (_number_of_entries > (_resize_load_trigger * table_size())) {
-      _needs_resizing = true;
-      Dictionary::_some_dictionary_needs_resizing = true;
-    }
-  }
-}
-
-// Can change this to concurrent
-bool Dictionary::resize_if_needed() {
-#if 0
-  assert(SafepointSynchronize::is_at_safepoint(), "must be at safepoint");
-  int desired_size = 0;
-  if (_needs_resizing == true) {
-    desired_size = calculate_resize(false);
-    assert(desired_size != 0, "bug in calculate_resize");
-    if (desired_size == table_size()) {
-      _resizable = false; // hit max
-    } else {
-      if (!resize(desired_size)) {
-        // Something went wrong, turn resizing off
-        _resizable = false;
-      }
-    }
-  }
-
-  _needs_resizing = false;
-  Dictionary::_some_dictionary_needs_resizing = false;
-
-  return (desired_size != 0);
-#endif
-  return true;
+bool Dictionary::check_if_needs_resize() {
+  return (_resizable &&
+         (_number_of_entries > (_resize_load_trigger * table_size())) &&
+         !_table->is_max_size_reached());
 }
 
 bool DictionaryEntry::is_valid_protection_domain(Handle protection_domain) {
@@ -320,13 +277,25 @@ void Dictionary::add_klass(JavaThread* current, Symbol* class_name,
 
   DictionaryEntry* entry = new DictionaryEntry(obj);
   DictionaryLookup lookup(class_name);
-  bool rehash_warning, clean_hint;
-  bool created = _table->insert(current, lookup, entry, &rehash_warning, &clean_hint);
+  bool needs_rehashing, clean_hint;
+  bool created = _table->insert(current, lookup, entry, &needs_rehashing, &clean_hint);
   assert(created, "should be because we have a lock");
-  assert(!rehash_warning, "should never rehash");
+  assert (!needs_rehashing, "should never need rehashing");
   assert(!clean_hint, "no class should be unloaded");
   _number_of_entries++;  // still locked
-  check_if_needs_resize();
+  // This table can be resized while another thread is reading it.
+  if (check_if_needs_resize()) {
+    _table->grow(current);
+
+    // It would be nice to have a JFR event here, add some logging.
+    LogTarget(Info, class, loader, data) lt;
+    if (lt.is_enabled()) {
+      ResourceMark rm;
+      LogStream ls(&lt);
+      ls.print("Dictionary resized to %d entries %d for ", table_size(), _number_of_entries);
+      loader_data()->print_value_on(&ls);
+    }
+  }
 }
 
 // This routine does not lock the dictionary.
@@ -343,9 +312,9 @@ DictionaryEntry* Dictionary::get_entry(Thread* current,
                                        Symbol* class_name) {
   DictionaryLookup lookup(class_name);
   DictionaryGet get;
-  bool rehash_warning = false;
-  _table->get(current, lookup, get, &rehash_warning);
-  assert(!rehash_warning, "should never rehash");
+  bool needs_rehashing = false;
+  _table->get(current, lookup, get, &needs_rehashing);
+  assert (!needs_rehashing, "should never need rehashing");
   return get.result();
 }
 
@@ -585,7 +554,7 @@ void Dictionary::print_on(outputStream* st) const {
   DictionaryPrinter printer;
   printer._loader_data = loader_data();
   printer._st = st;
-  _table->do_scan(Thread::current(), printer);
+  _table->do_safepoint_scan(printer);
   tty->cr();
 }
 

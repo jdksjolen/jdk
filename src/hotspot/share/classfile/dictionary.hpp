@@ -41,10 +41,7 @@ template <typename T> class GrowableArray;
 class DictionaryEntry;
 
 class Dictionary : public CHeapObj<mtClass> {
-  static bool _some_dictionary_needs_resizing;
   bool _resizable;
-  bool _needs_resizing;
-  void check_if_needs_resize();
   int _number_of_entries;
 
   class Config {
@@ -62,14 +59,12 @@ class Dictionary : public CHeapObj<mtClass> {
   ClassLoaderData* loader_data() const { return _loader_data; }
 
   DictionaryEntry* get_entry(Thread* current, Symbol* name);
+  bool check_if_needs_resize();
+  int table_size() const;
 
 public:
   Dictionary(ClassLoaderData* loader_data, int table_size, bool resizable = false);
   ~Dictionary();
-
-  static bool does_any_dictionary_needs_resizing();
-  bool resize_if_needed();
-  int table_size() const;
 
   void add_klass(JavaThread* current, Symbol* class_name, InstanceKlass* obj);
 
