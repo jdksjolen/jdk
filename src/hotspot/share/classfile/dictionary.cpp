@@ -191,21 +191,13 @@ typedef void (*func)(InstanceKlass*);
 
 //   Just the classes from defining class loaders
 void Dictionary::classes_do(void f(InstanceKlass*)) {
-  struct Do : StackObj {
-    func _cl;
-    ClassLoaderData* _loader_data;
-    bool operator()(DictionaryEntry** value) {
+  _table->do_scan(Thread::current(), [&](DictionaryEntry** value) {
       InstanceKlass* k = (*value)->instance_klass();
-      if (_loader_data == k->class_loader_data()) {
+      if (loader_data() == k->class_loader_data()) {
         func(value);
       }
       return true;
-    };
-  };
-  Do x;
-  x._cl = f;
-  x._loader_data = loader_data();
-  _table->do_scan(Thread::current(), x);
+    });
 }
 
 // All classes, and their class loaders, including initiating class loaders

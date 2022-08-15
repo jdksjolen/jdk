@@ -463,7 +463,7 @@ class ConcurrentHashTable : public CHeapObj<F> {
 
   // Visit all items with SCAN_FUNC when the resize lock is obtained.
   template <typename SCAN_FUNC>
-  void do_scan(Thread* thread, SCAN_FUNC& scan_f);
+  void do_scan(Thread* thread, SCAN_FUNC&& scan_f);
 
   // Visit all items with SCAN_FUNC without any protection.
   // It will assume there is no other thread accessing this

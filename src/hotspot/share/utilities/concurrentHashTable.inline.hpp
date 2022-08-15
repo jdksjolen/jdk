@@ -1122,7 +1122,7 @@ inline bool ConcurrentHashTable<CONFIG, F>::
 template <typename CONFIG, MEMFLAGS F>
 template <typename SCAN_FUNC>
 inline void ConcurrentHashTable<CONFIG, F>::
-  do_scan(Thread* thread, SCAN_FUNC& scan_f)
+  do_scan(Thread* thread, SCAN_FUNC&& scan_f)
 {
   assert(!SafepointSynchronize::is_at_safepoint(),
          "must be outside a safepoint");
