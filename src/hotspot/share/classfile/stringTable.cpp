@@ -274,29 +274,21 @@ oop StringTable::lookup(const jchar* name, int len) {
   return do_lookup(name, len, hash);
 }
 
-class StringTableGet : public StackObj {
-  Thread* _thread;
-  Handle  _return;
- public:
-  StringTableGet(Thread* thread) : _thread(thread) {}
-  void operator()(WeakHandle* val) {
-    oop result = val->resolve();
-    assert(result != NULL, "Result should be reachable");
-    _return = Handle(_thread, result);
-  }
-  oop get_res_oop() {
-    return _return();
-  }
-};
-
 oop StringTable::do_lookup(const jchar* name, int len, uintx hash) {
   Thread* thread = Thread::current();
   StringTableLookupJchar lookup(thread, hash, name, len);
-  StringTableGet stg(thread);
+
+  Handle handle;
+  auto found_callback = [&](WeakHandle* val) {
+    oop result = val->resolve();
+    assert(result != NULL, "Result should be reachable");
+    handle = Handle(thread, result);
+  };
+
   bool rehash_warning;
-  _local_table->get(thread, lookup, stg, &rehash_warning);
+  _local_table->get(thread, lookup, found_callback, &rehash_warning);
   update_needs_rehash(rehash_warning);
-  return stg.get_res_oop();
+  return handle();
 }
 
 // Interning

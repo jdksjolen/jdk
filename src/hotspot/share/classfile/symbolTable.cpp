@@ -391,28 +391,18 @@ public:
   }
 };
 
-class SymbolTableGet : public StackObj {
-  Symbol* _return;
-public:
-  SymbolTableGet() : _return(NULL) {}
-  void operator()(Symbol** value) {
-    assert(value != NULL, "expected valid value");
-    assert(*value != NULL, "value should point to a symbol");
-    _return = *value;
-  }
-  Symbol* get_res_sym() const {
-    return _return;
-  }
-};
-
 Symbol* SymbolTable::do_lookup(const char* name, int len, uintx hash) {
   Thread* thread = Thread::current();
   SymbolTableLookup lookup(name, len, hash);
-  SymbolTableGet stg;
+  Symbol* sym = nullptr;
+  auto found_callback = [&](Symbol** value) {
+    assert(value != NULL, "expected valid value");
+    assert(*value != NULL, "value should point to a symbol");
+    sym = *value;
+  };
   bool rehash_warning = false;
-  _local_table->get(thread, lookup, stg, &rehash_warning);
+  _local_table->get(thread, lookup, found_callback, &rehash_warning);
   update_needs_rehash(rehash_warning);
-  Symbol* sym = stg.get_res_sym();
   assert((sym == NULL) || sym->refcount() != 0, "found dead symbol");
   return sym;
 }
