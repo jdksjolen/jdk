@@ -364,7 +364,13 @@ oop StringTable::do_intern(Handle string_or_null_h, const jchar* name,
   }
 
   StringTableLookupOop lookup(THREAD, hash, string_h);
-  StringTableGet stg(THREAD);
+
+  Handle handle;
+  auto found_callback = [&](WeakHandle* val) {
+    oop result = val->resolve();
+    assert(result != NULL, "Result should be reachable");
+    handle = Handle(THREAD, result);
+  };
 
   bool rehash_warning;
   do {
@@ -377,9 +383,9 @@ oop StringTable::do_intern(Handle string_or_null_h, const jchar* name,
     }
     // In case another thread did a concurrent add, return value already in the table.
     // This could fail if the String got gc'ed concurrently, so loop back until success.
-    if (_local_table->get(THREAD, lookup, stg, &rehash_warning)) {
+    if (_local_table->get(THREAD, lookup, found_callback, &rehash_warning)) {
       update_needs_rehash(rehash_warning);
-      return stg.get_res_oop();
+      return handle();
     }
   } while(true);
 }

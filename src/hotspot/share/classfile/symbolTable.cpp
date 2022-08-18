@@ -465,11 +465,15 @@ void SymbolTable::new_symbols(ClassLoaderData* loader_data, const constantPoolHa
 
 Symbol* SymbolTable::do_add_if_needed(const char* name, int len, uintx hash, bool heap) {
   SymbolTableLookup lookup(name, len, hash);
-  SymbolTableGet stg;
   bool clean_hint = false;
   bool rehash_warning = false;
   Symbol* sym = NULL;
   Thread* current = Thread::current();
+  auto found_callback = [&](Symbol** value) {
+    assert(value != NULL, "expected valid value");
+    assert(*value != NULL, "value should point to a symbol");
+    sym = *value;
+  };
 
   do {
     // Callers have looked up the symbol once, insert the symbol.
@@ -479,8 +483,7 @@ Symbol* SymbolTable::do_add_if_needed(const char* name, int len, uintx hash, boo
     }
     // In case another thread did a concurrent add, return value already in the table.
     // This could fail if the symbol got deleted concurrently, so loop back until success.
-    if (_local_table->get(current, lookup, stg, &rehash_warning)) {
-      sym = stg.get_res_sym();
+    if (_local_table->get(current, lookup, found_callback, &rehash_warning)) {;
       break;
     }
   } while(true);
