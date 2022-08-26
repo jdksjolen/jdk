@@ -228,3 +228,14 @@ JVM_VirtualThreadMountEnd
 JVM_VirtualThreadUnmountBegin
 JVM_VirtualThreadUnmountEnd
 #
+
+# Java Monitor function
+JVM_Monitor_abort
+JVM_Monitor_log
+JVM_Monitor_log_enter
+JVM_Monitor_log_exit
+JVM_Monitor_casLockState
+JVM_Monitor_getLockState
+JVM_Monitor_getVMResult
+JVM_Monitor_storeVMResult
+JVM_Monitor_postJvmtiEvent

@@ -393,6 +393,7 @@ JavaThread::JavaThread() :
   _vframe_array_last(nullptr),
   _jvmti_deferred_updates(nullptr),
   _callee_target(nullptr),
+  _system_java(0),
   _vm_result(nullptr),
   _vm_result_2(nullptr),
 
@@ -418,6 +419,7 @@ JavaThread::JavaThread() :
   _in_deopt_handler(0),
   _doing_unsafe_access(false),
   _do_not_unlock_if_synchronized(false),
+  _no_async_exception(false),
 #if INCLUDE_JVMTI
   _carrier_thread_suspended(false),
   _is_in_VTMS_transition(false),
@@ -718,7 +720,8 @@ static void ensure_join(JavaThread* thread) {
   // We do not need to grab the Threads_lock, since we are operating on ourself.
   Handle threadObj(thread, thread->threadObj());
   assert(threadObj.not_null(), "java thread object must exist");
-  ObjectLocker lock(threadObj, thread);
+  bool canDoSync = ObjectMonitorMode::legacy() || thread->can_call_java();
+  ObjectLocker lock(threadObj, thread, canDoSync);
   // Ignore pending exception (ThreadDeath), since we are exiting anyway
   thread->clear_pending_exception();
   // Thread is exiting. So set thread_status field in  java.lang.Thread class to TERMINATED.
@@ -726,7 +729,12 @@ static void ensure_join(JavaThread* thread) {
   // Clear the native thread instance - this makes isAlive return false and allows the join()
   // to complete once we've done the notify_all below
   java_lang_Thread::set_thread(threadObj(), NULL);
-  lock.notify_all(thread);
+
+  if (canDoSync) {
+    thread->set_system_java();
+    lock.notify_all();
+    thread->clear_system_java();
+  }
   // Ignore pending exception (ThreadDeath), since we are exiting anyway
   thread->clear_pending_exception();
 }

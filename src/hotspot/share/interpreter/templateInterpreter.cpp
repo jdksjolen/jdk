@@ -200,9 +200,8 @@ bool DispatchTable::operator == (DispatchTable& y) {
   return true;
 }
 
-address    TemplateInterpreter::_remove_activation_entry                    = NULL;
-address    TemplateInterpreter::_remove_activation_preserving_args_entry    = NULL;
-
+address    TemplateInterpreter::_remove_activation_exception_handler_entry = NULL;
+address    TemplateInterpreter::_remove_activation_preserving_args_entry   = NULL;
 
 address    TemplateInterpreter::_throw_ArrayIndexOutOfBoundsException_entry = NULL;
 address    TemplateInterpreter::_throw_ArrayStoreException_entry            = NULL;
@@ -222,6 +221,8 @@ address    TemplateInterpreter::_deopt_reexecute_return_entry;
 EntryPoint TemplateInterpreter::_safept_entry;
 
 address TemplateInterpreter::_invoke_return_entry[TemplateInterpreter::number_of_return_addrs];
+address TemplateInterpreter::_monitor_enter_return_entry;
+address TemplateInterpreter::_monitor_exit_return_entry;
 address TemplateInterpreter::_invokeinterface_return_entry[TemplateInterpreter::number_of_return_addrs];
 address TemplateInterpreter::_invokedynamic_return_entry[TemplateInterpreter::number_of_return_addrs];
 
