@@ -109,8 +109,6 @@ void BytecodePrinter::trace(const methodHandle &method, address bcp, outputStrea
 void BytecodeTracer::trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st) {
   if (TraceBytecodes && BytecodeCounter::counter_value() >= TraceBytecodesAt) {
     ttyLocker ttyl;  // 5065316: keep the following output coherent
-    // The ttyLocker also prevents races between two threads
-    // trying to use the single instance of BytecodePrinter.
     // Using the ttyLocker prevents the system from coming to
     // a safepoint within this code, which is sensitive to Method*
     // movement.
