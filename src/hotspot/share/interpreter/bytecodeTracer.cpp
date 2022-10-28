@@ -45,13 +45,8 @@
 void BytecodePrinter::trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2,
                             outputStream* st) {
   ResourceMark rm;
+
   if (_current_method != method()) {
-    // Note 1: This code will not work as expected with true MT/MP.
-    //         Need an explicit lock or a different solution.
-    // It is possible for this block to be skipped, if a garbage
-    // _current_method pointer happens to have the same bits as
-    // the incoming method.  We could lose a line of trace output.
-    // This is acceptable in a debug-only feature.
     st->cr();
     st->print("[%ld] ", (long)Thread::current()->osthread()->thread_id());
     method->print_name(st);
