@@ -135,9 +135,6 @@ void interpreter_init_stub() {
 
 void interpreter_init_code() {
   Interpreter::initialize_code();
-#ifndef PRODUCT
-  if (TraceBytecodes) BytecodeTracer::set_closure(BytecodeTracer::std_closure());
-#endif // PRODUCT
   // need to hit every safepoint in order to call zapping routine
   // register the interpreter
   Forte::register_stub(

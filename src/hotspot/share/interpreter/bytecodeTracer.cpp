@@ -161,8 +161,6 @@ class BytecodePrinter: public BytecodeClosure {
 // would be easier to remove races on _current_method and bcp.
 // Since this is not product functionality, we can defer cleanup.
 
-BytecodeClosure* BytecodeTracer::_closure = NULL;
-
 static BytecodePrinter std_closure;
 BytecodeClosure* BytecodeTracer::std_closure() {
   return &::std_closure;

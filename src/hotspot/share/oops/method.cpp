@@ -1830,8 +1830,8 @@ void Method::print_codes_on(int from, int to, outputStream* st) const {
   methodHandle mh (thread, (Method*)this);
   BytecodeStream s(mh);
   s.set_interval(from, to);
-  BytecodeTracer::set_closure(BytecodeTracer::std_closure());
-  while (s.next() >= 0) BytecodeTracer::trace(mh, s.bcp(), st);
+  BytecodeTracer bct{BytecodeTracer::std_closure()};
+  while (s.next() >= 0) bct.trace(mh, s.bcp(), st);
 }
 
 CompressedLineNumberReadStream::CompressedLineNumberReadStream(u_char* buffer) : CompressedReadStream(buffer) {

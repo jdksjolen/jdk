@@ -40,17 +40,19 @@
 class methodHandle;
 
 class BytecodeClosure;
-class BytecodeTracer: AllStatic {
+class BytecodeTracer {
  private:
-  static BytecodeClosure* _closure;
+  BytecodeClosure* _closure;
 
  public:
+  BytecodeTracer() : _closure(nullptr) {};
+  BytecodeTracer(BytecodeClosure* bcc) : _closure(bcc) {};
   static BytecodeClosure* std_closure();                        // a printing closure
-  static BytecodeClosure* closure()                                                   { return _closure; }
-  static void             set_closure(BytecodeClosure* closure) { _closure = closure; }
+  BytecodeClosure* closure()                                                   { return _closure; }
+  void             set_closure(BytecodeClosure* closure) { _closure = closure; }
 
-  static void             trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st = tty);
-  static void             trace(const methodHandle& method, address bcp, outputStream* st = tty);
+  void             trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st = tty);
+  void             trace(const methodHandle& method, address bcp, outputStream* st = tty);
 };
 
 

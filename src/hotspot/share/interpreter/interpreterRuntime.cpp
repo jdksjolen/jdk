@@ -1509,7 +1509,12 @@ JRT_LEAF(intptr_t, InterpreterRuntime::trace_bytecode(JavaThread* current, intpt
   LastFrameAccessor last_frame(current);
   assert(last_frame.is_interpreted_frame(), "must be an interpreted frame");
   methodHandle mh(current, last_frame.method());
-  BytecodeTracer::trace(mh, last_frame.bcp(), tos, tos2);
+#ifndef PRODUCT
+  if (TraceBytecodes) {
+    BytecodeTracer bct{BytecodeTracer::std_closure()};
+    bct.trace(mh, last_frame.bcp(), tos, tos2);
+  }
+#endif // !PRODUCT
   return preserve_this_value;
 JRT_END
 #endif // !PRODUCT
