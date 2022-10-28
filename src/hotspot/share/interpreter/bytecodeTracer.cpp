@@ -101,7 +101,7 @@ void BytecodePrinter::trace(const methodHandle &method, address bcp, outputStrea
 
 // Implementation of BytecodeTracer
 
-// Since BytecodePrinter isn't hidden
+// If BytecodePrinter isn't hidden
 // then Method* could use instances of it directly and it
 // would be easier to remove races on _current_method and bcp.
 // Since this is not product functionality, we can defer cleanup.
@@ -116,9 +116,7 @@ void BytecodeTracer::trace(const methodHandle& method, address bcp, uintptr_t to
     // There used to be a leaf mutex here, but the ttyLocker will
     // work just as well, as long as the printing operations never block.
     //
-    // We put the locker on the static trace method, not the
-    // virtual one, because the clients of this module go through
-    // the static method.
+    // The locker is here because the BytecodePrinter is called through BytecodeTracer.
     _closure.trace(method, bcp, tos, tos2, st);
   }
 }
