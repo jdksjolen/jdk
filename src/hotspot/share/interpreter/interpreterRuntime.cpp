@@ -1511,7 +1511,7 @@ JRT_LEAF(intptr_t, InterpreterRuntime::trace_bytecode(JavaThread* current, intpt
   methodHandle mh(current, last_frame.method());
 #ifndef PRODUCT
   if (TraceBytecodes) {
-    BytecodeTracer bct{BytecodeTracer::std_closure()};
+    BytecodeTracer bct{};
     bct.trace(mh, last_frame.bcp(), tos, tos2);
   }
 #endif // !PRODUCT

@@ -1830,7 +1830,7 @@ void Method::print_codes_on(int from, int to, outputStream* st) const {
   methodHandle mh (thread, (Method*)this);
   BytecodeStream s(mh);
   s.set_interval(from, to);
-  BytecodeTracer bct{BytecodeTracer::std_closure()};
+  BytecodeTracer bct{};
   while (s.next() >= 0) bct.trace(mh, s.bcp(), st);
 }
 

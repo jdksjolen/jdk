@@ -26,42 +26,76 @@
 #define SHARE_INTERPRETER_BYTECODETRACER_HPP
 
 #include "memory/allStatic.hpp"
+#include "oops/method.hpp"
 #include "utilities/ostream.hpp"
 
 // The BytecodeTracer is a helper class used by the interpreter for run-time
 // bytecode tracing. If bytecode tracing is turned on, trace() will be called
 // for each bytecode.
-//
-// By specialising the BytecodeClosure, all kinds of bytecode traces can
-// be done.
-
 // class BytecodeTracer is used by TraceBytecodes option and PrintMethodData
 
 class methodHandle;
 
-class BytecodeClosure;
-class BytecodeTracer {
+class BytecodePrinter {
  private:
-  BytecodeClosure* _closure;
+  // %%% This field is not GC-ed, and so can contain garbage
+  // between critical sections.  Use only pointer-comparison
+  // operations on the pointer, except within a critical section.
+  // (Also, ensure that occasional false positives are benign.)
+  Method* _current_method;
+  bool      _is_wide;
+  Bytecodes::Code _code;
+  address   _next_pc;                // current decoding position
+
+  void      align()                  { _next_pc = align_up(_next_pc, sizeof(jint)); }
+  int       get_byte()               { return *(jbyte*) _next_pc++; }  // signed
+  short     get_short()              { short i=Bytes::get_Java_u2(_next_pc); _next_pc+=2; return i; }
+  int       get_int()                { int i=Bytes::get_Java_u4(_next_pc); _next_pc+=4; return i; }
+
+  int       get_index_u1()           { return *(address)_next_pc++; }
+  int       get_index_u2()           { int i=Bytes::get_Java_u2(_next_pc); _next_pc+=2; return i; }
+  int       get_index_u1_cpcache()   { return get_index_u1() + ConstantPool::CPCACHE_INDEX_TAG; }
+  int       get_index_u2_cpcache()   { int i=Bytes::get_native_u2(_next_pc); _next_pc+=2; return i + ConstantPool::CPCACHE_INDEX_TAG; }
+  int       get_index_u4()           { int i=Bytes::get_native_u4(_next_pc); _next_pc+=4; return i; }
+  int       get_index_special()      { return (is_wide()) ? get_index_u2() : get_index_u1(); }
+  Method* method()                 { return _current_method; }
+  bool      is_wide()                { return _is_wide; }
+  Bytecodes::Code raw_code()         { return Bytecodes::Code(_code); }
+
+
+  bool      check_index(int i, int& cp_index, outputStream* st = tty);
+  bool      check_cp_cache_index(int i, int& cp_index, outputStream* st = tty);
+  bool      check_obj_index(int i, int& cp_index, outputStream* st = tty);
+  bool      check_invokedynamic_index(int i, int& cp_index, outputStream* st = tty);
+  void      print_constant(int i, outputStream* st = tty);
+  void      print_field_or_method(int i, outputStream* st = tty);
+  void      print_field_or_method(int orig_i, int i, outputStream* st = tty);
+  void      print_attributes(int bci, outputStream* st = tty);
+  void      bytecode_epilog(int bci, outputStream* st = tty);
 
  public:
-  BytecodeTracer() : _closure(nullptr) {};
-  BytecodeTracer(BytecodeClosure* bcc) : _closure(bcc) {};
-  static BytecodeClosure* std_closure();                        // a printing closure
-  BytecodeClosure* closure()                                                   { return _closure; }
-  void             set_closure(BytecodeClosure* closure) { _closure = closure; }
+  BytecodePrinter() {
+    _is_wide = false;
+    _code = Bytecodes::_illegal;
+  }
 
-  void             trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st = tty);
-  void             trace(const methodHandle& method, address bcp, outputStream* st = tty);
+  // This method is called while executing the raw bytecodes, so none of
+  // the adjustments that BytecodeStream performs applies.
+  void trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st);
+
+  // Used for Method*::print_codes().  The input bcp comes from
+  // BytecodeStream, which will skip wide bytecodes.
+  void trace(const methodHandle& method, address bcp, outputStream* st);
 };
 
+class BytecodeTracer {
+ private:
+  BytecodePrinter _closure;
 
-// For each bytecode, a BytecodeClosure's trace() routine will be called.
-
-class BytecodeClosure {
  public:
-  virtual void trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st) = 0;
-  virtual void trace(const methodHandle& method, address bcp, outputStream* st) = 0;
+  BytecodeTracer() : _closure() {};
+  void             trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st = tty);
+  void             trace(const methodHandle& method, address bcp, outputStream* st = tty);
 };
 
 #endif // SHARE_INTERPRETER_BYTECODETRACER_HPP

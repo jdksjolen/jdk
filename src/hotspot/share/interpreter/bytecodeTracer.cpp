@@ -42,136 +42,76 @@
 // Standard closure for BytecodeTracer: prints the current bytecode
 // and its attributes using bytecode-specific information.
 
-class BytecodePrinter: public BytecodeClosure {
- private:
-  // %%% This field is not GC-ed, and so can contain garbage
-  // between critical sections.  Use only pointer-comparison
-  // operations on the pointer, except within a critical section.
-  // (Also, ensure that occasional false positives are benign.)
-  Method* _current_method;
-  bool      _is_wide;
-  Bytecodes::Code _code;
-  address   _next_pc;                // current decoding position
-
-  void      align()                  { _next_pc = align_up(_next_pc, sizeof(jint)); }
-  int       get_byte()               { return *(jbyte*) _next_pc++; }  // signed
-  short     get_short()              { short i=Bytes::get_Java_u2(_next_pc); _next_pc+=2; return i; }
-  int       get_int()                { int i=Bytes::get_Java_u4(_next_pc); _next_pc+=4; return i; }
-
-  int       get_index_u1()           { return *(address)_next_pc++; }
-  int       get_index_u2()           { int i=Bytes::get_Java_u2(_next_pc); _next_pc+=2; return i; }
-  int       get_index_u1_cpcache()   { return get_index_u1() + ConstantPool::CPCACHE_INDEX_TAG; }
-  int       get_index_u2_cpcache()   { int i=Bytes::get_native_u2(_next_pc); _next_pc+=2; return i + ConstantPool::CPCACHE_INDEX_TAG; }
-  int       get_index_u4()           { int i=Bytes::get_native_u4(_next_pc); _next_pc+=4; return i; }
-  int       get_index_special()      { return (is_wide()) ? get_index_u2() : get_index_u1(); }
-  Method* method()                 { return _current_method; }
-  bool      is_wide()                { return _is_wide; }
-  Bytecodes::Code raw_code()         { return Bytecodes::Code(_code); }
-
-
-  bool      check_index(int i, int& cp_index, outputStream* st = tty);
-  bool      check_cp_cache_index(int i, int& cp_index, outputStream* st = tty);
-  bool      check_obj_index(int i, int& cp_index, outputStream* st = tty);
-  bool      check_invokedynamic_index(int i, int& cp_index, outputStream* st = tty);
-  void      print_constant(int i, outputStream* st = tty);
-  void      print_field_or_method(int i, outputStream* st = tty);
-  void      print_field_or_method(int orig_i, int i, outputStream* st = tty);
-  void      print_attributes(int bci, outputStream* st = tty);
-  void      bytecode_epilog(int bci, outputStream* st = tty);
-
- public:
-  BytecodePrinter() {
-    _is_wide = false;
-    _code = Bytecodes::_illegal;
-  }
-
-  // This method is called while executing the raw bytecodes, so none of
-  // the adjustments that BytecodeStream performs applies.
-  void trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st) {
-    ResourceMark rm;
-    if (_current_method != method()) {
-      // Note 1: This code will not work as expected with true MT/MP.
-      //         Need an explicit lock or a different solution.
-      // It is possible for this block to be skipped, if a garbage
-      // _current_method pointer happens to have the same bits as
-      // the incoming method.  We could lose a line of trace output.
-      // This is acceptable in a debug-only feature.
-      st->cr();
-      st->print("[%ld] ", (long) Thread::current()->osthread()->thread_id());
-      method->print_name(st);
-      st->cr();
-      _current_method = method();
-    }
-    Bytecodes::Code code;
-    if (is_wide()) {
-      // bcp wasn't advanced if previous bytecode was _wide.
-      code = Bytecodes::code_at(method(), bcp+1);
-    } else {
-      code = Bytecodes::code_at(method(), bcp);
-    }
-    _code = code;
-     int bci = bcp - method->code_base();
-    st->print("[%ld] ", (long) Thread::current()->osthread()->thread_id());
-    if (Verbose) {
-      st->print("%8d  %4d  " INTPTR_FORMAT " " INTPTR_FORMAT " %s",
-           BytecodeCounter::counter_value(), bci, tos, tos2, Bytecodes::name(code));
-    } else {
-      st->print("%8d  %4d  %s",
-           BytecodeCounter::counter_value(), bci, Bytecodes::name(code));
-    }
-    _next_pc = is_wide() ? bcp+2 : bcp+1;
-    print_attributes(bci);
-    // Set is_wide for the next one, since the caller of this doesn't skip
-    // the next bytecode.
-    _is_wide = (code == Bytecodes::_wide);
-    _code = Bytecodes::_illegal;
-  }
-
-  // Used for Method*::print_codes().  The input bcp comes from
-  // BytecodeStream, which will skip wide bytecodes.
-  void trace(const methodHandle& method, address bcp, outputStream* st) {
+void BytecodePrinter::trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2,
+                            outputStream* st) {
+  ResourceMark rm;
+  if (_current_method != method()) {
+    // Note 1: This code will not work as expected with true MT/MP.
+    //         Need an explicit lock or a different solution.
+    // It is possible for this block to be skipped, if a garbage
+    // _current_method pointer happens to have the same bits as
+    // the incoming method.  We could lose a line of trace output.
+    // This is acceptable in a debug-only feature.
+    st->cr();
+    st->print("[%ld] ", (long)Thread::current()->osthread()->thread_id());
+    method->print_name(st);
+    st->cr();
     _current_method = method();
-    ResourceMark rm;
-    Bytecodes::Code code = Bytecodes::code_at(method(), bcp);
-    // Set is_wide
-    _is_wide = (code == Bytecodes::_wide);
-    if (is_wide()) {
-      code = Bytecodes::code_at(method(), bcp+1);
-    }
-    _code = code;
-    int bci = bcp - method->code_base();
-    // Print bytecode index and name
-    if (is_wide()) {
-      st->print("%d %s_w", bci, Bytecodes::name(code));
-    } else {
-      st->print("%d %s", bci, Bytecodes::name(code));
-    }
-    _next_pc = is_wide() ? bcp+2 : bcp+1;
-    print_attributes(bci, st);
-    bytecode_epilog(bci, st);
   }
-};
+  Bytecodes::Code code;
+  if (is_wide()) {
+    // bcp wasn't advanced if previous bytecode was _wide.
+    code = Bytecodes::code_at(method(), bcp + 1);
+  } else {
+    code = Bytecodes::code_at(method(), bcp);
+  }
+  _code = code;
+  int bci = bcp - method->code_base();
+  st->print("[%ld] ", (long)Thread::current()->osthread()->thread_id());
+  if (Verbose) {
+    st->print("%8d  %4d  " INTPTR_FORMAT " " INTPTR_FORMAT " %s", BytecodeCounter::counter_value(),
+              bci, tos, tos2, Bytecodes::name(code));
+  } else {
+    st->print("%8d  %4d  %s", BytecodeCounter::counter_value(), bci, Bytecodes::name(code));
+  }
+  _next_pc = is_wide() ? bcp + 2 : bcp + 1;
+  print_attributes(bci);
+  // Set is_wide for the next one, since the caller of this doesn't skip
+  // the next bytecode.
+  _is_wide = (code == Bytecodes::_wide);
+  _code = Bytecodes::_illegal;
+}
 
+void BytecodePrinter::trace(const methodHandle &method, address bcp, outputStream *st) {
+  _current_method = method();
+  ResourceMark rm;
+  Bytecodes::Code code = Bytecodes::code_at(method(), bcp);
+  // Set is_wide
+  _is_wide = (code == Bytecodes::_wide);
+  if (is_wide()) {
+    code = Bytecodes::code_at(method(), bcp+1);
+  }
+  _code = code;
+  int bci = bcp - method->code_base();
+  // Print bytecode index and name
+  if (is_wide()) {
+    st->print("%d %s_w", bci, Bytecodes::name(code));
+  } else {
+    st->print("%d %s", bci, Bytecodes::name(code));
+  }
+  _next_pc = is_wide() ? bcp+2 : bcp+1;
+  print_attributes(bci, st);
+  bytecode_epilog(bci, st);
+}
 
 // Implementation of BytecodeTracer
 
-// %%% This set_closure thing seems overly general, given that
-// nobody uses it.  Also, if BytecodePrinter weren't hidden
+// Since BytecodePrinter isn't hidden
 // then Method* could use instances of it directly and it
 // would be easier to remove races on _current_method and bcp.
 // Since this is not product functionality, we can defer cleanup.
 
-static BytecodePrinter std_closure;
-BytecodeClosure* BytecodeTracer::std_closure() {
-  return &::std_closure;
-}
-
-
 void BytecodeTracer::trace(const methodHandle& method, address bcp, uintptr_t tos, uintptr_t tos2, outputStream* st) {
-  if (_closure == NULL) {
-    return;
-  }
-
   if (TraceBytecodes && BytecodeCounter::counter_value() >= TraceBytecodesAt) {
     ttyLocker ttyl;  // 5065316: keep the following output coherent
     // The ttyLocker also prevents races between two threads
@@ -186,17 +126,13 @@ void BytecodeTracer::trace(const methodHandle& method, address bcp, uintptr_t to
     // We put the locker on the static trace method, not the
     // virtual one, because the clients of this module go through
     // the static method.
-    _closure->trace(method, bcp, tos, tos2, st);
+    _closure.trace(method, bcp, tos, tos2, st);
   }
 }
 
 void BytecodeTracer::trace(const methodHandle& method, address bcp, outputStream* st) {
-  if (_closure == NULL) {
-    return;
-  }
-
   ttyLocker ttyl;  // 5065316: keep the following output coherent
-  _closure->trace(method, bcp, st);
+  _closure.trace(method, bcp, st);
 }
 
 void print_symbol(Symbol* sym, outputStream* st) {
