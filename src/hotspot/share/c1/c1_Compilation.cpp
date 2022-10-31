@@ -177,9 +177,8 @@ void Compilation::build_hir() {
     PhaseTraceTime timeit(_t_optimize_blocks);
 
     _hir->optimize_blocks();
+    _hir->verify();
   }
-
-  _hir->verify();
 
   _hir->split_critical_edges();
 
