@@ -716,6 +716,10 @@ void* os::realloc(void *memblock, size_t size, MEMFLAGS memflags, const NativeCa
     }
 
     const size_t old_size = MallocTracker::malloc_header(memblock)->size();
+    // If realloc(3) failed, then we must restore the header/footer pair.
+    const MallocHeader* header_ptr = MallocTracker::malloc_header(memblock);
+    const MallocHeader old_header = *MallocTracker::malloc_header(memblock);
+    const uint16_t old_footer = MallocTracker::malloc_header(memblock)->get_footer();
 
     // De-account the old block from NMT *before* calling the real realloc(3) since it
     // may invalidate old block including its header. This will also perform integrity checks
@@ -729,8 +733,8 @@ void* os::realloc(void *memblock, size_t size, MEMFLAGS memflags, const NativeCa
       // If realloc(3) failed, the old block still exists. We must re-instantiate the old
       // NMT header then, since we marked it dead already. Otherwise subsequent os::realloc()
       // or os::free() calls would trigger block integrity asserts.
-      void* p = MemTracker::record_malloc(old_outer_ptr, old_size, memflags, stack);
-      assert(p == memblock, "sanity");
+      *header_ptr = old_header;
+      header_ptr->set_footer(old_footer);
       return NULL;
     }
 
