@@ -111,10 +111,11 @@ class MallocHeader {
   static uint16_t build_footer(uint8_t b1, uint8_t b2) { return ((uint16_t)b1 << 8) | (uint16_t)b2; }
 
   uint8_t* footer_address() const   { return ((address)this) + sizeof(MallocHeader) + _size; }
+ public:
+
   uint16_t get_footer() const       { return build_footer(footer_address()[0], footer_address()[1]); }
   void set_footer(uint16_t v)       { footer_address()[0] = v >> 8; footer_address()[1] = (uint8_t)v; }
-
- public:
+  MallocHeader& MallocHeader::operator=(const MallocHeader&) = default;
 
   inline MallocHeader(size_t size, MEMFLAGS flags, uint32_t mst_marker);
 
