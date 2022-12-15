@@ -724,16 +724,18 @@ void JavaThread::post_run() {
 }
 
 static void ensure_join(JavaThread* thread) {
-  // We do not need to grab the Threads_lock, since we are operating on ourself.
-  Handle threadObj(thread, thread->threadObj());
-  assert(threadObj.not_null(), "java thread object must exist");
-  ObjectLocker lock(threadObj, thread);
-  // Thread is exiting. So set thread_status field in  java.lang.Thread class to TERMINATED.
-  java_lang_Thread::set_thread_status(threadObj(), JavaThreadStatus::TERMINATED);
-  // Clear the native thread instance - this makes isAlive return false and allows the join()
-  // to complete once we've done the notify_all below
-  java_lang_Thread::set_thread(threadObj(), NULL);
-  lock.notify_all(thread);
+  // Exclude JavaThread subclasses which cannot call Java, such as the compiler thread.
+  if (JavaThread::current()->can_call_java()) {
+    Handle threadObj(thread, thread->threadObj());
+    assert(threadObj.not_null(), "java thread object must exist");
+    Klass* thread_klass = vmClasses::Thread_klass();
+    JavaValue result(T_VOID);
+    JavaCalls::call_virtual(&result,
+                            threadObj, thread_klass,
+                            vmSymbols::finalNotify_name(),
+                            vmSymbols::void_method_signature(),
+                            JavaThread::current());
+  }
   // Ignore pending exception, since we are exiting anyway
   thread->clear_pending_exception();
 }

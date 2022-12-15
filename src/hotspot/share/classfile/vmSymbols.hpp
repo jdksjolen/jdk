@@ -410,6 +410,7 @@
   template(reference_discovered_name,                 "discovered")                               \
   template(run_finalization_name,                     "runFinalization")                          \
   template(dispatchUncaughtException_name,            "dispatchUncaughtException")                \
+  template(finalNotify_name,                          "finalNotify")                              \
   template(loadClass_name,                            "loadClass")                                \
   template(doYield_name,                              "doYield")                                  \
   template(enter_name,                                "enter")                                    \

@@ -245,9 +245,17 @@ public class Thread implements Runnable {
     @SuppressWarnings("removal")
     private AccessControlContext inheritedAccessControlContext;
 
+    private synchronized void finalNotify() {
+        this.holder.threadStatus = FieldHolder.TERMINATED;
+        this.eetop = 0x0; // NULL
+        this.notifyAll();
+    }
+
     // Additional fields for platform threads.
     // All fields, except task, are accessed directly by the VM.
     private static class FieldHolder {
+        // Mirror of JVMTI thread state
+        final static int TERMINATED = 0x0002;
         final ThreadGroup group;
         final Runnable task;
         final long stackSize;
