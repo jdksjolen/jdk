@@ -245,10 +245,12 @@ public class Thread implements Runnable {
     @SuppressWarnings("removal")
     private AccessControlContext inheritedAccessControlContext;
 
-    private synchronized void finalNotify() {
-        this.holder.threadStatus = FieldHolder.TERMINATED;
-        this.eetop = 0x0; // NULL
-        this.notifyAll();
+    private static void finalNotify(Thread thr) {
+        synchronized(thr) {
+            thr.holder.threadStatus = FieldHolder.TERMINATED;
+            thr.eetop = 0x0; // NULL
+            thr.notifyAll();
+        }
     }
 
     // Additional fields for platform threads.

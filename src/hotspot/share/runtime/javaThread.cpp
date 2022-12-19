@@ -730,11 +730,8 @@ static void ensure_join(JavaThread* thread) {
     assert(threadObj.not_null(), "java thread object must exist");
     Klass* thread_klass = vmClasses::Thread_klass();
     JavaValue result(T_VOID);
-    JavaCalls::call_virtual(&result,
-                            threadObj, thread_klass,
-                            vmSymbols::finalNotify_name(),
-                            vmSymbols::void_method_signature(),
-                            JavaThread::current());
+    JavaCalls::call_static(&result, thread_klass, vmSymbols::finalNotify_name(),
+                           vmSymbols::thread_void_signature(), threadObj, JavaThread::current());
   }
   // Ignore pending exception, since we are exiting anyway
   thread->clear_pending_exception();
