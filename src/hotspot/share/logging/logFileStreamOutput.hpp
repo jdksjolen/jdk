@@ -62,7 +62,6 @@ class LogFileStreamOutput : public LogOutput {
 };
 
 class LogStdoutOutput : public LogFileStreamOutput {
-  friend class LogFileStreamInitializer;
  private:
   bool initialize(const char* options, outputStream* errstream) override {
     return false;
@@ -75,7 +74,6 @@ class LogStdoutOutput : public LogFileStreamOutput {
 };
 
 class LogStderrOutput : public LogFileStreamOutput {
-  friend class LogFileStreamInitializer;
  private:
   bool initialize(const char* options, outputStream* errstream) override {
     return false;
