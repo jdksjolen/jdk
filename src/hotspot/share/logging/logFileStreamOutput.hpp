@@ -64,12 +64,12 @@ class LogFileStreamOutput : public LogOutput {
 class LogStdoutOutput : public LogFileStreamOutput {
   friend class LogFileStreamInitializer;
  private:
-  virtual bool initialize(const char* options, outputStream* errstream) {
+  bool initialize(const char* options, outputStream* errstream) override {
     return false;
   }
  public:
   LogStdoutOutput() : LogFileStreamOutput(stdout) {}
-  virtual const char* name() const {
+  const char* name() const override {
     return "stdout";
   }
 };
@@ -77,12 +77,12 @@ class LogStdoutOutput : public LogFileStreamOutput {
 class LogStderrOutput : public LogFileStreamOutput {
   friend class LogFileStreamInitializer;
  private:
-  virtual bool initialize(const char* options, outputStream* errstream) {
+  bool initialize(const char* options, outputStream* errstream) override {
     return false;
   }
  public:
   LogStderrOutput() : LogFileStreamOutput(stderr) {}
-  virtual const char* name() const {
+  const char* name() const override {
     return "stderr";
   }
 };
