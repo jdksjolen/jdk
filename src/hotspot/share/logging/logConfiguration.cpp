@@ -40,6 +40,9 @@
 #include "runtime/semaphore.hpp"
 #include "utilities/globalDefinitions.hpp"
 
+LogStdoutOutput* LogConfiguration::_stdout_log = nullptr;
+LogStderrOutput* LogConfiguration::_stderr_log = nullptr;
+
 LogOutput** LogConfiguration::_outputs = NULL;
 size_t      LogConfiguration::_n_outputs = 0;
 
@@ -102,20 +105,20 @@ void LogConfiguration::post_initialize() {
 }
 
 void LogConfiguration::initialize(jlong vm_start_time) {
-  StdoutLog = new LogStdoutOutput();
-  StderrLog = new LogStderrOutput();
+  _stdout_log = new LogStdoutOutput();
+  _stderr_log = new LogStderrOutput();
   LogFileOutput::set_file_name_parameters(vm_start_time);
   assert(_outputs == NULL, "Should not initialize _outputs before this function, initialize called twice?");
   _outputs = NEW_C_HEAP_ARRAY(LogOutput*, 2, mtLogging);
-  _outputs[0] = StdoutLog;
-  _outputs[1] = StderrLog;
+  _outputs[0] = _stdout_log;
+  _outputs[1] = _stderr_log ;
   _n_outputs = 2;
   _outputs[0]->set_config_string("all=warning");
   _outputs[1]->set_config_string("all=off");
 
   // Set the default output to warning and error level for all new tagsets.
   for (LogTagSet* ts = LogTagSet::first(); ts != NULL; ts = ts->next()) {
-    ts->set_output_level(StdoutLog, LogLevel::Default);
+    ts->set_output_level(LogConfiguration::stdout_log(), LogLevel::Default);
   }
 }
 
@@ -426,7 +429,7 @@ bool LogConfiguration::parse_command_line_arguments(const char* opts) {
   if (output == NULL || strlen(output) == 0 ||
       strcmp("stdout", output) == 0 || strcmp("#0", output) == 0) {
     if (!stdout_configured) {
-      success = StdoutLog->parse_options(output_options, &ss);
+      success = LogConfiguration::stdout_log()->parse_options(output_options, &ss);
       stdout_configured = true;
       // We no longer need to pass output options to parse_log_arguments().
       output_options = NULL;
@@ -435,7 +438,7 @@ bool LogConfiguration::parse_command_line_arguments(const char* opts) {
     // with a warning
   } else if (strcmp("stderr", output) == 0 || strcmp("#1", output) == 0) {
     if (!stderr_configured) {
-      success = StderrLog->parse_options(output_options, &ss);
+      success = LogConfiguration::stderr_log()->parse_options(output_options, &ss);
       stderr_configured = true;
       // We no longer need to pass output options to parse_log_arguments().
       output_options = NULL;

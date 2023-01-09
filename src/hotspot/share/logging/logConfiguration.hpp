@@ -24,6 +24,7 @@
 #ifndef SHARE_LOGGING_LOGCONFIGURATION_HPP
 #define SHARE_LOGGING_LOGCONFIGURATION_HPP
 
+#include "logging/logFileStreamOutput.hpp"
 #include "logging/logLevel.hpp"
 #include "memory/allStatic.hpp"
 #include "utilities/globalDefinitions.hpp"
@@ -54,6 +55,8 @@ class LogConfiguration : public AllStatic {
   static void register_update_listener(UpdateListenerFunction cb);
 
  private:
+  static LogStdoutOutput* _stdout_log;
+  static LogStderrOutput* _stderr_log;
   static LogOutput**  _outputs;
   static size_t       _n_outputs;
 
@@ -87,10 +90,20 @@ class LogConfiguration : public AllStatic {
   static void describe_available(outputStream* out);
   static void describe_current_configuration(outputStream* out);
 
+  static LogStdoutOutput* stdout_log() {
+    assert(_stdout_log != nullptr, "must be initialized");
+    return _stdout_log;
+  }
+  static LogStderrOutput* stderr_log() {
+    assert(_stderr_log != nullptr, "must be initialized");
+    return _stderr_log;
+  }
+
 
  public:
   // Initialization and finalization of log configuration, to be run at vm startup and shutdown respectively.
   static void initialize(jlong vm_start_time);
+
   static void finalize();
 
   // Perform necessary post-initialization after VM startup. Enables reconfiguration of logging.
