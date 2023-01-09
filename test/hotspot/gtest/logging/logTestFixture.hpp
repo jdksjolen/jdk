@@ -21,6 +21,8 @@
  * questions.
  */
 
+#include "logging/logConfiguration.hpp"
+#include "logging/logOutput.hpp"
 #include "unittest.hpp"
 #include "utilities/globalDefinitions.hpp"
 
@@ -46,7 +48,12 @@ class LogTestFixture : public testing::Test {
                              const char* decorators = "",
                              const char* options = "",
                              bool allow_failure = false);
-
+  LogStdoutOutput* stdout_log() {
+    return LogConfiguration::_stdout_log;
+  }
+  LogStderrOutput* stderr_log() {
+    return LogConfiguration::_stderr_log;
+  }
   void snapshot_config();
   void restore_config();
   void clear_snapshot();

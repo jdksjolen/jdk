@@ -22,16 +22,20 @@
  */
 
 #include "precompiled.hpp"
-#include "logging/logFileStreamOutput.hpp"
+#include "logTestFixture.hpp"
 #include "logging/logLevel.hpp"
 #include "logging/logOutput.hpp"
 #include "logging/logTag.hpp"
 #include "logging/logTagSet.hpp"
-#include "utilities/ostream.hpp"
 #include "unittest.hpp"
+#include "utilities/ostream.hpp"
+
+class LogTagSetTest : public LogTestFixture {
+
+};
 
 // Test the default level for each tagset
-TEST(LogTagSet, defaults) {
+TEST_F(LogTagSetTest, defaults) {
   for (LogTagSet* ts = LogTagSet::first(); ts != NULL; ts = ts->next()) {
     char buf[256];
     ts->label(buf, sizeof(buf));
@@ -39,42 +43,42 @@ TEST(LogTagSet, defaults) {
     EXPECT_TRUE(ts->is_level(LogLevel::Error));
     EXPECT_TRUE(ts->is_level(LogLevel::Warning));
     EXPECT_FALSE(ts->is_level(LogLevel::Info));
-    EXPECT_TRUE(ts->has_output(StdoutLog));
-    EXPECT_FALSE(ts->has_output(StderrLog));
+    EXPECT_TRUE(ts->has_output(stdout_log()));
+    EXPECT_FALSE(ts->has_output(stderr_log()));
   }
 }
 
-TEST(LogTagSet, has_output) {
+TEST_F(LogTagSetTest, has_output) {
   LogTagSet& ts = LogTagSetMapping<LOG_TAGS(logging)>::tagset();
-  ts.set_output_level(StderrLog, LogLevel::Trace);
-  EXPECT_TRUE(ts.has_output(StderrLog));
+  ts.set_output_level(stderr_log(), LogLevel::Trace);
+  EXPECT_TRUE(ts.has_output(stderr_log()));
   EXPECT_FALSE(ts.has_output(NULL));
-  ts.set_output_level(StderrLog, LogLevel::Off);
-  EXPECT_FALSE(ts.has_output(StderrLog));
+  ts.set_output_level(stderr_log(), LogLevel::Off);
+  EXPECT_FALSE(ts.has_output(stderr_log()));
 }
 
-TEST(LogTagSet, ntags) {
+TEST_F(LogTagSetTest, ntags) {
   const LogTagSet& ts = LogTagSetMapping<LOG_TAGS(logging)>::tagset();
   EXPECT_EQ(1u, ts.ntags());
   const LogTagSet& ts2 = LogTagSetMapping<LOG_TAGS(logging, gc, class, safepoint, heap)>::tagset();
   EXPECT_EQ(5u, ts2.ntags());
 }
 
-TEST(LogTagSet, is_level) {
+TEST_F(LogTagSetTest, is_level) {
   LogTagSet& ts = LogTagSetMapping<LOG_TAGS(logging)>::tagset();
   // Set info level on stdout and verify that is_level() reports correctly
-  ts.set_output_level(StdoutLog, LogLevel::Info);
+  ts.set_output_level(stdout_log(), LogLevel::Info);
   EXPECT_TRUE(ts.is_level(LogLevel::Error));
   EXPECT_TRUE(ts.is_level(LogLevel::Warning));
   EXPECT_TRUE(ts.is_level(LogLevel::Info));
   EXPECT_FALSE(ts.is_level(LogLevel::Debug));
   EXPECT_FALSE(ts.is_level(LogLevel::Trace));
-  ts.set_output_level(StdoutLog, LogLevel::Default);
+  ts.set_output_level(stdout_log(), LogLevel::Default);
   EXPECT_TRUE(ts.is_level(LogLevel::Default));
 }
 
-TEST(LogTagSet, level_for) {
-  LogOutput* output = StdoutLog;
+TEST_F(LogTagSetTest, level_for) {
+  LogOutput* output = stdout_log();
   LogTagSet& ts = LogTagSetMapping<LOG_TAGS(logging)>::tagset();
   for (uint i = 0; i < LogLevel::Count; i++) {
     LogLevelType level = static_cast<LogLevelType>(i);
@@ -85,7 +89,7 @@ TEST(LogTagSet, level_for) {
   ts.set_output_level(output, LogLevel::Default);
 }
 
-TEST(LogTagSet, contains) {
+TEST_F(LogTagSetTest, contains) {
   // Verify that contains works as intended for a few predetermined tagsets
   const LogTagSet& ts = LogTagSetMapping<LOG_TAGS(logging)>::tagset();
   EXPECT_TRUE(ts.contains(PREFIX_LOG_TAG(logging)));
@@ -111,7 +115,7 @@ TEST(LogTagSet, contains) {
   EXPECT_TRUE(ts4.contains(PREFIX_LOG_TAG(heap)));
 }
 
-TEST(LogTagSet, label) {
+TEST_F(LogTagSetTest, label) {
   char buf[256];
   const LogTagSet& ts = LogTagSetMapping<LOG_TAGS(logging, safepoint)>::tagset();
   ASSERT_NE(-1, ts.label(buf, sizeof(buf)));
@@ -137,7 +141,7 @@ TEST(LogTagSet, label) {
 
 }
 
-TEST(LogTagSet, duplicates) {
+TEST_F(LogTagSetTest, duplicates) {
   for (LogTagSet* ts = LogTagSet::first(); ts != NULL; ts = ts->next()) {
     char ts_name[512];
     ts->label(ts_name, sizeof(ts_name), ",");
