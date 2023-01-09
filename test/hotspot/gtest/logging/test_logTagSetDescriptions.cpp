@@ -41,7 +41,7 @@ TEST_VM(LogTagSetDescriptions, describe) {
 
     ResourceMark rm;
     stringStream stream;
-    LogConfiguration::describe(&stream);
+    LogConfiguration.describe(&stream);
     EXPECT_PRED2(string_contains_substring, stream.as_string(), expected)
       << "missing log tag set descriptions in LogConfiguration::describe";
   }
@@ -53,7 +53,7 @@ TEST_VM(LogTagSetDescriptions, command_line_help) {
   FILE* fp = os::fopen(filename, "w+");
   ASSERT_NE((void*)NULL, fp);
   fileStream stream(fp);
-  LogConfiguration::print_command_line_help(&stream);
+  LogConfiguration.print_command_line_help(&stream);
   fclose(fp);
 
   for (LogTagSetDescription* d = tagset_descriptions; d->tagset != NULL; d++) {

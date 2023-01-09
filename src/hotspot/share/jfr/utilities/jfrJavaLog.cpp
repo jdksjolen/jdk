@@ -113,7 +113,7 @@ void JfrJavaLog::subscribe_log_level(jobject log_tag, jint id, TRAPS) {
   assert(NULL == log_tag_sets[id].log_tag_enum_ref, "Subscribing twice");
   log_tag_sets[id].log_tag_enum_ref = JfrJavaSupport::global_jni_handle(log_tag, THREAD);
   if (subscribed_updates) {
-    LogConfiguration::register_update_listener(&log_config_change);
+    LogConfiguration.register_update_listener(&log_config_change);
     log_config_change_internal(true, THREAD);
     subscribed_updates = false;
   } else {

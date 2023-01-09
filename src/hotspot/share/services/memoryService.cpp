@@ -193,9 +193,9 @@ bool MemoryService::set_verbose(bool verbose) {
   MutexLocker m(Management_lock);
   // verbose will be set to the previous value
   if (verbose) {
-    LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(gc));
+    LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(gc));
   } else {
-    LogConfiguration::configure_stdout(LogLevel::Off, true, LOG_TAGS(gc));
+    LogConfiguration.configure_stdout(LogLevel::Off, true, LOG_TAGS(gc));
   }
   ClassLoadingService::reset_trace_class_unloading();
 

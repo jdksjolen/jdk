@@ -442,7 +442,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   Arguments::init_version_specific_system_properties();
 
   // Make sure to initialize log configuration *before* parsing arguments
-  LogConfiguration::initialize(create_vm_timer.begin_time());
+  LogConfiguration.initialize(create_vm_timer.begin_time());
 
   // Parse arguments
   // Note: this internally calls os::init_container_support()
@@ -639,7 +639,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
   // debug stuff, that does not work until all basic classes have been initialized.
   set_init_completed();
 
-  LogConfiguration::post_initialize();
+  LogConfiguration.post_initialize();
   Metaspace::post_initialize();
   MutexLocker::post_initialize();
 
@@ -1143,7 +1143,7 @@ void Threads::destroy_vm() {
   }
 #endif
 
-  LogConfiguration::finalize();
+  LogConfiguration.finalize();
 }
 
 

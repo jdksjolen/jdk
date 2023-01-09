@@ -40,12 +40,6 @@
 #include "runtime/semaphore.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-LogOutput** LogConfiguration::_outputs = NULL;
-size_t      LogConfiguration::_n_outputs = 0;
-
-LogConfiguration::UpdateListenerFunction* LogConfiguration::_listener_callbacks = NULL;
-size_t      LogConfiguration::_n_listener_callbacks = 0;
-
 // LogFileOutput is the default type of output, its type prefix should be used if no type was specified
 static const char* implicit_output_prefix = LogFileOutput::Prefix;
 
@@ -707,4 +701,4 @@ void LogConfiguration::notify_update_listeners() {
   }
 }
 
-bool LogConfiguration::_async_mode = false;
+class LogConfiguration LogConfiguration{};

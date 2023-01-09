@@ -73,7 +73,7 @@ bool LogTagSet::has_output(const LogOutput* output) {
 void LogTagSet::log(LogLevelType level, const char* msg) {
   // Increasing the atomic reader counter in iterator(level) must
   // happen before the creation of LogDecorations instance so
-  // wait_until_no_readers() in LogConfiguration::configure_output()
+  // wait_until_no_readers() in LogConfiguration.configure_output()
   // synchronizes _decorations as well. The order is guaranteed by
   // the implied memory order of Atomic::add().
   LogOutputList::Iterator it = _output_list.iterator(level);

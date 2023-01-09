@@ -823,15 +823,15 @@ JvmtiEnv::SetVerboseFlag(jvmtiVerboseFlag flag, jboolean value) {
     // ignore
     break;
   case JVMTI_VERBOSE_CLASS:
-    LogConfiguration::configure_stdout(level, false, LOG_TAGS(class, unload));
-    LogConfiguration::configure_stdout(level, false, LOG_TAGS(class, load));
+    LogConfiguration.configure_stdout(level, false, LOG_TAGS(class, unload));
+    LogConfiguration.configure_stdout(level, false, LOG_TAGS(class, load));
     break;
   case JVMTI_VERBOSE_GC:
-    LogConfiguration::configure_stdout(level, true, LOG_TAGS(gc));
+    LogConfiguration.configure_stdout(level, true, LOG_TAGS(gc));
     break;
   case JVMTI_VERBOSE_JNI:
     level = value == 0 ? LogLevel::Off : LogLevel::Debug;
-    LogConfiguration::configure_stdout(level, true, LOG_TAGS(jni, resolve));
+    LogConfiguration.configure_stdout(level, true, LOG_TAGS(jni, resolve));
     break;
   default:
     return JVMTI_ERROR_ILLEGAL_ARGUMENT;

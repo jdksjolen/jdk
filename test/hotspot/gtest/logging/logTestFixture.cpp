@@ -32,8 +32,8 @@
 #include "unittest.hpp"
 #include "utilities/ostream.hpp"
 
-LogTestFixture::LogTestFixture() : _n_snapshots(0), _configuration_snapshot(NULL) {
-
+LogTestFixture::LogTestFixture() : _n_snapshots(0), _configuration_snapshot(nullptr), _config() {
+  _config.initialize(0);
   // Set up TestLogFileName to include temp_dir, PID, testcase name and test name.
   const testing::TestInfo* test_info = ::testing::UnitTest::GetInstance()->current_test_info();
   int ret = jio_snprintf(_filename, sizeof(_filename), "%s%stestlog.pid%d.%s.%s.log",
@@ -58,7 +58,7 @@ bool LogTestFixture::set_log_config(const char* output,
                                     bool allow_failure) {
   ResourceMark rm;
   stringStream stream;
-  bool success = LogConfiguration::parse_log_arguments(output, what, decorators, options, &stream);
+  bool success = _config.parse_log_arguments(output, what, decorators, options, &stream);
   if (!allow_failure) {
     const char* errmsg = stream.as_string();
     EXPECT_STREQ("", errmsg) << "Unexpected error reported";
@@ -69,18 +69,18 @@ bool LogTestFixture::set_log_config(const char* output,
 
 void LogTestFixture::snapshot_config() {
   clear_snapshot();
-  _n_snapshots = LogConfiguration::_n_outputs;
+  _n_snapshots = _config._n_outputs;
+  if (_n_snapshots == 0) return;
   _configuration_snapshot = NEW_C_HEAP_ARRAY(char*, _n_snapshots, mtLogging);
   for (size_t i = 0; i < _n_snapshots; i++) {
-    ResourceMark rm;
     stringStream ss;
-    LogConfiguration::_outputs[i]->describe(&ss);
-    _configuration_snapshot[i] = os::strdup_check_oom(ss.as_string(), mtLogging);
+    _config._outputs[i]->describe(&ss);
+    _configuration_snapshot[i] = os::strdup_check_oom(ss.freeze(), mtLogging);
   }
 }
 
 void LogTestFixture::restore_config() {
-  LogConfiguration::disable_logging();
+  _config.disable_logging();
   for (size_t i = 0; i < _n_snapshots; i++) {
     // Restore the config based on the saved output description string.
     // The string has the following format: '<name> <selection> <decorators>[ <options>]'

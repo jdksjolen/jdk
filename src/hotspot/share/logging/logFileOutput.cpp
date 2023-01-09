@@ -463,5 +463,5 @@ void LogFileOutput::describe(outputStream *out) {
   out->print(",filecount=%u,filesize=" SIZE_FORMAT "%s,async=%s", _file_count,
              byte_size_in_proper_unit(_rotate_size),
              proper_unit_for_byte_size(_rotate_size),
-             LogConfiguration::is_async_mode() ? "true" : "false");
+             LogConfiguration.is_async_mode() ? "true" : "false");
 }

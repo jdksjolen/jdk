@@ -1,4 +1,4 @@
-/*
+ /*
  * Copyright (c) 2016, 2018, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
@@ -21,6 +21,7 @@
  * questions.
  */
 
+#include "logging/logConfiguration.hpp"
 #include "unittest.hpp"
 #include "utilities/globalDefinitions.hpp"
 
@@ -29,23 +30,24 @@
 // the log configuration and remove the test file (if used).
 // Provides TestLogFileName which is unique for each test, and is automatically
 // deleted after the test completes.
+
 class LogTestFixture : public testing::Test {
  private:
   char _filename[2 * K];
   size_t _n_snapshots;
   char** _configuration_snapshot;
-
+  class LogConfiguration _config;
  protected:
   const char* TestLogFileName;
 
   LogTestFixture();
   ~LogTestFixture();
 
-  static bool set_log_config(const char* output,
-                             const char* what,
-                             const char* decorators = "",
-                             const char* options = "",
-                             bool allow_failure = false);
+  bool set_log_config(const char* output,
+                      const char* what,
+                      const char* decorators = "",
+                      const char* options = "",
+                      bool allow_failure = false);
 
   void snapshot_config();
   void restore_config();

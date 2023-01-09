@@ -83,10 +83,10 @@ static inline void delete_empty_directory(const char* name) {
 
 static inline void init_log_file(const char* filename, const char* options = "") {
   LogStreamHandle(Error, logging) stream;
-  bool success = LogConfiguration::parse_log_arguments(filename, "logging=trace", "", options, &stream);
+  bool success = LogConfiguration.parse_log_arguments(filename, "logging=trace", "", options, &stream);
   guarantee(success, "Failed to initialize log file '%s' with options '%s'", filename, options);
   log_debug(logging)("%s", LOG_TEST_STRING_LITERAL);
-  success = LogConfiguration::parse_log_arguments(filename, "all=off", "", "", &stream);
+  success = LogConfiguration.parse_log_arguments(filename, "all=off", "", "", &stream);
   guarantee(success, "Failed to disable logging to file '%s'", filename);
 }
 

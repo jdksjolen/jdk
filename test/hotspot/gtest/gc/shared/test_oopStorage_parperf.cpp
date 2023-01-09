@@ -199,7 +199,7 @@ TEST_VM_F(OopStorageParIterPerf, test) {
   }
   bool debug_enabled = old_level == LogLevel::Debug;
   if (!debug_enabled) {
-    LogConfiguration::configure_stdout(LogLevel::Debug, true, LOG_TAGS(TEST_TAGS));
+    LogConfiguration.configure_stdout(LogLevel::Debug, true, LOG_TAGS(TEST_TAGS));
   }
 
   run_test(1);
@@ -211,6 +211,6 @@ TEST_VM_F(OopStorageParIterPerf, test) {
   run_test(10);
 
   if (!debug_enabled) {
-    LogConfiguration::configure_stdout(old_level, true, LOG_TAGS(TEST_TAGS));
+    LogConfiguration.configure_stdout(old_level, true, LOG_TAGS(TEST_TAGS));
   }
 }

@@ -2299,17 +2299,17 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
     // -verbose:[class/module/gc/jni]
     if (match_option(option, "-verbose", &tail)) {
       if (!strcmp(tail, ":class") || !strcmp(tail, "")) {
-        LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(class, load));
-        LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(class, unload));
+        LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(class, load));
+        LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(class, unload));
       } else if (!strcmp(tail, ":module")) {
-        LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(module, load));
-        LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(module, unload));
+        LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(module, load));
+        LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(module, unload));
       } else if (!strcmp(tail, ":gc")) {
         if (_legacyGCLogging.lastFlag == 0) {
           _legacyGCLogging.lastFlag = 1;
         }
       } else if (!strcmp(tail, ":jni")) {
-        LogConfiguration::configure_stdout(LogLevel::Debug, true, LOG_TAGS(jni, resolve));
+        LogConfiguration.configure_stdout(LogLevel::Debug, true, LOG_TAGS(jni, resolve));
       }
     // -da / -ea / -disableassertions / -enableassertions
     // These accept an optional class/package name separated by a colon, e.g.,
@@ -2707,19 +2707,19 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
       bool ret = false;
       if (strcmp(tail, ":help") == 0) {
         fileStream stream(defaultStream::output_stream());
-        LogConfiguration::print_command_line_help(&stream);
+        LogConfiguration.print_command_line_help(&stream);
         vm_exit(0);
       } else if (strcmp(tail, ":disable") == 0) {
-        LogConfiguration::disable_logging();
+        LogConfiguration.disable_logging();
         ret = true;
       } else if (strcmp(tail, ":async") == 0) {
-        LogConfiguration::set_async_mode(true);
+        LogConfiguration.set_async_mode(true);
         ret = true;
       } else if (*tail == '\0') {
-        ret = LogConfiguration::parse_command_line_arguments();
+        ret = LogConfiguration.parse_command_line_arguments();
         assert(ret, "-Xlog without arguments should never fail to parse");
       } else if (*tail == ':') {
-        ret = LogConfiguration::parse_command_line_arguments(tail + 1);
+        ret = LogConfiguration.parse_command_line_arguments(tail + 1);
       }
       if (ret == false) {
         jio_fprintf(defaultStream::error_stream(),
@@ -2914,7 +2914,7 @@ jint Arguments::parse_each_vm_init_arg(const JavaVMInitArgs* args, bool* patch_m
   if (PrintSharedArchiveAndExit) {
     UseSharedSpaces = true;
     RequireSharedSpaces = true;
-    LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(class, path));
+    LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(class, path));
   }
 
   fix_appclasspath();
@@ -3751,9 +3751,9 @@ bool Arguments::handle_deprecated_print_gc_flags() {
 
     LogTarget(Error, logging) target;
     LogStream errstream(target);
-    return LogConfiguration::parse_log_arguments(_legacyGCLogging.file, gc_conf, NULL, NULL, &errstream);
+    return LogConfiguration.parse_log_arguments(_legacyGCLogging.file, gc_conf, NULL, NULL, &errstream);
   } else if (PrintGC || PrintGCDetails || (_legacyGCLogging.lastFlag == 1)) {
-    LogConfiguration::configure_stdout(LogLevel::Info, !PrintGCDetails, LOG_TAGS(gc));
+    LogConfiguration.configure_stdout(LogLevel::Info, !PrintGCDetails, LOG_TAGS(gc));
   }
   return true;
 }
@@ -3967,7 +3967,7 @@ jint Arguments::parse(const JavaVMInitArgs* initial_cmd_args) {
       log_is_enabled(Info, cds)) {
     warning("Shared spaces are not supported in this VM");
     UseSharedSpaces = false;
-    LogConfiguration::configure_stdout(LogLevel::Off, true, LOG_TAGS(cds));
+    LogConfiguration.configure_stdout(LogLevel::Off, true, LOG_TAGS(cds));
   }
   no_shared_spaces("CDS Disabled");
 #endif // INCLUDE_CDS
@@ -4090,7 +4090,7 @@ jint Arguments::apply_ergo() {
 
   if (FLAG_IS_CMDLINE(DiagnoseSyncOnValueBasedClasses)) {
     if (DiagnoseSyncOnValueBasedClasses == ObjectSynchronizer::LOG_WARNING && !log_is_enabled(Info, valuebasedclasses)) {
-      LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(valuebasedclasses));
+      LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(valuebasedclasses));
     }
   }
   return JNI_OK;

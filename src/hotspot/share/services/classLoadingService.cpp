@@ -123,7 +123,7 @@ bool ClassLoadingService::set_verbose(bool verbose) {
   MutexLocker m(Management_lock);
   // verbose will be set to the previous value
   LogLevelType level = verbose ? LogLevel::Info : LogLevel::Off;
-  LogConfiguration::configure_stdout(level, false, LOG_TAGS(class, load));
+  LogConfiguration.configure_stdout(level, false, LOG_TAGS(class, load));
   reset_trace_class_unloading();
   return verbose;
 }
@@ -133,7 +133,7 @@ void ClassLoadingService::reset_trace_class_unloading() {
   assert(Management_lock->owned_by_self(), "Must own the Management_lock");
   bool value = MemoryService::get_verbose() || ClassLoadingService::get_verbose();
   LogLevelType level = value ? LogLevel::Info : LogLevel::Off;
-  LogConfiguration::configure_stdout(level, false, LOG_TAGS(class, unload));
+  LogConfiguration.configure_stdout(level, false, LOG_TAGS(class, unload));
 }
 
 jlong ClassLoadingService::loaded_class_count() {

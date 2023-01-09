@@ -35,7 +35,7 @@
 class AsyncLogTest : public LogTestFixture {
  public:
   AsyncLogTest() {
-    if(!LogConfiguration::is_async_mode()) {
+    if(!LogConfiguration.is_async_mode()) {
       fprintf(stderr, "Warning: asynclog is OFF.\n");
     }
   }

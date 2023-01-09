@@ -64,12 +64,12 @@ void LogDiagnosticCommand::registerCommand() {
 void LogDiagnosticCommand::execute(DCmdSource source, TRAPS) {
   bool any_command = false;
   if (_disable.has_value()) {
-    LogConfiguration::disable_logging();
+    LogConfiguration.disable_logging();
     any_command = true;
   }
 
   if (_output.has_value() || _what.has_value() || _decorators.has_value()) {
-    if (!LogConfiguration::parse_log_arguments(_output.value(),
+    if (!LogConfiguration.parse_log_arguments(_output.value(),
                                                _what.value(),
                                                _decorators.value(),
                                                _output_options.value(),
@@ -80,12 +80,12 @@ void LogDiagnosticCommand::execute(DCmdSource source, TRAPS) {
   }
 
   if (_list.has_value()) {
-    LogConfiguration::describe(output());
+    LogConfiguration.describe(output());
     any_command = true;
   }
 
   if (_rotate.has_value()) {
-    LogConfiguration::rotate_all_outputs();
+    LogConfiguration.rotate_all_outputs();
     any_command = true;
   }
 

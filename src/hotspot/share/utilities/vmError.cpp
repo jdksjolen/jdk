@@ -1057,7 +1057,7 @@ void VMError::report(outputStream* st, bool _verbose) {
 
   STEP_IF("printing log configuration", _verbose)
     st->print_cr("Logging:");
-    LogConfiguration::describe_current_configuration(st);
+    LogConfiguration.describe_current_configuration(st);
     st->cr();
 
   STEP_IF("printing all environment variables", _verbose)
@@ -1220,7 +1220,7 @@ void VMError::print_vm_info(outputStream* st) {
 
   // STEP("printing log configuration")
   st->print_cr("Logging:");
-  LogConfiguration::describe(st);
+  LogConfiguration.describe(st);
   st->cr();
 
   // STEP("printing all environment variables")

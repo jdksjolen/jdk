@@ -38,7 +38,7 @@ class G1HeapVerifierTest : public LogTestFixture {
 };
 
 TEST_VM_F(G1HeapVerifierTest, parse) {
-  LogConfiguration::configure_stdout(LogLevel::Off, true, LOG_TAGS(gc, verify));
+  LogConfiguration.configure_stdout(LogLevel::Off, true, LOG_TAGS(gc, verify));
 
   // Default is to verify everything.
   ASSERT_TRUE(G1HeapVerifier::should_verify(G1HeapVerifier::G1VerifyYoungNormal));

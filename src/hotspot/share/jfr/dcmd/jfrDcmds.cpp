@@ -164,9 +164,9 @@ static void handle_dcmd_result(outputStream* output,
       // if warning is set, assume user hasn't configured log level
       // Log to Info and reset to Warning. This way user can disable
       // default output by setting -Xlog:jfr+startup=error/off
-      LogConfiguration::configure_stdout(LogLevel::Info, true, LOG_TAGS(jfr, startup));
+      LogConfiguration.configure_stdout(LogLevel::Info, true, LOG_TAGS(jfr, startup));
       log(result, THREAD);
-      LogConfiguration::configure_stdout(LogLevel::Warning, true, LOG_TAGS(jfr, startup));
+      LogConfiguration.configure_stdout(LogLevel::Warning, true, LOG_TAGS(jfr, startup));
     } else {
       log(result, THREAD);
     }

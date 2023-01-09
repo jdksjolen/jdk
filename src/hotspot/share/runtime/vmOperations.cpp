@@ -475,7 +475,7 @@ void VM_Exit::doit() {
   // cleans up outputStream resources and PerfMemory resources.
   exit_globals();
 
-  LogConfiguration::finalize();
+  LogConfiguration.finalize();
 
   // Check for exit hook
   exit_hook_t exit_hook = Arguments::exit_hook();

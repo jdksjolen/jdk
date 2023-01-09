@@ -91,7 +91,7 @@ void JvmtiTrace::initialize() {
       log_warning(arguments)("-XX:+TraceJVMTI specified, "
          "but no log output configured for the 'jvmti' tag on Trace level. "
          "Defaulting to -Xlog:jvmti=trace");
-      LogConfiguration::configure_stdout(LogLevel::Trace, true, LOG_TAGS(jvmti));
+      LogConfiguration.configure_stdout(LogLevel::Trace, true, LOG_TAGS(jvmti));
     }
   }
 

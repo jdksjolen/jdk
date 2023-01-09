@@ -185,7 +185,7 @@ void AsyncLogWriter::run() {
 AsyncLogWriter* AsyncLogWriter::_instance = nullptr;
 
 void AsyncLogWriter::initialize() {
-  if (!LogConfiguration::is_async_mode()) return;
+  if (!LogConfiguration.is_async_mode()) return;
 
   assert(_instance == nullptr, "initialize() should only be invoked once.");
 
