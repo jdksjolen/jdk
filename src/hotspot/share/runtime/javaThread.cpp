@@ -728,6 +728,7 @@ static void ensure_join(JavaThread* thread) {
   for (; state != nullptr; state = state->next()) {
     if (state->get_thread() == thread) break;
   }
+  assert(state != nullptr, "wasn't");
   // Exclude JavaThread subclasses which cannot call Java, such as the compiler thread.
   if (JavaThread::current()->can_call_java()) {
     state->set_hide_single_stepping();
