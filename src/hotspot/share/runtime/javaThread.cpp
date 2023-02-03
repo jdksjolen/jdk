@@ -724,20 +724,16 @@ void JavaThread::post_run() {
 }
 
 static void ensure_join(JavaThread* thread) {
-  JvmtiThreadState* state = JvmtiThreadState::first();
-  for (; state != nullptr; state = state->next()) {
-    if (state->get_thread() == thread) break;
-  }
   // Exclude JavaThread subclasses which cannot call Java, such as the compiler thread.
   if (JavaThread::current()->can_call_java()) {
-    if (state != nullptr) state->set_hide_single_stepping();
+    bool was_on = JvmtiExport::hide_single_stepping(thread);
     Handle threadObj(thread, thread->threadObj());
     assert(threadObj.not_null(), "java thread object must exist");
     Klass* thread_klass = vmClasses::Thread_klass();
     JavaValue result(T_VOID);
     JavaCalls::call_static(&result, thread_klass, vmSymbols::finalNotify_name(),
                            vmSymbols::thread_void_signature(), threadObj, JavaThread::current());
-    if (state != nullptr) state->set_hide_single_stepping();
+    if (was_on) JvmtiExport::expose_single_stepping(thread);
   }
   // Ignore pending exception, since we are exiting anyway
   thread->clear_pending_exception();
