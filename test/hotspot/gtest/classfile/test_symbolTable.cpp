@@ -139,7 +139,7 @@ TEST_VM_FATAL_ERROR_MSG(SymbolTable, test_symbol_underflow, ".*refcount has gone
 }
 
 TEST_VM(SymbolTable, BenchIt) {
-  constexpr const int nr_of_syms = 8192*8;
+  constexpr const int nr_of_syms = 8192*16;
   const char* my_very_random_prefix = "my_very_random_prefix";
   ResourceMark rm;
   double start = get_wall_time();
@@ -155,14 +155,14 @@ TEST_VM(SymbolTable, BenchIt) {
   // Let's add concurrency to the mix
   auto runner = [&](Thread* thread, int id) {
     ResourceMark rm;
-    for (int i = 0; i < nr_of_syms/8; i++) {
+    for (int i = 0; i < nr_of_syms/16; i++) {
       stringStream st;
       st.print_raw(my_very_random_prefix);
       st.print("%d_%d", id, i);
       SymbolTable::new_symbol_perm(st.as_string(), st.size());
     }
   };
-  TestThreadGroup<decltype(runner)> ttg(runner, 8);
+  TestThreadGroup<decltype(runner)> ttg(runner, 16);
   start = get_wall_time();
   ttg.doit();
   ttg.join();
