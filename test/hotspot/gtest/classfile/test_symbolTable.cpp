@@ -150,5 +150,5 @@ TEST_VM(SymbolTable, BenchIt) {
     SymbolTable::new_symbol_perm(st.as_string(), st.size());
   }
   double end = get_wall_time();
-  EXPECT_TRUE(false) << "Elapsed time: " << end-start " ms";
+  EXPECT_TRUE(false) << "Elapsed time: " << end-start << " ms";
 }
