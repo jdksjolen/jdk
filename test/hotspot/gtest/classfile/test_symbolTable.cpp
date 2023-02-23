@@ -146,9 +146,26 @@ TEST_VM(SymbolTable, BenchIt) {
   for (int i = 0; i < nr_of_syms; i++) {
     stringStream st;
     st.print_raw(my_very_random_prefix);
-    st.print_raw("%d", i);
+    st.print("%d", i);
     SymbolTable::new_symbol_perm(st.as_string(), st.size());
   }
   double end = get_wall_time();
+  EXPECT_TRUE(false) << "Elapsed time: " << end-start << " ms";
+
+  // Let's add concurrency to the mix
+  auto runner = [&](Thread* thread, int id) {
+    ResourceMark rm;
+    for (int i = 0; i < nr_of_syms/8; i++) {
+      stringStream st;
+      st.print_raw(my_very_random_prefix);
+      st.print("%d_%d", id, i);
+      SymbolTable::new_symbol_perm(st.as_string(), st.size());
+    }
+  };
+  TestThreadGroup<decltype(runner)> ttg(runner, 8);
+  start = get_wall_time();
+  ttg.doit();
+  ttg.join();
+  end = get_wall_time();
   EXPECT_TRUE(false) << "Elapsed time: " << end-start << " ms";
 }
