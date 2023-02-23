@@ -162,16 +162,11 @@ public:
       assert(value.refcount() == 0, "expected dead symbol");
     }
     if (value.refcount() != PERM_REFCOUNT) {
+      log_trace_symboltable_helper(&value, "Freeing temporary symbol");
       FreeHeap(memory);
     } else {
-      MutexLocker ml(SymbolArena_lock, Mutex::_no_safepoint_check_flag); // Protect arena
-      // Deleting permanent symbol should not occur very often (insert race condition),
-      // so log it.
       log_trace_symboltable_helper(&value, "Freeing permanent symbol");
-      size_t alloc_size = _local_table->get_node_size() + value.byte_size() + value.effective_length();
-      if (!SymbolTable::arena()->Afree(memory, alloc_size)) {
-        log_trace_symboltable_helper(&value, "Leaked permanent symbol");
-      }
+      FreeHeap(memory);
     }
     SymbolTable::item_removed();
   }
@@ -200,8 +195,7 @@ private:
       return AllocateHeap(alloc_size, mtSymbol);
     } else {
       // Allocate to global arena
-      MutexLocker ml(SymbolArena_lock, Mutex::_no_safepoint_check_flag); // Protect arena
-      return SymbolTable::arena()->Amalloc(alloc_size);
+      return AllocateHeap(alloc_size, mtSymbol);
     }
   }
 };
