@@ -136,6 +136,7 @@ public:
   // char (UTF8) versions
   static Symbol* new_symbol(const Symbol* sym, int begin, int end);
   static Symbol* new_symbol(const char* utf8_buffer, int length);
+  static Symbol* new_symbol_perm(const char* utf8_buffer, int length);
   static Symbol* new_symbol(const char* name) {
     return new_symbol(name, (int)strlen(name));
   }

@@ -27,6 +27,18 @@
 #include "threadHelper.inline.hpp"
 #include "unittest.hpp"
 
+#include <sys/time.h>
+
+double get_wall_time(){
+    struct timeval time;
+    if (gettimeofday(&time,NULL)){
+        //  Handle error
+        return 0;
+    }
+    return (double)time.tv_sec + (double)time.tv_usec * .000001;
+}
+
+
 TEST_VM(SymbolTable, temp_new_symbol) {
   // Assert messages assume these symbols are unique, and the refcounts start at
   // one, but code does not rely on this.
@@ -124,4 +136,19 @@ TEST_VM_FATAL_ERROR_MSG(SymbolTable, test_symbol_underflow, ".*refcount has gone
   EXPECT_TRUE(my_symbol->refcount() == 1) << "Symbol refcount just created is 1";
   my_symbol->decrement_refcount();
   my_symbol->increment_refcount();  // Should crash even in PRODUCT mode
+}
+
+TEST_VM(SymbolTable, BenchIt) {
+  constexpr const int nr_of_syms = 8192*8;
+  const char* my_very_random_prefix = "my_very_random_prefix";
+  ResourceMark rm;
+  double start = get_wall_time();
+  for (int i = 0; i < nr_of_syms; i++) {
+    stringStream st;
+    st.print_raw(my_very_random_prefix);
+    st.print_raw("%d", i);
+    SymbolTable::new_symbol_perm(st.as_string(), st.size());
+  }
+  double end = get_wall_time();
+  EXPECT_TRUE(false) << "Elapsed time: " << end-start " ms";
 }

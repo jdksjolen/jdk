@@ -206,13 +206,6 @@ void SymbolTable::create_table ()  {
   log_trace(symboltable)("Start size: " SIZE_FORMAT " (" SIZE_FORMAT ")",
                          _current_size, start_size_log_2);
   _local_table = new SymbolTableHash(start_size_log_2, END_SIZE, REHASH_LEN, true);
-
-  // Initialize the arena for global symbols, size passed in depends on CDS.
-  if (symbol_alloc_arena_size == 0) {
-    _arena = new (mtSymbol) Arena(mtSymbol);
-  } else {
-    _arena = new (mtSymbol) Arena(mtSymbol, symbol_alloc_arena_size);
-  }
 }
 
 void SymbolTable::reset_has_items_to_clean() { Atomic::store(&_has_items_to_clean, false); }
@@ -339,6 +332,11 @@ Symbol* SymbolTable::new_symbol(const char* name, int len) {
   assert(sym->equals(name, len), "symbol must be properly initialized");
   return sym;
 }
+Symbol* SymbolTable::new_symbol_perm(const char* name, int len) {
+  unsigned int hash = hash_symbol(name, len, _alt_hash);
+  return do_add_if_needed(name, len, hash, /* is_permanent */ true);
+}
+
 
 Symbol* SymbolTable::new_symbol(const Symbol* sym, int begin, int end) {
   assert(begin <= end && end <= sym->utf8_length(), "just checking");
