@@ -1301,7 +1301,8 @@ bool DwarfFile::LineNumberProgram::run_line_number_program(char* filename, const
 #else
   DWARF_LOG_DEBUG("Address:              Line:    Column:   File:");
 #endif
-  _state = new (std::nothrow) LineNumberProgramState(_header);
+  LineNumberProgramState state{_header};
+  _state = &state;
   if (_state == nullptr) {
     DWARF_LOG_ERROR("Failed to create new LineNumberProgramState object");
     return false;
