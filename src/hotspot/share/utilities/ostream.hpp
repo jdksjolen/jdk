@@ -134,9 +134,6 @@ class outputStream : public CHeapObjBase {
    // Caller may specify their own scratch buffer to use for printing; otherwise,
    // an automatic buffer on the stack (with O_BUFLEN len) is used.
    void set_scratch_buffer(char* p, size_t len) { _scratch = p; _scratch_len = len; }
-
-   void dec_cr() { dec(); cr(); }
-   void inc_cr() { inc(); cr(); }
 };
 
 // standard output

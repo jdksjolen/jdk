@@ -256,7 +256,7 @@ void outputStream::date_stamp(bool guard,
 }
 
 outputStream& outputStream::indent() {
-  while (_position < _indentation) sp();
+  sp(_indentation - _position);
   return *this;
 }
 
