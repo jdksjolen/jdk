@@ -202,7 +202,9 @@ typedef struct new_mallinfo (*mallinfo2_func_t)(void);
 static mallinfo2_func_t g_mallinfo2 = nullptr;
 
 typedef int (*malloc_info_func_t)(int options, FILE *stream);
+typedef int (*malloc_stats_func_t)(FILE *stream);
 static malloc_info_func_t g_malloc_info = nullptr;
+static malloc_stats_func_t g_malloc_stats = nullptr;
 #endif // __GLIBC__
 
 static int clock_tics_per_sec = 100;
@@ -4298,6 +4300,7 @@ void os::init(void) {
   g_mallinfo = CAST_TO_FN_PTR(mallinfo_func_t, dlsym(RTLD_DEFAULT, "mallinfo"));
   g_mallinfo2 = CAST_TO_FN_PTR(mallinfo2_func_t, dlsym(RTLD_DEFAULT, "mallinfo2"));
   g_malloc_info = CAST_TO_FN_PTR(malloc_info_func_t, dlsym(RTLD_DEFAULT, "malloc_info"));
+  g_malloc_stats = CAST_TO_FN_PTR(malloc_stats_func_t, dlsym(RTLD_DEFAULT, "malloc_stats"));
 #endif // __GLIBC__
 
   os::Linux::CPUPerfTicks pticks;
@@ -5395,6 +5398,12 @@ int os::Linux::malloc_info(FILE* stream) {
     return -2;
   }
   return g_malloc_info(0, stream);
+}
+int os::Linux::malloc_stats(FILE* stream) {
+  if (g_malloc_stats == nullptr) {
+    return -2;
+  }
+  return g_malloc_stats(stream);
 }
 #endif // __GLIBC__
 
