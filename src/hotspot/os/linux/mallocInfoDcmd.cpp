@@ -42,6 +42,7 @@ void MallocInfoDcmd::execute(DCmdSource source, TRAPS) {
     return;
   }
 
+  os::Linux::malloc_stats();
   int err = os::Linux::malloc_info(stream);
   if (err == 0) {
     ALLOW_C_FUNCTION(::fflush, fflush(stream);)
