@@ -202,7 +202,7 @@ typedef struct new_mallinfo (*mallinfo2_func_t)(void);
 static mallinfo2_func_t g_mallinfo2 = nullptr;
 
 typedef int (*malloc_info_func_t)(int options, FILE *stream);
-typedef int (*malloc_stats_func_t)(FILE *stream);
+typedef int (*malloc_stats_func_t)();
 static malloc_info_func_t g_malloc_info = nullptr;
 static malloc_stats_func_t g_malloc_stats = nullptr;
 #endif // __GLIBC__
@@ -5399,11 +5399,11 @@ int os::Linux::malloc_info(FILE* stream) {
   }
   return g_malloc_info(0, stream);
 }
-int os::Linux::malloc_stats(FILE* stream) {
+int os::Linux::malloc_stats() {
   if (g_malloc_stats == nullptr) {
     return -2;
   }
-  return g_malloc_stats(stream);
+  return g_malloc_stats();
 }
 #endif // __GLIBC__
 

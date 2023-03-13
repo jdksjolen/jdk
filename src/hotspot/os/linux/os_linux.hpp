@@ -430,7 +430,7 @@ class os::Linux {
   static int malloc_info(FILE* stream);
   // Calls out to GNU extension malloc_stats if available
   // otherwise does nothing and returns -2.
-  static int malloc_stats(FILE* stream);
+  static int malloc_stats();
 #endif // GLIBC
 };
 
