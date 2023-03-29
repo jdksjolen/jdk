@@ -24,8 +24,12 @@
  */
 
 #include "precompiled.hpp"
+#include "logging/log.hpp"
+#include "logging/logMessage.hpp"
+#include "logging/logStream.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/threadCritical.hpp"
+#include "utilities/nativeCallStack.hpp"
 
 // put OS-includes here
 # include <pthread.h>
@@ -41,8 +45,13 @@ static int                   tc_count = 0;
 ThreadCritical::ThreadCritical() {
   pthread_t self = pthread_self();
   if (self != tc_owner) {
-    int ret = pthread_mutex_lock(&tc_mutex);
-    guarantee(ret == 0, "fatal error with pthread_mutex_lock()");
+    int ret = pthread_mutex_trylock(&tc_mutex);
+    if (ret != 0) {
+      LogStream foo{Log(os)::info()};
+      NativeCallStack ncs{1};
+      ncs.print_on(&foo);
+    }
+    //guarantee(ret == 0, "fatal error with pthread_mutex_lock()");
     assert(tc_count == 0, "Lock acquired with illegal reentry count.");
     tc_owner = self;
   }
