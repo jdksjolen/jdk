@@ -27,11 +27,27 @@
 
 #include "memory/allocation.hpp"
 #include "runtime/globals.hpp"
+#include "runtime/threadCritical.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
-
+#include "runtime/os.hpp"
 #include <new>
+
+class MonotonicAllocator {
+public:
+  char* start;
+  char* offset;
+  MonotonicAllocator() {
+    ThreadCritical tc;
+    start = nullptr;
+    offset = nullptr;
+  }
+  ~MonotonicAllocator() {
+    ThreadCritical tc;
+    os::release_memory(start, 16*G);
+  }
+};
 
 // The byte alignment to be used by Arena::Amalloc.
 #define ARENA_AMALLOC_ALIGNMENT BytesPerLong
@@ -45,8 +61,8 @@ class Chunk: CHeapObj<mtChunk> {
   Chunk*       _next;     // Next Chunk in list
   const size_t _len;      // Size of this Chunk
  public:
-  void* operator new(size_t size, AllocFailType alloc_failmode, size_t length) throw();
-  void  operator delete(void* p);
+  static void destroy(void* p, bool is_alloc);
+  void* operator new(size_t size, AllocFailType alloc_failmode, size_t length, bool alloc) throw();
   Chunk(size_t length);
 
   enum {
@@ -67,8 +83,8 @@ class Chunk: CHeapObj<mtChunk> {
     non_pool_size = init_size + 4*K // An initial size which is not one of above
   };
 
-  void chop();                  // Chop this chunk
-  void next_chop();             // Chop next chunk
+  void chop(bool is_alloc);                  // Chop this chunk
+  void next_chop(bool is_alloc);             // Chop next chunk
   static size_t aligned_overhead_size(void) { return ARENA_ALIGN(sizeof(Chunk)); }
   static size_t aligned_overhead_size(size_t byte_size) { return ARENA_ALIGN(byte_size); }
 
@@ -92,6 +108,7 @@ protected:
   friend class NoHandleMark;
   friend class VMStructs;
 
+  bool _started_post_init;
   MEMFLAGS    _flags;           // Memory tracking flags
 
   Chunk *_first;                // First chunk

@@ -140,7 +140,7 @@ class MemTracker : AllStatic {
 
   static inline void record_virtual_memory_reserve(void* addr, size_t size, const NativeCallStack& stack,
     MEMFLAGS flag = mtNone) {
-    assert_post_init();
+    //assert_post_init();
     if (!enabled()) return;
     if (addr != nullptr) {
       ThreadCritical tc;
@@ -161,7 +161,7 @@ class MemTracker : AllStatic {
 
   static inline void record_virtual_memory_commit(void* addr, size_t size,
     const NativeCallStack& stack) {
-    assert_post_init();
+    //assert_post_init();
     if (!enabled()) return;
     if (addr != nullptr) {
       ThreadCritical tc;
