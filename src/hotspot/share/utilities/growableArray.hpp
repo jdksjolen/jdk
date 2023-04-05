@@ -381,7 +381,7 @@ public:
   int append(const E& elem) {
     if (this->_len == this->_capacity) grow(this->_len);
     int idx = this->_len++;
-    this->_data[idx] = elem;
+    ::new ((void*)&(this->_data[idx])) E(elem);
     return idx;
   }
 
@@ -496,7 +496,6 @@ void GrowableArrayWithAllocator<E, Derived>::expand_to(int new_capacity) {
   E* newData = static_cast<Derived*>(this)->allocate();
   int i = 0;
   for (     ; i < this->_len; i++) ::new ((void*)&newData[i]) E(this->_data[i]);
-  for (     ; i < this->_capacity; i++) ::new ((void*)&newData[i]) E();
   for (i = 0; i < old_capacity; i++) this->_data[i].~E();
   if (this->_data != nullptr) {
     static_cast<Derived*>(this)->deallocate(this->_data);
