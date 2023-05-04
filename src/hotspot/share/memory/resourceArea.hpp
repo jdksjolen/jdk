@@ -41,9 +41,9 @@
 
 //------------------------------ResourceArea-----------------------------------
 // A ResourceArea is an Arena that supports safe usage of ResourceMark.
-class ResourceArea: public Arena {
+class ResourceArea {
   friend class VMStructs;
-
+  Arena _arena;
 #ifdef ASSERT
   int _nesting;                 // current # of nested ResourceMarks
   void verify_has_resource_mark();
@@ -51,12 +51,17 @@ class ResourceArea: public Arena {
 
 public:
   ResourceArea(MEMFLAGS flags = mtThread) :
-    Arena(flags) DEBUG_ONLY(COMMA _nesting(0)) {}
+    _arena(flags) DEBUG_ONLY(COMMA _nesting(0)) {}
 
   ResourceArea(size_t init_size, MEMFLAGS flags = mtThread) :
-    Arena(flags, init_size) DEBUG_ONLY(COMMA _nesting(0)) {}
+    _arena(flags, init_size) DEBUG_ONLY(COMMA _nesting(0)) {}
+
+  Arena* as_arena() {
+    return &_arena;
+  }
 
   char* allocate_bytes(size_t size, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
+  char* reallocate_bytes(void* old_ptr, size_t old_size, size_t new_size, AllocFailType alloc_failmode);
 
   // Bias this resource area to specific memory type
   // (by default, ResourceArea is tagged as mtThread, per-thread general purpose storage)
@@ -76,10 +81,10 @@ public:
 
   public:
     SavedState(ResourceArea* area) :
-      _chunk(area->_chunk),
-      _hwm(area->_hwm),
-      _max(area->_max),
-      _size_in_bytes(area->_size_in_bytes)
+      _chunk(area->_arena._chunk),
+      _hwm(area->_arena._hwm),
+      _max(area->_arena._max),
+      _size_in_bytes(area->_arena._size_in_bytes)
       DEBUG_ONLY(COMMA _nesting(area->_nesting))
     {}
   };
@@ -108,39 +113,39 @@ public:
     if (state._chunk->next() != nullptr) { // Delete later chunks.
       // Reset size before deleting chunks.  Otherwise, the total
       // size could exceed the total chunk size.
-      assert(size_in_bytes() > state._size_in_bytes,
+      assert(_arena.size_in_bytes() > state._size_in_bytes,
              "size: " SIZE_FORMAT ", saved size: " SIZE_FORMAT,
-             size_in_bytes(), state._size_in_bytes);
-      set_size_in_bytes(state._size_in_bytes);
+             _arena.size_in_bytes(), state._size_in_bytes);
+      _arena.set_size_in_bytes(state._size_in_bytes);
       state._chunk->next_chop();
-      assert(_hwm != state._hwm, "Sanity check: HWM moves when we have later chunks");
+      assert(_arena._hwm != state._hwm, "Sanity check: HWM moves when we have later chunks");
     } else {
-      assert(size_in_bytes() == state._size_in_bytes, "Sanity check");
+      assert(_arena.size_in_bytes() == state._size_in_bytes, "Sanity check");
     }
 
-    if (_hwm != state._hwm) {
+    if (_arena._hwm != state._hwm) {
       // HWM moved: resource area was used. Roll back!
 
-      char* replaced_hwm = _hwm;
+      char* replaced_hwm = _arena._hwm;
 
-      _chunk = state._chunk;
-      _hwm = state._hwm;
-      _max = state._max;
+      _arena._chunk = state._chunk;
+      _arena._hwm = state._hwm;
+      _arena._max = state._max;
 
       // Clear out this chunk (to detect allocation bugs).
       // If current chunk contains the replaced HWM, this means we are
       // doing the rollback within the same chunk, and we only need to
       // clear up to replaced HWM.
       if (ZapResourceArea) {
-        char* limit = _chunk->contains(replaced_hwm) ? replaced_hwm : _max;
-        assert(limit >= _hwm, "Sanity check: non-negative memset size");
-        memset(_hwm, badResourceValue, limit - _hwm);
+        char* limit = _arena._chunk->contains(replaced_hwm) ? replaced_hwm : _arena._max;
+        assert(limit >= _arena._hwm, "Sanity check: non-negative memset size");
+        memset(_arena._hwm, badResourceValue, limit - _arena._hwm);
       }
     } else {
       // No allocations. Nothing to rollback. Check it.
-      assert(_chunk == state._chunk, "Sanity check: idempotence");
-      assert(_hwm == state._hwm,     "Sanity check: idempotence");
-      assert(_max == state._max,     "Sanity check: idempotence");
+      assert(_arena._chunk == state._chunk, "Sanity check: idempotence");
+      assert(_arena._hwm == state._hwm,     "Sanity check: idempotence");
+      assert(_arena._max == state._max,     "Sanity check: idempotence");
     }
   }
 };

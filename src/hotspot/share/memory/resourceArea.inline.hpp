@@ -33,7 +33,13 @@ inline char* ResourceArea::allocate_bytes(size_t size, AllocFailType alloc_failm
 #ifdef ASSERT
   verify_has_resource_mark();
 #endif // ASSERT
-  return (char*)Amalloc(size, alloc_failmode);
+  return (char*)_arena.Amalloc(size, alloc_failmode);
+}
+inline char* ResourceArea::reallocate_bytes(void* old_ptr, size_t old_size, size_t new_size, AllocFailType alloc_failmode) {
+#ifdef ASSERT
+  verify_has_resource_mark();
+#endif // ASSERT
+  return (char*)_arena.Arealloc(old_ptr, old_size, new_size, alloc_failmode);
 }
 
 #endif // SHARE_MEMORY_RESOURCEAREA_INLINE_HPP

@@ -31,13 +31,13 @@
 #include "utilities/vmError.hpp"
 
 void ResourceArea::bias_to(MEMFLAGS new_flags) {
-  if (new_flags != _flags) {
-    size_t size = size_in_bytes();
-    MemTracker::record_arena_size_change(-ssize_t(size), _flags);
-    MemTracker::record_arena_free(_flags);
+  if (new_flags != _arena._flags) {
+    size_t size = _arena.size_in_bytes();
+    MemTracker::record_arena_size_change(-ssize_t(size), _arena._flags);
+    MemTracker::record_arena_free(_arena._flags);
     MemTracker::record_new_arena(new_flags);
     MemTracker::record_arena_size_change(ssize_t(size), new_flags);
-    _flags = new_flags;
+    _arena._flags = new_flags;
   }
 }
 
@@ -71,7 +71,7 @@ extern char* resource_allocate_bytes(Thread* thread, size_t size, AllocFailType 
 }
 
 extern char* resource_reallocate_bytes( char *old, size_t old_size, size_t new_size, AllocFailType alloc_failmode){
-  return (char*)Thread::current()->resource_area()->Arealloc(old, old_size, new_size, alloc_failmode);
+  return (char*)Thread::current()->resource_area()->reallocate_bytes(old, old_size, new_size, alloc_failmode);
 }
 
 extern void resource_free_bytes( Thread* thread, char *old, size_t size ) {

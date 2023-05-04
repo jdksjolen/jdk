@@ -91,6 +91,7 @@ protected:
   friend class HandleMark;
   friend class NoHandleMark;
   friend class VMStructs;
+  friend class ResourceArea;
 
   MEMFLAGS    _flags;           // Memory tracking flags
 
