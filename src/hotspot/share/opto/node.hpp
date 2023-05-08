@@ -1582,7 +1582,6 @@ protected:
   static volatile uint32_t _clobbered_count;
   static volatile uint32_t _not_clobbered_count;
   static volatile uint32_t _clobbered_nodes;
-  static volatile uint32_t _inited;
 
   Arena* _a;                    // Arena to allocate in
   uint   _max;
