@@ -2779,8 +2779,8 @@ void Node_Array::grow(uint i) {
   } else {
     Atomic::inc(&_clobbered_count);
     uint32_t max_node_clobber = Atomic::load(&_clobbered_nodes);
-    clobber_put(old);
   }
+  clobber_put(old);
   //log_info(mmu)("Clobbered: %u, Unclobbered: %u, Ratio: %u, Max lost nodes: %u", Atomic::load(&_clobbered_count), Atomic::load(&_not_clobbered_count),
   //              _clobbered_count/(_not_clobbered_count+1), Atomic::load(&_clobbered_nodes));
   if (Atomic::load(&_clobbered_count) % 10000 == 0) {
