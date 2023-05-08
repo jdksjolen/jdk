@@ -1269,10 +1269,12 @@ Node* PhaseCFG::catch_cleanup_find_cloned_def(Block *use_blk, Node *def, Block *
   if( j == def_blk->_num_succs ) {
     // Block at same level in dom-tree is not a successor.  It needs a
     // PhiNode, the PhiNode uses from the def and IT's uses need fixup.
-    Node_Array inputs = new Node_List();
+    ResourceMark rm;
+    // num_preds() is 1-based, so waste one extra element to avoid adjusting indexing.
+    Node** inputs = NEW_RESOURCE_ARRAY(Node*, use_blk->num_preds() + 1);
     for(uint k = 1; k < use_blk->num_preds(); k++) {
       Block* block = get_block_for_node(use_blk->pred(k));
-      inputs.map(k, catch_cleanup_find_cloned_def(block, def, def_blk, n_clone_idx));
+      inputs[k] = catch_cleanup_find_cloned_def(block, def, def_blk, n_clone_idx);
     }
 
     // Check to see if the use_blk already has an identical phi inserted.
