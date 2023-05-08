@@ -1528,6 +1528,55 @@ class SimpleDUIterator : public StackObj {
 class Node_Array : public AnyObj {
   friend class VMStructs;
 protected:
+  // 4 16 32 64 128 256 1024 2048 4096 8192
+  static volatile uint32_t _clobbered_table[10];
+  void clobber_put(uint cnt) {
+    switch (cnt) {
+    case 4:
+      Atomic::inc(&_clobbered_table[0]);
+      break;
+    case 16:
+      Atomic::inc(&_clobbered_table[1]);
+      break;
+    case 32:
+      Atomic::inc(&_clobbered_table[2]);
+      break;
+    case 64:
+      Atomic::inc(&_clobbered_table[3]);
+      break;
+    case 128:
+      Atomic::inc(&_clobbered_table[4]);
+      break;
+    case 256:
+      Atomic::inc(&_clobbered_table[5]);
+      break;
+    case 1024:
+      Atomic::inc(&_clobbered_table[6]);
+      break;
+    case 2048:
+      Atomic::inc(&_clobbered_table[7]);
+      break;
+    case 4096:
+      Atomic::inc(&_clobbered_table[8]);
+      break;
+    case 8192:
+      Atomic::inc(&_clobbered_table[9]);
+      break;
+    }
+  }
+  void clobber_present() {
+    log_info(mmu)("================\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n================\n",
+                  4, Atomic::load(&_clobbered_table[0]),
+                  16, Atomic::load(&_clobbered_table[1]),
+                  32, Atomic::load(&_clobbered_table[2]),
+                  64, Atomic::load(&_clobbered_table[3]),
+                  128, Atomic::load(&_clobbered_table[4]),
+                  256, Atomic::load(&_clobbered_table[5]),
+                  1024, Atomic::load(&_clobbered_table[6]),
+                  2048, Atomic::load(&_clobbered_table[7]),
+                  4096, Atomic::load(&_clobbered_table[8]),
+                  8192, Atomic::load(&_clobbered_table[9]));
+  }
   static volatile uint32_t _clobbered_count;
   static volatile uint32_t _not_clobbered_count;
   static volatile uint32_t _clobbered_nodes;

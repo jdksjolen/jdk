@@ -2768,6 +2768,7 @@ const RegMask &Node::in_RegMask(uint) const {
 volatile uint32_t Node_Array::_clobbered_count = 0;
 volatile uint32_t Node_Array::_clobbered_nodes = 0;
 volatile uint32_t Node_Array::_not_clobbered_count = 0;
+volatile uint32_t Node_Array::_clobbered_table[10] = {0,0,0,0,0,0,0,0,0,0};
 
 void Node_Array::grow(uint i) {
   assert(_max > 0, "invariant");
@@ -2778,12 +2779,13 @@ void Node_Array::grow(uint i) {
   } else {
     Atomic::inc(&_clobbered_count);
     uint32_t max_node_clobber = Atomic::load(&_clobbered_nodes);
-    if (old > max_node_clobber) {
-      Atomic::store(&_clobbered_nodes, old);
-    }
+    clobber_put(old);
   }
-  log_info(mmu)("Clobbered: %u, Unclobbered: %u, Ratio: %u, Max lost nodes: %u", Atomic::load(&_clobbered_count), Atomic::load(&_not_clobbered_count),
-                _clobbered_count/(_not_clobbered_count+1), Atomic::load(&_clobbered_nodes));
+  //log_info(mmu)("Clobbered: %u, Unclobbered: %u, Ratio: %u, Max lost nodes: %u", Atomic::load(&_clobbered_count), Atomic::load(&_not_clobbered_count),
+  //              _clobbered_count/(_not_clobbered_count+1), Atomic::load(&_clobbered_nodes));
+  if (Atomic::load(&_clobbered_count) % 10000 == 0) {
+    clobber_present();
+  }
   _nodes = (Node**)_a->Arealloc( _nodes, old*sizeof(Node*),_max*sizeof(Node*));
   Copy::zero_to_bytes( &_nodes[old], (_max-old)*sizeof(Node*) );
 }
