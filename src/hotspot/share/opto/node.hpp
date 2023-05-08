@@ -1528,6 +1528,9 @@ class SimpleDUIterator : public StackObj {
 class Node_Array : public AnyObj {
   friend class VMStructs;
 protected:
+  static volatile uint32_t _clobbered_count;
+  static volatile uint32_t _not_clobbered_count;
+  
   Arena* _a;                    // Arena to allocate in
   uint   _max;
   Node** _nodes;

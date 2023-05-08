@@ -2769,6 +2769,12 @@ void Node_Array::grow(uint i) {
   assert(_max > 0, "invariant");
   uint old = _max;
   _max = next_power_of_2(i);
+  if ((Node**)_a->hwm() - old == _nodes) {
+    Atomic::inc(&_not_clobbered_count);
+  } else {
+    Atomic::inc(&_clobbered_count);
+  }
+  log_info(mmu)("Clobbered: %lu, Unclobbered: %lu, ratio: %lu", _clobbered_count, _not_clobbered_count, _clobbered_count/_not_clobbered_count);
   _nodes = (Node**)_a->Arealloc( _nodes, old*sizeof(Node*),_max*sizeof(Node*));
   Copy::zero_to_bytes( &_nodes[old], (_max-old)*sizeof(Node*) );
 }
