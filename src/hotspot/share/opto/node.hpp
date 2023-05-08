@@ -1564,6 +1564,7 @@ protected:
       break;
     }
   }
+  bool _has_grown;
   static volatile uint32_t _inited;
   void clobber_present() {
     log_info(mmu)("================\nTotal inited: %u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n================\n",
@@ -1588,13 +1589,13 @@ protected:
   Node** _nodes;
   void   grow( uint i );        // Grow array node to fit
 public:
-  Node_Array(Arena* a, uint max = OptoNodeListSize) : _a(a), _max(max) {
+  Node_Array(Arena* a, uint max = OptoNodeListSize) : _has_grown(false), _a(a), _max(max) {
     _nodes = NEW_ARENA_ARRAY(a, Node*, max);
     clear();
     Atomic::inc(&_inited);
   }
 
-  Node_Array(Node_Array* na) : _a(na->_a), _max(na->_max), _nodes(na->_nodes) {}
+  Node_Array(Node_Array* na) : _has_grown(false), _a(na->_a), _max(na->_max), _nodes(na->_nodes) {}
   Node *operator[] ( uint i ) const // Lookup, or null for not mapped
   { return (i<_max) ? _nodes[i] : (Node*)nullptr; }
   Node* at(uint i) const { assert(i<_max,"oob"); return _nodes[i]; }
