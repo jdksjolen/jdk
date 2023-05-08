@@ -2765,6 +2765,7 @@ const RegMask &Node::in_RegMask(uint) const {
   return RegMask::Empty;
 }
 
+volatile uint32_t Node_Array::_inited = 0;
 volatile uint32_t Node_Array::_clobbered_count = 0;
 volatile uint32_t Node_Array::_clobbered_nodes = 0;
 volatile uint32_t Node_Array::_not_clobbered_count = 0;

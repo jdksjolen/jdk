@@ -1564,8 +1564,10 @@ protected:
       break;
     }
   }
+  static volatile uint32_t _inited;
   void clobber_present() {
-    log_info(mmu)("================\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n================\n",
+    log_info(mmu)("================\nTotal inited: %u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n%4u:%10u\n================\n",
+                  Atomic::load(&_inited),
                   4, Atomic::load(&_clobbered_table[0]),
                   16, Atomic::load(&_clobbered_table[1]),
                   32, Atomic::load(&_clobbered_table[2]),
@@ -1580,6 +1582,7 @@ protected:
   static volatile uint32_t _clobbered_count;
   static volatile uint32_t _not_clobbered_count;
   static volatile uint32_t _clobbered_nodes;
+  static volatile uint32_t _inited;
 
   Arena* _a;                    // Arena to allocate in
   uint   _max;
@@ -1589,6 +1592,7 @@ public:
   Node_Array(Arena* a, uint max = OptoNodeListSize) : _a(a), _max(max) {
     _nodes = NEW_ARENA_ARRAY(a, Node*, max);
     clear();
+    Atomic::inc(&_inited);
   }
 
   Node_Array(Node_Array* na) : _a(na->_a), _max(na->_max), _nodes(na->_nodes) {}
