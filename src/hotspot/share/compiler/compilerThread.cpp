@@ -29,9 +29,19 @@
 #include "runtime/javaThread.inline.hpp"
 
 // Create a CompilerThread
-CompilerThread::CompilerThread(CompileQueue* queue,
-                               CompilerCounters* counters)
-                               : JavaThread(&CompilerThread::thread_entry) {
+CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
+  : JavaThread(&CompilerThread::thread_entry, 0, false),
+    _backing_compiler_memory{9, ContiguousAllocator::get_chunk_size(false)},
+    _resource_area_memory{_backing_compiler_memory.next(), mtCompiler},
+    _compiler_memory{_backing_compiler_memory.next(), mtCompiler},
+    _matcher_memory{_backing_compiler_memory.next(), mtCompiler},
+    _chaitin_memory1{_backing_compiler_memory.next(), mtCompiler},
+    _chaitin_memory2{_backing_compiler_memory.next(), mtCompiler},
+    _cfg_memory{_backing_compiler_memory.next(), mtCompiler},
+    _phaseccp_memory{_backing_compiler_memory.next(), mtCompiler},
+    _narena_mem_one{_backing_compiler_memory.next(), mtCompiler},
+    _narena_mem_two{_backing_compiler_memory.next(), mtCompiler}
+    {
   _env   = nullptr;
   _log   = nullptr;
   _task  = nullptr;
@@ -41,7 +51,8 @@ CompilerThread::CompilerThread(CompileQueue* queue,
   _compiler = nullptr;
 
   // Compiler uses resource area for compilation, let's bias it to mtCompiler
-  resource_area()->bias_to(mtCompiler);
+  set_resource_area(new (mtThread) ResourceArea{mtCompiler, false});
+  resource_area()->init(&_resource_area_memory);
 
 #ifndef PRODUCT
   _ideal_graph_printer = nullptr;

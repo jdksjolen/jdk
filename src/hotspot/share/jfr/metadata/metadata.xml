@@ -737,7 +737,6 @@
     description="Total native memory usage for the JVM. Might not be the exact sum of the NativeMemoryUsage events due to timeing." period="everyChunk">
     <Field type="ulong" contentType="bytes" name="reserved" label="Reserved Memory" description="Total amount of reserved bytes for the JVM" />
     <Field type="ulong" contentType="bytes" name="committed" label="Committed Memory" description="Total amount of committed bytes for the JVM" />
-    <Field type="ulong" contentType="bytes" name="rss" label="Resident Set Size" description="Total RSS bytes for the JVM process" />
   </Event>
 
   <Event name="DumpReason" category="Flight Recorder" label="Recording Reason"

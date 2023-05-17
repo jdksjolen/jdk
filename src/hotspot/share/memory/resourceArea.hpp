@@ -43,30 +43,45 @@
 // A ResourceArea is an Arena that supports safe usage of ResourceMark.
 class ResourceArea: public Arena {
   friend class VMStructs;
-  ContiguousProvider _mp;
+
 #ifdef ASSERT
   int _nesting;                 // current # of nested ResourceMarks
   void verify_has_resource_mark();
 #endif // ASSERT
 
 public:
-  ResourceArea(MEMFLAGS flags = mtThread) :
-    Arena(flags, Arena::ProvideAProviderPlease{}),
-    _mp{flags}
+  explicit ResourceArea(MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
+    Arena(flags, Arena::ProvideAProviderPlease{})
      DEBUG_ONLY(COMMA _nesting(0)) {
-    this->init_memory_provider(&_mp);
+    if (use_chunk_pool) {
+      init_memory_provider(nullptr);
+    }
+  }
+  explicit ResourceArea(ContiguousProvider* mem, MEMFLAGS flags = mtThread) :
+    Arena(flags, Arena::ProvideAProviderPlease{})
+    DEBUG_ONLY(COMMA _nesting(0)) {
+    init_memory_provider(mem);
   }
 
   ~ResourceArea() {
-    if (!_mem->self_free()) {
-      destruct_contents();
+    if (_mem != nullptr) {
+      _mem->reset_full();
     }
-    _mem = nullptr;
   }
 
-  ResourceArea(size_t init_size, MEMFLAGS flags = mtThread) :
-    Arena(flags, Arena::ProvideAProviderPlease{}), _mp{flags} DEBUG_ONLY(COMMA _nesting(0)) {
-    this->init_memory_provider(&_mp);
+  explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
+    Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
+    if (use_chunk_pool) {
+      init_memory_provider(nullptr, init_size);
+    }
+  }
+  explicit ResourceArea(size_t init_size, ContiguousProvider* mem, MEMFLAGS flags = mtThread)
+    : Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
+    init_memory_provider(mem, init_size);
+  }
+
+  void init(ContiguousProvider* amp) {
+    init_memory_provider(amp);
   }
 
   char* allocate_bytes(size_t size, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
@@ -128,6 +143,50 @@ public:
       assert(_max == state._max,     "Sanity check: idempotence");
     }
 #endif
+
+    // Not in contiguous allocator, we must take the slow path.
+    if (_mem == nullptr) {
+      if (state._chunk->next() != nullptr) { // Delete later chunks.
+        // Reset size before deleting chunks.  Otherwise, the total
+        // size could exceed the total chunk size.
+        assert(size_in_bytes() > state._size_in_bytes,
+               "size: " SIZE_FORMAT ", saved size: " SIZE_FORMAT,
+               size_in_bytes(), state._size_in_bytes);
+        set_size_in_bytes(state._size_in_bytes);
+        Chunk::next_chop(state._chunk, nullptr);
+        assert(_hwm != state._hwm, "Sanity check: HWM moves when we have later chunks");
+      } else {
+        assert(size_in_bytes() == state._size_in_bytes, "Sanity check");
+      }
+
+      if (_hwm != state._hwm) {
+        // HWM moved: resource area was used. Roll back!
+
+        char* replaced_hwm = _hwm;
+
+        _chunk = state._chunk;
+        _hwm = state._hwm;
+        _max = state._max;
+
+        // Clear out this chunk (to detect allocation bugs).
+        // If current chunk contains the replaced HWM, this means we are
+        // doing the rollback within the same chunk, and we only need to
+        // clear up to replaced HWM.
+        if (ZapResourceArea) {
+          char* limit = _chunk->contains(replaced_hwm) ? replaced_hwm : _max;
+          assert(limit >= _hwm, "Sanity check: non-negative memset size");
+          memset(_hwm, badResourceValue, limit - _hwm);
+        }
+      } else {
+        // No allocations. Nothing to rollback. Check it.
+        assert(_chunk == state._chunk, "Sanity check: idempotence");
+        assert(_hwm == state._hwm,     "Sanity check: idempotence");
+        assert(_max == state._max,     "Sanity check: idempotence");
+      }
+      return;
+    }
+
+    // We're in fast path -- aka contiguous allocator
     // Chop off other chunks
     state._chunk->set_next(nullptr);
     set_size_in_bytes(state._size_in_bytes);
@@ -136,7 +195,7 @@ public:
     _chunk = state._chunk;
     _hwm = state._hwm;
     _max = state._max;
-    _mp.reset_to(_chunk->top());
+    _mem->reset_to(_chunk->top());
 
     // Clear out this chunk (to detect allocation bugs).
     // If current chunk contains the replaced HWM, this means we are

@@ -398,9 +398,9 @@ void JavaThread::check_for_valid_safepoint_state() {
 
 // A JavaThread is a normal Java thread
 
-JavaThread::JavaThread() :
+JavaThread::JavaThread(int x, bool self_init) :
   // Initialize fields
-
+  Thread(self_init),
   _on_thread_list(false),
   DEBUG_ONLY(_java_call_counter(0) COMMA)
   _entry_point(nullptr),
@@ -594,7 +594,7 @@ void JavaThread::block_if_vm_exited() {
   }
 }
 
-JavaThread::JavaThread(ThreadFunction entry_point, size_t stack_sz) : JavaThread() {
+JavaThread::JavaThread(ThreadFunction entry_point, size_t stack_sz, bool self_init) : JavaThread(0, self_init) {
   _jni_attach_state = _not_attaching_via_jni;
   set_entry_point(entry_point);
   // Create the native thread itself.

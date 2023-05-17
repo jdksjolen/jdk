@@ -40,7 +40,6 @@ NMTUsage::NMTUsage(NMTUsageOptions options) :
     _malloc_total(),
     _vm_by_type(),
     _vm_total(),
-    _rss(),
     _usage_options(options) { }
 
 void NMTUsage::walk_thread_stacks() {
@@ -93,7 +92,6 @@ void NMTUsage::update_vm_usage() {
     _vm_total.reserved += vm->reserved();
     _vm_total.committed += vm->committed();
   }
-  _rss = os::rss();
 }
 
 void NMTUsage::refresh() {
@@ -118,10 +116,6 @@ size_t NMTUsage::total_reserved() const {
 
 size_t NMTUsage::total_committed() const {
   return _malloc_total + _vm_total.committed;
-}
-
-size_t NMTUsage::rss() const {
-  return _rss;
 }
 
 size_t NMTUsage::reserved(MEMFLAGS flag) const {

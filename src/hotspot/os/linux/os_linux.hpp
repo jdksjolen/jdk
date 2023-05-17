@@ -96,7 +96,6 @@ class os::Linux {
   static bool release_memory_special_shm(char* base, size_t bytes);
   static bool release_memory_special_huge_tlbfs(char* base, size_t bytes);
 
-  static size_t get_rss();
   static void print_process_memory_info(outputStream* st);
   static void print_system_memory_info(outputStream* st);
   static bool print_container_info(outputStream* st);

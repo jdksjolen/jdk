@@ -28,6 +28,7 @@
 #include "memory/allocation.hpp"
 #include "memory/contiguousAllocator.hpp"
 #include "runtime/globals.hpp"
+#include "logging/log.hpp"
 #include "runtime/threadCritical.hpp"
 #include "services/memTracker.hpp"
 #include "utilities/align.hpp"
@@ -51,15 +52,21 @@ public:
   virtual bool reset_to(void* ptr) = 0;
 };
 
-class ContiguousProvider : public ArenaMemoryProvider {
+class ContiguousProvider final : public ArenaMemoryProvider {
   ContiguousAllocator _cont_allocator;
+  ContiguousAllocator::AllocationResult returned_chunks[3];
 public:
-  ContiguousProvider(MEMFLAGS flag) :
-    _cont_allocator(flag) {}
-  ContiguousProvider(MEMFLAGS flag, size_t max_size) :
-    _cont_allocator(max_size, flag) {}
+  explicit ContiguousProvider(MEMFLAGS flag, bool useHugePages) :
+    _cont_allocator(flag, useHugePages), returned_chunks{} {}
+  explicit ContiguousProvider(MEMFLAGS flag) :
+    _cont_allocator(flag), returned_chunks{} {}
+  explicit ContiguousProvider(MEMFLAGS flag, size_t max_size) :
+    _cont_allocator(max_size, flag), returned_chunks{} {}
+  explicit ContiguousProvider(ContiguousAllocator::MemoryArea ma, MEMFLAGS flag) :
+    _cont_allocator(ma, flag) {}
 
   AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
+    size_t chunk_aligned_size = align_up(bytes, _cont_allocator.chunk_size);
     ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(bytes);
      if (p.loc != nullptr) {
        return {p.loc, p.sz};
@@ -78,7 +85,14 @@ public:
     _cont_allocator.reset_to(ptr);
     return true;
  }
+  bool reset_full(size_t memory_to_leave = 0) {
+    _cont_allocator.reset_full(memory_to_leave);
+    return true;
+  }
   bool self_free() override { return true; }
+  size_t used() {
+    return _cont_allocator.offset - _cont_allocator.start;
+  }
 };
 
 // The byte alignment to be used by Arena::Amalloc.
@@ -93,16 +107,13 @@ class Chunk {
   Chunk*       _next;     // Next Chunk in list
   const size_t _len;      // Size of this Chunk
  public:
-  static void destroy(void* p, ArenaMemoryProvider* mp);
+  static void destroy(void* p, ContiguousProvider* mp);
   // Allocate enough memory for a chunk being able to hold length bytes
   static Chunk*
-  allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaMemoryProvider* mp);
+  allocate_chunk(AllocFailType alloc_failmode, size_t length, ContiguousProvider* mp);
 
   Chunk(size_t length);
 
-  // TODO:
-  // 1. I changed these sizes to be page aligned, revert them.
-  // 2. These are really mostly interesting for the ChunkPool allocator MAYBE??
   enum {
     // default sizes; make them slightly smaller than 2**k to guard against
     // buddy-system style malloc implementations
@@ -114,15 +125,15 @@ class Chunk {
     slack      = 24,            // suspected sizeof(Chunk) + internal malloc headers
 #endif
 
-    tiny_size  =  4*K - 16, // Size of first chunk (tiny)
-    init_size  =  8*K - 16, // Size of first chunk (normal aka small)
-    medium_size= 16*K - 16, // Size of medium-sized chunk
-    size       = 32*K - 16, // Default size of an Arena chunk (following the first)
-    non_pool_size = init_size + 4*K // An initial size which is not one of above
+    tiny_size  =  256  - slack, // Size of first chunk (tiny)
+    init_size  =  1*K  - slack, // Size of first chunk (normal aka small)
+    medium_size= 10*K  - slack, // Size of medium-sized chunk
+    size       = 32*K  - slack, // Default size of an Arena chunk (following the first)
+    non_pool_size = init_size + 32 // An initial size which is not one of above
   };
 
-  static void chop(Chunk* chnk, ArenaMemoryProvider* mp);      // Chop this chunk
-  static void next_chop(Chunk* chnk, ArenaMemoryProvider* mp); // Chop next chunk
+  static void chop(Chunk* chnk, ContiguousProvider* mp);      // Chop this chunk
+  static void next_chop(Chunk* chnk, ContiguousProvider* mp); // Chop next chunk
   static size_t aligned_overhead_size(void) { return ARENA_ALIGN(sizeof(Chunk)); }
   static size_t aligned_overhead_size(size_t byte_size) { return ARENA_ALIGN(byte_size); }
 
@@ -138,7 +149,7 @@ class Chunk {
   static void start_chunk_pool_cleaner_task();
 };
 
-class ChunkPoolProvider : public ArenaMemoryProvider {
+class ChunkPoolProvider final : public ArenaMemoryProvider {
 public:
   AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override;
   void free(void* p) override;
@@ -150,13 +161,14 @@ public:
 //------------------------------Arena------------------------------------------
 // Fast allocation of memory
 class Arena : public CHeapObjBase {
+public:
   static ChunkPoolProvider chunk_pool;
 protected:
   friend class HandleMark;
   friend class NoHandleMark;
   friend class VMStructs;
 
-  ArenaMemoryProvider* _mem;
+  ContiguousProvider* _mem;
   MEMFLAGS    _flags;           // Memory tracking flags
 
   Chunk *_first;                // First chunk
@@ -180,11 +192,11 @@ protected:
  public:
   Arena(MEMFLAGS memflag);
   Arena(MEMFLAGS memflag, size_t init_size);
-  Arena(MEMFLAGS memflag, ArenaMemoryProvider* mp);
+  Arena(MEMFLAGS memflag, ContiguousProvider* mp);
 
   struct ProvideAProviderPlease {};
   Arena(MEMFLAGS memflag, ProvideAProviderPlease provide_it);
-  void init_memory_provider(ArenaMemoryProvider* mem, size_t init_size = Chunk::init_size);
+  void init_memory_provider(ContiguousProvider* mem, size_t init_size = Chunk::init_size);
 
   ~Arena();
   void  destruct_contents();
@@ -219,6 +231,17 @@ protected:
 #endif
     if (((char*)ptr) + size == _hwm) {
       _hwm = (char*)ptr;
+      if (_hwm == _chunk->bottom()) {
+        Chunk* n_current = _first;
+        int n = 0;
+        while (n_current->next() != _chunk) {
+          n_current = n_current->next();
+          n++;
+        }
+        log_info(mmu)("FREE_CHUNK! %d with size %zu", n, _chunk->length());
+        Chunk::chop(_chunk, _mem);
+        _chunk = n_current;
+      }
       return true;
     } else {
       // Unable to fast free, so we just drop it.
@@ -228,9 +251,6 @@ protected:
 
   void *Arealloc( void *old_ptr, size_t old_size, size_t new_size,
       AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
-
-  // Move contents of this arena into an empty arena
-  Arena *move_contents(Arena *empty_arena);
 
   // Determine if pointer belongs to this Arena or not.
   bool contains( const void *ptr ) const;

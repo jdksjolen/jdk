@@ -219,9 +219,6 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, NUMAStats, false,                                           \
           "Print NUMA stats in detailed heap information")                  \
                                                                             \
-  product(bool, FixedSizeCompilation, false,                                \
-          "Use contiguous allocator in order to reduce fragmentation.")     \
-                                                                            \
   product(uintx, NUMAPageScanRate, 256,                                     \
           "Maximum number of pages to include in the page scan procedure")  \
           range(0, max_uintx)                                               \
@@ -1976,9 +1973,6 @@ const int ObjectAlignmentInBytes = 8;
              "Mark all threads after a safepoint, and clear on a modify "   \
              "fence. Add cleanliness checks.")                              \
                                                                             \
-  product(intx, NativeHeapTrimPeriod, 0,                                    \
-          "Native heap trimming period (in number of malloc calls)")        \
-          range(min_intx, max_intx)                                         \
   product(int, LockingMode, LM_LEGACY, EXPERIMENTAL,                        \
           "Select locking mode: "                                           \
           "0: monitors only (LM_MONITOR), "                                 \

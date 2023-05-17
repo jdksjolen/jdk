@@ -45,7 +45,6 @@ private:
   size_t _malloc_total;
   NMTUsagePair _vm_by_type[mt_number_of_types];
   NMTUsagePair _vm_total;
-  size_t _rss;
 
   NMTUsageOptions _usage_options;
 
@@ -62,7 +61,6 @@ public:
 
   size_t total_reserved() const;
   size_t total_committed() const;
-  size_t rss() const;
   size_t reserved(MEMFLAGS flag) const;
   size_t committed(MEMFLAGS flag) const;
 };

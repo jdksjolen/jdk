@@ -757,8 +757,6 @@ class os: AllStatic {
   // Get host name in buffer provided
   static bool get_host_name(char* buf, size_t buflen);
 
-  static size_t rss();
-
   // Print out system information; they are called by fatal error handler.
   // Output format may be different on different platforms.
   static void print_os_info(outputStream* st);
