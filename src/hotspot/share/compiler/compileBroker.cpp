@@ -271,7 +271,11 @@ bool CompileBroker::can_remove(CompilerThread *ct, bool do_it) {
   bool c1 = compiler->is_c1();
 
   // Keep at least 1 compiler thread of each type.
-  if (compiler_count < 2) return false;
+  if (compiler_count < 2) {
+    // Reduce memory usage of remaining thread
+    ct->reset_memory(true);
+    return false;
+  }
 
   // Keep thread alive for at least some time.
   if (ct->idle_time_millis() < (c1 ? 500 : 100)) return false;

@@ -26,6 +26,7 @@
 #define SHARE_COMPILER_COMPILERTHREAD_HPP
 
 #include "runtime/javaThread.hpp"
+#include <sys/mman.h>
 
 class BufferBlob;
 class AbstractCompiler;
@@ -53,8 +54,93 @@ class CompilerThread : public JavaThread {
 
   AbstractCompiler*     _compiler;
   TimeStamp             _idle_time;
+public:
+  struct CompilerMemory {
+    size_t size;
+    char* start;
+    char* current;
+    size_t size_per;
+  public:
+    CompilerMemory(size_t divided_by, size_t chunk_size)
+      : size(4096*M),
+        start(nullptr),
+        size_per(0) /* Set later */ {
+      void* ret = ::mmap(nullptr, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+      assert(ret != MAP_FAILED, "mustn't");
+      char* addr = (char*)ret;
+      char* aligned_addr = align_up(addr, chunk_size);
+      if (aligned_addr != addr) {
+        int x = ::munmap(addr, aligned_addr - addr);
+        assert(x == 0, "must");
+        size -= aligned_addr - addr;
+        addr = aligned_addr;
+      }
+      // Transparent huge pages are unacceptable.
+#ifndef MADV_NOHUGEPAGE
+#define MADV_NOHUGEPAGE 15
+      ::madvise(addr, size, MADV_NOHUGEPAGE);
+#undef MADV_NOHUGEPAGE
+#else
+      ::madvise(addr, size, MADV_NOHUGEPAGE);
+#endif
 
- public:
+      // Update
+      start = addr;
+      current = start;
+      size_per = align_down(size / divided_by, chunk_size);
+      MemTracker::record_virtual_memory_reserve(start, size, CALLER_PC, mtCompiler);
+    }
+
+    ContiguousAllocator::MemoryArea next() {
+      ContiguousAllocator::MemoryArea ma{current, size_per};
+      if (is_aligned(ma.start, 2*M)) {
+        ma.start += ContiguousAllocator::get_chunk_size(false);
+        ma.size -= ContiguousAllocator::get_chunk_size(false);
+      }
+      current += size_per;
+      return ma;
+    }
+    ~CompilerMemory() {
+      ::munmap(start, size);
+      MemTracker::record_virtual_memory_release(start, size);
+    }
+  };
+
+  CompilerMemory _backing_compiler_memory; // All of the compiler memory
+  ContiguousProvider _resource_area_memory; // Backing memory for the ResourceArea
+  ContiguousProvider _compiler_memory; // Backing memory for the Compile class.
+  // Memory for the various resource areas allocated for a compilation.
+  ContiguousProvider _matcher_memory; // Backing memory for the Matcher class.
+  ContiguousProvider _chaitin_memory1; // Backing memory for the Chaitin class.
+  ContiguousProvider _chaitin_memory2; // Backing memory for the Chaitin class.
+  ContiguousProvider _cfg_memory; // Backing memory for phasecfg.
+  ContiguousProvider _phaseccp_memory; // Backing memory for phaseccp.
+  // Backing memory for the Node arenas
+  ContiguousProvider _narena_mem_one;
+  ContiguousProvider _narena_mem_two;
+  void reset_memory(bool force = false) {
+    if (force) {
+      // Minimize memory usage -- we're probably idling
+      _matcher_memory.reset_full();
+      _chaitin_memory1.reset_full();
+      _chaitin_memory2.reset_full();
+      _phaseccp_memory.reset_full();
+      _cfg_memory.reset_full();
+      _compiler_memory.reset_full();
+      _narena_mem_one.reset_full();
+      _narena_mem_two.reset_full();
+    } else {
+      // Only keep the amount of memory that the last compilation needed
+      _matcher_memory.reset_full(_matcher_memory.used());
+      _chaitin_memory1.reset_full(_chaitin_memory1.used());
+      _chaitin_memory2.reset_full(_chaitin_memory2.used());
+      _phaseccp_memory.reset_full(_phaseccp_memory.used());
+      _cfg_memory.reset_full(_cfg_memory.used());
+      _compiler_memory.reset_full(_compiler_memory.used());
+      _narena_mem_one.reset_full(_narena_mem_one.used());
+      _narena_mem_two.reset_full(_narena_mem_two.used());
+    }
+  }
 
   static CompilerThread* current() {
     return CompilerThread::cast(JavaThread::current());

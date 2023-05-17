@@ -30,6 +30,7 @@
 #include "gc/shared/gcThreadLocalData.hpp"
 #include "gc/shared/threadLocalAllocBuffer.hpp"
 #include "memory/allocation.hpp"
+#include "memory/arena.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/globals.hpp"
 #include "runtime/os.hpp"
@@ -279,7 +280,7 @@ class Thread: public ThreadShadow {
                                                  // is waiting to lock
  public:
   // Constructor
-  Thread();
+  Thread(bool self_init = true);
   virtual ~Thread() = 0;        // Thread is abstract.
 
   // Manage Thread::current()

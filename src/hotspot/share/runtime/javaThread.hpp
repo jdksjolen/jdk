@@ -473,9 +473,9 @@ private:
 
  public:
   // Constructor
-  JavaThread();                            // delegating constructor
+  JavaThread(int x = 0, bool self_init = true);       // delegating constructor
   JavaThread(bool is_attaching_via_jni);   // for main thread and JNI attached threads
-  JavaThread(ThreadFunction entry_point, size_t stack_size = 0);
+  JavaThread(ThreadFunction entry_point, size_t stack_size = 0, bool self_init = true);
   ~JavaThread();
 
 #ifdef ASSERT

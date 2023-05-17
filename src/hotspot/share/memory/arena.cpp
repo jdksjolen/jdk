@@ -170,7 +170,7 @@ ChunkPoolProvider Arena::chunk_pool{};
 
 
 // TODO: Inline destroy and allocate_chunk
-Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaMemoryProvider* mem_provide) throw() {
+Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ContiguousProvider* mem_provide) throw() {
   // - requested_size = sizeof(Chunk)
   // - length = payload size
   // We must ensure that the boundaries of the payload (C and D) are aligned to 64-bit:
@@ -192,8 +192,12 @@ Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaM
   size_t bytes = ARENA_ALIGN(sizeof(Chunk)) + length;
   assert(is_aligned(length, ARENA_AMALLOC_ALIGNMENT), "chunk payload length misaligned: "
          SIZE_FORMAT ".", length);
-
-  ArenaMemoryProvider::AllocationResult res = mem_provide->alloc(alloc_failmode, bytes, length, mtChunk);
+  ArenaMemoryProvider::AllocationResult res;
+  if (mem_provide != nullptr) {
+      res = mem_provide->alloc(alloc_failmode, bytes, length, mtChunk);
+  } else {
+    res = Arena::chunk_pool.alloc(alloc_failmode, bytes, length, mtChunk);
+  }
   if (res.loc == nullptr) {
     return nullptr;
   }
@@ -201,15 +205,17 @@ Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaM
 
 }
 
-void Chunk::destroy(void* p, ArenaMemoryProvider* mp) {
-  mp->free(p);
+void Chunk::destroy(void* p, ContiguousProvider* mp) {
+  if (mp == nullptr) {
+    Arena::chunk_pool.free(p);
+  }
 }
 
 Chunk::Chunk(size_t length) : _len(length) {
   _next = nullptr;         // Chain on the linked list
 }
 
-void Chunk::chop(Chunk* chunk, ArenaMemoryProvider* mp) {
+void Chunk::chop(Chunk* chunk, ContiguousProvider* mp) {
   while (chunk != nullptr) {
     Chunk *tmp = chunk->next();
     // clear out this chunk (to detect allocation bugs)
@@ -219,7 +225,7 @@ void Chunk::chop(Chunk* chunk, ArenaMemoryProvider* mp) {
   }
 }
 
-void Chunk::next_chop(Chunk* chunk, ArenaMemoryProvider* mp) {
+void Chunk::next_chop(Chunk* chunk, ContiguousProvider* mp) {
   Chunk::chop(chunk->_next, mp);
   chunk->_next = nullptr;
 }
@@ -243,7 +249,7 @@ Arena::Arena(MEMFLAGS flag, Arena::ProvideAProviderPlease provide_mp) :
   MemTracker::record_new_arena(flag);
 }
 
-Arena::Arena(MEMFLAGS flag, ArenaMemoryProvider* mp) :
+Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp) :
   _mem(mp), _flags(flag), _size_in_bytes(0) {
   // TODO: Kludge.
   // See ResourceArea for why we can't init it more than we do here.
@@ -259,8 +265,7 @@ Arena::Arena(MEMFLAGS flag, ArenaMemoryProvider* mp) :
 
 }
 
-void Arena::init_memory_provider(ArenaMemoryProvider* mp, size_t init_size) {
-  assert(_mem == nullptr, "must be null");
+void Arena::init_memory_provider(ContiguousProvider* mp, size_t init_size) {
   _mem = mp;
 
   _first =  Chunk::allocate_chunk(AllocFailStrategy::EXIT_OOM, init_size, _mem);
@@ -273,7 +278,7 @@ void Arena::init_memory_provider(ArenaMemoryProvider* mp, size_t init_size) {
 
 
 Arena::Arena(MEMFLAGS flag, size_t init_size) :
-  _mem(&chunk_pool),
+  _mem(nullptr),
   _flags(flag), _size_in_bytes(0)  {
 
   init_size = ARENA_ALIGN(init_size);
@@ -287,7 +292,7 @@ Arena::Arena(MEMFLAGS flag, size_t init_size) :
 }
 
 Arena::Arena(MEMFLAGS flag) :
-  _mem(&chunk_pool), _flags(flag), _size_in_bytes(0) {
+  _mem(nullptr), _flags(flag), _size_in_bytes(0) {
 
   _first =  Chunk::allocate_chunk(AllocFailStrategy::EXIT_OOM, Chunk::init_size, _mem);
   _chunk = _first;
@@ -298,27 +303,8 @@ Arena::Arena(MEMFLAGS flag) :
   set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
 }
 
-Arena *Arena::move_contents(Arena *copy) {
-  copy->destruct_contents();
-  copy->_chunk = _chunk;
-  copy->_hwm   = _hwm;
-  copy->_max   = _max;
-  copy->_first = _first;
-
-  // workaround rare racing condition, which could double count
-  // the arena size by native memory tracking
-  size_t size = size_in_bytes();
-  set_size_in_bytes(0);
-  copy->set_size_in_bytes(size);
-  // Destroy original arena
-  reset();
-  return copy;            // Return Arena with contents
-}
-
 Arena::~Arena() {
-  if (_mem != nullptr && !_mem->self_free()) {
-    destruct_contents();
-  }
+  destruct_contents();
   MemTracker::record_arena_free(_flags);
 }
 
@@ -327,7 +313,7 @@ void Arena::destruct_contents() {
   // reset size before chop to avoid a rare racing condition
   // that can have total arena memory exceed total chunk memory
   set_size_in_bytes(0);
-  if (_first != nullptr) {
+  if (_mem == nullptr) {
     Chunk::chop(_first, _mem);
   }
   reset();
