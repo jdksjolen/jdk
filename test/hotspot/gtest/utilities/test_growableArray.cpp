@@ -61,7 +61,7 @@ protected:
   template <typename ArrayClass>
   static void test_append(ArrayClass* a) {
     // Add elements
-    for (uint32_t i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
       a->append(i);
     }
 
@@ -69,7 +69,7 @@ protected:
     ASSERT_EQ(a->length(), (uint32_t)10);
 
     // Check elements
-    for (uint32_t i = 0; i < 10; i++) {
+    for (int i = 0; i < 10; i++) {
       EXPECT_EQ(a->at(i), i);
     }
   }
