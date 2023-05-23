@@ -85,7 +85,7 @@ public:
   static void track_memory_usage();
   static void track_code_cache_memory_usage() {
     // Track memory pool usage of all CodeCache memory pools
-    for (int i = 0; i < _code_heap_pools->length(); ++i) {
+    for (uint32_t i = 0; i < _code_heap_pools->length(); ++i) {
       track_memory_pool_usage(_code_heap_pools->at(i));
     }
   }

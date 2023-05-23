@@ -473,7 +473,7 @@ class Dependencies: public ResourceObj {
 
   void log_dependency(DepType dept, GrowableArray<ciBaseObject*>* args) {
     ResourceMark rm;
-    int argslen = args->length();
+    uint32_t argslen = args->length();
     write_dependency_to(log(), dept, args);
     guarantee(argslen == args->length(),
               "args array cannot grow inside nested ResoureMark scope");
@@ -488,8 +488,10 @@ class Dependencies: public ResourceObj {
       return;
     }
     ResourceMark rm;
+    assert(dep_args(dept) >= 0, "must be");
+    uint32_t expected_size = (uint32_t)dep_args(dept);
     GrowableArray<ciBaseObject*>* ciargs =
-                new GrowableArray<ciBaseObject*>(dep_args(dept));
+                new GrowableArray<ciBaseObject*>(expected_size);
     assert (x0 != nullptr, "no log x0");
     ciargs->push(x0);
 
@@ -502,7 +504,7 @@ class Dependencies: public ResourceObj {
     if (x3 != nullptr) {
       ciargs->push(x3);
     }
-    assert(ciargs->length() == dep_args(dept), "");
+    assert(ciargs->length() == expected_size, "");
     log_dependency(dept, ciargs);
   }
 
