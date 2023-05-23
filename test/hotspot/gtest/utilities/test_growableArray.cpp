@@ -61,15 +61,15 @@ protected:
   template <typename ArrayClass>
   static void test_append(ArrayClass* a) {
     // Add elements
-    for (int i = 0; i < 10; i++) {
+    for (uint32_t i = 0; i < 10; i++) {
       a->append(i);
     }
 
     // Check size
-    ASSERT_EQ(a->length(), 10);
+    ASSERT_EQ(a->length(), (uint32_t)10);
 
     // Check elements
-    for (int i = 0; i < 10; i++) {
+    for (uint32_t i = 0; i < 10; i++) {
       EXPECT_EQ(a->at(i), i);
     }
   }
