@@ -28,26 +28,23 @@
 #include "runtime/javaThread.hpp"
 #include "utilities/growableArray.hpp"
 
-void* GrowableArrayResourceAllocator::allocate(int max, int elementSize) {
-  assert(max >= 0, "integer overflow");
-  size_t byte_size = elementSize * (size_t) max;
+void* GrowableArrayResourceAllocator::allocate(size_t max, size_t element_size) {
+  size_t byte_size = element_size * max;
 
   return (void*)resource_allocate_bytes(byte_size);
 }
 
-void* GrowableArrayArenaAllocator::allocate(int max, int element_size, Arena* arena) {
-  assert(max >= 0, "integer overflow");
-  size_t byte_size = element_size * (size_t) max;
+void* GrowableArrayArenaAllocator::allocate(size_t max, size_t element_size, Arena* arena) {
+  size_t byte_size = element_size * max;
 
   return arena->Amalloc(byte_size);
 }
 
 void* GrowableArrayCHeapAllocator::allocate(int max, int element_size, MEMFLAGS memflags) {
-  assert(max >= 0, "integer overflow");
-  size_t byte_size = element_size * (size_t) max;
-
   // memory type has to be specified for C heap allocation
   assert(memflags != mtNone, "memory type not specified for C heap object");
+  size_t byte_size = element_size * (size_t) max;
+
   return (void*)AllocateHeap(byte_size, memflags);
 }
 

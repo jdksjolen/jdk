@@ -74,28 +74,28 @@ class GrowableArrayBase : public AnyObj {
 
 protected:
   // Current number of accessible elements
-  int _len;
+  uint32_t _len;
   // Current number of allocated elements
-  int _capacity;
+  uint32_t _capacity;
 
-  GrowableArrayBase(int capacity, int initial_len) :
+  GrowableArrayBase(size_t capacity, size_t initial_len) :
       _len(initial_len),
       _capacity(capacity) {
-    assert(_len >= 0 && _len <= _capacity, "initial_len too big");
+    assert(_len <= _capacity, "initial_len too big");
   }
 
   ~GrowableArrayBase() {}
 
 public:
-  int   length() const          { return _len; }
-  int   capacity() const        { return _capacity; }
+  uint32_t   length() const          { return _len; }
+  uint32_t   capacity() const        { return _capacity; }
 
   bool  is_empty() const        { return _len == 0; }
   bool  is_nonempty() const     { return _len != 0; }
   bool  is_full() const         { return _len == _capacity; }
 
   void  clear()                 { _len = 0; }
-  void  trunc_to(int length)    {
+  void  trunc_to(uint32_t length)    {
     assert(length <= _len,"cannot increase length");
     _len = length;
   }
@@ -118,7 +118,7 @@ class GrowableArrayView : public GrowableArrayBase {
 protected:
   E* _data; // data array
 
-  GrowableArrayView<E>(E* data, int capacity, int initial_len) :
+  GrowableArrayView<E>(E* data, size_t capacity, size_t initial_len) :
       GrowableArrayBase(capacity, initial_len), _data(data) {}
 
   ~GrowableArrayView() {}
@@ -129,7 +129,7 @@ public:
   bool operator==(const GrowableArrayView<E>& rhs) const {
     if (_len != rhs._len)
       return false;
-    for (int i = 0; i < _len; i++) {
+    for (uint32_t i = 0; i < _len; i++) {
       if (at(i) != rhs.at(i)) {
         return false;
       }
@@ -141,18 +141,18 @@ public:
     return !(*this == rhs);
   }
 
-  E& at(int i) {
-    assert(0 <= i && i < _len, "illegal index");
+  E& at(uint32_t i) {
+    assert(i < _len, "illegal index");
     return _data[i];
   }
 
-  E const& at(int i) const {
-    assert(0 <= i && i < _len, "illegal index");
+  E const& at(uint32_t i) const {
+    assert(i < _len, "illegal index");
     return _data[i];
   }
 
-  E* adr_at(int i) const {
-    assert(0 <= i && i < _len, "illegal index");
+  E* adr_at(uint32_t i) const {
+    assert(i < _len, "illegal index");
     return &_data[i];
   }
 
@@ -183,42 +183,42 @@ public:
     return _data[--_len];
   }
 
-  void at_put(int i, const E& elem) {
-    assert(0 <= i && i < _len, "illegal index");
+  void at_put(uint32_t i, const E& elem) {
+    assert(i < _len, "illegal index");
     _data[i] = elem;
   }
 
   bool contains(const E& elem) const {
-    for (int i = 0; i < _len; i++) {
+    for (uint32_t i = 0; i < _len; i++) {
       if (_data[i] == elem) return true;
     }
     return false;
   }
 
-  int  find(const E& elem) const {
-    for (int i = 0; i < _len; i++) {
+  uint32_t find(const E& elem) const {
+    for (uint32_t i = 0; i < _len; i++) {
       if (_data[i] == elem) return i;
     }
     return -1;
   }
 
-  int  find_from_end(const E& elem) const {
-    for (int i = _len-1; i >= 0; i--) {
+  uint32_t find_from_end(const E& elem) const {
+    for (uint32_t i = _len-1; i >= 0; i--) {
       if (_data[i] == elem) return i;
     }
     return -1;
   }
 
-  int  find(void* token, bool f(void*, E)) const {
-    for (int i = 0; i < _len; i++) {
+  uint32_t find(void* token, bool f(void*, E)) const {
+    for (uint32_t i = 0; i < _len; i++) {
       if (f(token, _data[i])) return i;
     }
     return -1;
   }
 
-  int  find_from_end(void* token, bool f(void*, E)) const {
+  uint32_t find_from_end(void* token, bool f(void*, E)) const {
     // start at the end of the array
-    for (int i = _len-1; i >= 0; i--) {
+    for (uint32_t i = _len-1; i >= 0; i--) {
       if (f(token, _data[i])) return i;
     }
     return -1;
@@ -235,7 +235,7 @@ public:
 
   bool remove_if_existing(const E& elem) {
     // Returns TRUE if elem is removed.
-    for (int i = 0; i < _len; i++) {
+    for (uint32_t i = 0; i < _len; i++) {
       if (_data[i] == elem) {
         remove_at(i);
         return true;
@@ -244,32 +244,31 @@ public:
     return false;
   }
 
-  void remove_at(int index) {
-    assert(0 <= index && index < _len, "illegal index");
-    for (int j = index + 1; j < _len; j++) {
+  void remove_at(uint32_t index) {
+    assert(index < _len, "illegal index");
+    for (uint32_t j = index + 1; j < _len; j++) {
       _data[j-1] = _data[j];
     }
     _len--;
   }
 
   // Remove all elements up to the index (exclusive). The order is preserved.
-  void remove_till(int idx) {
+  void remove_till(uint32_t idx) {
     remove_range(0, idx);
   }
 
   // Remove all elements in the range [start - end). The order is preserved.
-  void remove_range(int start, int end) {
-    assert(0 <= start, "illegal index");
+  void remove_range(uint32_t start, uint32_t end) {
     assert(start < end && end <= _len, "erase called with invalid range");
 
-    for (int i = start, j = end; j < length(); i++, j++) {
+    for (uint32_t i = start, j = end; j < length(); i++, j++) {
       at_put(i, at(j));
     }
     trunc_to(length() - (end - start));
   }
 
   // The order is changed.
-  void delete_at(int index) {
+  void delete_at(uint32_t index) {
     assert(0 <= index && index < _len, "illegal index");
     if (index < --_len) {
       // Replace removed element with last one.
@@ -285,13 +284,13 @@ public:
     qsort(_data, length() / stride, sizeof(E) * stride, (_sort_Fn)f);
   }
 
-  template <typename K, int compare(const K&, const E&)> int find_sorted(const K& key, bool& found) const {
+  template <typename K, int compare(const K&, const E&)> uint32_t find_sorted(const K& key, bool& found) const {
     found = false;
-    int min = 0;
-    int max = length() - 1;
+    uint32_t min = 0;
+    uint32_t max = length() - 1;
 
     while (max >= min) {
-      int mid = (int)(((uint)max + min) / 2);
+      uint32_t mid = (max + min) / 2;
       E value = at(mid);
       int diff = compare(key, value);
       if (diff > 0) {
@@ -307,13 +306,13 @@ public:
   }
 
   template <typename K>
-  int find_sorted(CompareClosure<E>* cc, const K& key, bool& found) {
+  uint32_t find_sorted(CompareClosure<E>* cc, const K& key, bool& found) {
     found = false;
-    int min = 0;
-    int max = length() - 1;
+    uint32_t min = 0;
+    uint32_t max = length() - 1;
 
     while (max >= min) {
-      int mid = (int)(((uint)max + min) / 2);
+      uint32_t mid = (max + min) / 2;
       E value = at(mid);
       int diff = cc->do_compare(key, value);
       if (diff > 0) {
@@ -331,7 +330,7 @@ public:
   void print() const {
     tty->print("Growable Array " PTR_FORMAT, p2i(this));
     tty->print(": length %d (capacity %d) { ", _len, _capacity);
-    for (int i = 0; i < _len; i++) {
+    for (uint32_t i = 0; i < _len; i++) {
       tty->print(INTPTR_FORMAT " ", *(intptr_t*)&(_data[i]));
     }
     tty->print("}\n");
@@ -345,7 +344,7 @@ template <typename E>
 class GrowableArrayFromArray : public GrowableArrayView<E> {
 public:
 
-  GrowableArrayFromArray<E>(E* data, int len) :
+  GrowableArrayFromArray<E>(E* data, uint32_t len) :
     GrowableArrayView<E>(data, len, len) {}
 };
 
@@ -361,20 +360,20 @@ template <typename E, typename Derived>
 class GrowableArrayWithAllocator : public GrowableArrayView<E> {
   friend class VMStructs;
 
-  void expand_to(int j);
-  void grow(int j);
+  void expand_to(uint32_t j);
+  void grow(uint32_t j);
 
 protected:
-  GrowableArrayWithAllocator(E* data, int capacity) :
+  GrowableArrayWithAllocator(E* data, uint32_t capacity) :
       GrowableArrayView<E>(data, capacity, 0) {
-    for (int i = 0; i < capacity; i++) {
+    for (uint32_t i = 0; i < capacity; i++) {
       ::new ((void*)&data[i]) E();
     }
   }
 
-  GrowableArrayWithAllocator(E* data, int capacity, int initial_len, const E& filler) :
+  GrowableArrayWithAllocator(E* data, uint32_t capacity, uint32_t initial_len, const E& filler) :
       GrowableArrayView<E>(data, capacity, initial_len) {
-    int i = 0;
+    uint32_t i = 0;
     for (; i < initial_len; i++) {
       ::new ((void*)&data[i]) E(filler);
     }
@@ -402,22 +401,20 @@ public:
 
   void push(const E& elem) { append(elem); }
 
-  E at_grow(int i, const E& fill = E()) {
-    assert(0 <= i, "negative index");
+  E at_grow(uint32_t i, const E& fill = E()) {
     if (i >= this->_len) {
       if (i >= this->_capacity) grow(i);
-      for (int j = this->_len; j <= i; j++)
+      for (uint32_t j = this->_len; j <= i; j++)
         this->_data[j] = fill;
       this->_len = i+1;
     }
     return this->_data[i];
   }
 
-  void at_put_grow(int i, const E& elem, const E& fill = E()) {
-    assert(0 <= i, "negative index");
+  void at_put_grow(uint32_t i, const E& elem, const E& fill = E()) {
     if (i >= this->_len) {
       if (i >= this->_capacity) grow(i);
-      for (int j = this->_len; j < i; j++)
+      for (uint32_t j = this->_len; j < i; j++)
         this->_data[j] = fill;
       this->_len = i+1;
     }
@@ -425,27 +422,27 @@ public:
   }
 
   // inserts the given element before the element at index i
-  void insert_before(const int idx, const E& elem) {
-    assert(0 <= idx && idx <= this->_len, "illegal index");
+  void insert_before(const uint32_t idx, const E& elem) {
+    assert(idx <= this->_len, "illegal index");
     if (this->_len == this->_capacity) grow(this->_len);
-    for (int j = this->_len - 1; j >= idx; j--) {
+    for (uint32_t j = this->_len - 1; j >= idx; j--) {
       this->_data[j + 1] = this->_data[j];
     }
     this->_len++;
     this->_data[idx] = elem;
   }
 
-  void insert_before(const int idx, const GrowableArrayView<E>* array) {
-    assert(0 <= idx && idx <= this->_len, "illegal index");
-    int array_len = array->length();
-    int new_len = this->_len + array_len;
+  void insert_before(const uint32_t idx, const GrowableArrayView<E>* array) {
+    assert(idx <= this->_len, "illegal index");
+    uint32_t array_len = array->length();
+    uint32_t new_len = this->_len + array_len;
     if (new_len >= this->_capacity) grow(new_len);
 
-    for (int j = this->_len - 1; j >= idx; j--) {
+    for (uint32_t j = this->_len - 1; j >= idx; j--) {
       this->_data[j + array_len] = this->_data[j];
     }
 
-    for (int j = 0; j < array_len; j++) {
+    for (uint32_t j = 0; j < array_len; j++) {
       this->_data[idx + j] = array->at(j);
     }
 
@@ -453,7 +450,7 @@ public:
   }
 
   void appendAll(const GrowableArrayView<E>* l) {
-    for (int i = 0; i < l->length(); i++) {
+    for (uint32_t i = 0; i < l->length(); i++) {
       this->at_put_grow(this->_len, l->at(i), E());
     }
   }
@@ -464,7 +461,7 @@ public:
   // already sorted according to compare function.
   template <int compare(const E&, const E&)> E insert_sorted(const E& key) {
     bool found;
-    int location = GrowableArrayView<E>::template find_sorted<E, compare>(key, found);
+    uint32_t location = GrowableArrayView<E>::template find_sorted<E, compare>(key, found);
     if (!found) {
       insert_before(location, key);
     }
@@ -487,7 +484,7 @@ public:
   }
 
   // Ensure capacity is at least new_capacity.
-  void reserve(int new_capacity);
+  void reserve(uint32_t new_capacity);
 
   // Reduce capacity to length.
   void shrink_to_fit();
@@ -496,13 +493,13 @@ public:
 };
 
 template <typename E, typename Derived>
-void GrowableArrayWithAllocator<E, Derived>::expand_to(int new_capacity) {
-  int old_capacity = this->_capacity;
+void GrowableArrayWithAllocator<E, Derived>::expand_to(uint32_t new_capacity) {
+  uint32_t old_capacity = this->_capacity;
   assert(new_capacity > old_capacity,
          "expected growth but %d <= %d", new_capacity, old_capacity);
   this->_capacity = new_capacity;
   E* newData = static_cast<Derived*>(this)->allocate();
-  int i = 0;
+  uint32_t i = 0;
   for (     ; i < this->_len; i++) ::new ((void*)&newData[i]) E(this->_data[i]);
   for (     ; i < this->_capacity; i++) ::new ((void*)&newData[i]) E();
   for (i = 0; i < old_capacity; i++) this->_data[i].~E();
@@ -513,13 +510,13 @@ void GrowableArrayWithAllocator<E, Derived>::expand_to(int new_capacity) {
 }
 
 template <typename E, typename Derived>
-void GrowableArrayWithAllocator<E, Derived>::grow(int j) {
+void GrowableArrayWithAllocator<E, Derived>::grow(uint32_t j) {
   // grow the array by increasing _capacity to the first power of two larger than the size we need
   expand_to(next_power_of_2(j));
 }
 
 template <typename E, typename Derived>
-void GrowableArrayWithAllocator<E, Derived>::reserve(int new_capacity) {
+void GrowableArrayWithAllocator<E, Derived>::reserve(uint32_t new_capacity) {
   if (new_capacity > this->_capacity) {
     expand_to(new_capacity);
   }
@@ -527,8 +524,8 @@ void GrowableArrayWithAllocator<E, Derived>::reserve(int new_capacity) {
 
 template <typename E, typename Derived>
 void GrowableArrayWithAllocator<E, Derived>::shrink_to_fit() {
-  int old_capacity = this->_capacity;
-  int len = this->_len;
+  uint32_t old_capacity = this->_capacity;
+  uint32_t len = this->_len;
   assert(len <= old_capacity, "invariant");
 
   // If already at full capacity, nothing to do.
@@ -542,10 +539,10 @@ void GrowableArrayWithAllocator<E, Derived>::shrink_to_fit() {
   this->_capacity = len;        // Must preceed allocate().
   if (len > 0) {
     new_data = static_cast<Derived*>(this)->allocate();
-    for (int i = 0; i < len; ++i) ::new (&new_data[i]) E(old_data[i]);
+    for (uint32_t i = 0; i < len; ++i) ::new (&new_data[i]) E(old_data[i]);
   }
   // Destroy contents of old data, and deallocate it.
-  for (int i = 0; i < old_capacity; ++i) old_data[i].~E();
+  for (uint32_t i = 0; i < old_capacity; ++i) old_data[i].~E();
   if (old_data != nullptr) {
     static_cast<Derived*>(this)->deallocate(old_data);
   }
@@ -561,19 +558,19 @@ void GrowableArrayWithAllocator<E, Derived>::clear_and_deallocate() {
 
 class GrowableArrayResourceAllocator {
 public:
-  static void* allocate(int max, int element_size);
+  static void* allocate(uint32_t max, uint32_t element_size);
 };
 
 // Arena allocator
 class GrowableArrayArenaAllocator {
 public:
-  static void* allocate(int max, int element_size, Arena* arena);
+  static void* allocate(uint32_t max, uint32_t element_size, Arena* arena);
 };
 
 // CHeap allocator
 class GrowableArrayCHeapAllocator {
 public:
-  static void* allocate(int max, int element_size, MEMFLAGS memflags);
+  static void* allocate(uint32_t max, uint32_t element_size, MEMFLAGS memflags);
   static void deallocate(void* mem);
 };
 
@@ -686,15 +683,15 @@ class GrowableArray : public GrowableArrayWithAllocator<E, GrowableArray<E> > {
   friend class GrowableArrayWithAllocator<E, GrowableArray<E> >;
   friend class GrowableArrayTest;
 
-  static E* allocate(int max) {
+  static E* allocate(uint32_t max) {
     return (E*)GrowableArrayResourceAllocator::allocate(max, sizeof(E));
   }
 
-  static E* allocate(int max, MEMFLAGS memflags) {
+  static E* allocate(uint32_t max, MEMFLAGS memflags) {
     return (E*)GrowableArrayCHeapAllocator::allocate(max, sizeof(E), memflags);
   }
 
-  static E* allocate(int max, Arena* arena) {
+  static E* allocate(uint32_t max, Arena* arena) {
     return (E*)GrowableArrayArenaAllocator::allocate(max, sizeof(E), arena);
   }
 
@@ -730,7 +727,7 @@ class GrowableArray : public GrowableArrayWithAllocator<E, GrowableArray<E> > {
 public:
   GrowableArray() : GrowableArray(2 /* initial_capacity */) {}
 
-  explicit GrowableArray(int initial_capacity) :
+  explicit GrowableArray(uint32_t initial_capacity) :
       GrowableArrayWithAllocator<E, GrowableArray<E> >(
           allocate(initial_capacity),
           initial_capacity),
@@ -738,7 +735,7 @@ public:
     init_checks();
   }
 
-  GrowableArray(int initial_capacity, MEMFLAGS memflags) :
+  GrowableArray(uint32_t initial_capacity, MEMFLAGS memflags) :
       GrowableArrayWithAllocator<E, GrowableArray<E> >(
           allocate(initial_capacity, memflags),
           initial_capacity),
@@ -746,7 +743,7 @@ public:
     init_checks();
   }
 
-  GrowableArray(int initial_capacity, int initial_len, const E& filler) :
+  GrowableArray(uint32_t initial_capacity, uint32_t initial_len, const E& filler) :
       GrowableArrayWithAllocator<E, GrowableArray<E> >(
           allocate(initial_capacity),
           initial_capacity, initial_len, filler),
@@ -754,7 +751,7 @@ public:
     init_checks();
   }
 
-  GrowableArray(int initial_capacity, int initial_len, const E& filler, MEMFLAGS memflags) :
+  GrowableArray(uint32_t initial_capacity, uint32_t initial_len, const E& filler, MEMFLAGS memflags) :
       GrowableArrayWithAllocator<E, GrowableArray<E> >(
           allocate(initial_capacity, memflags),
           initial_capacity, initial_len, filler),
@@ -762,7 +759,7 @@ public:
     init_checks();
   }
 
-  GrowableArray(Arena* arena, int initial_capacity, int initial_len, const E& filler) :
+  GrowableArray(Arena* arena, uint32_t initial_capacity, uint32_t initial_len, const E& filler) :
       GrowableArrayWithAllocator<E, GrowableArray<E> >(
           allocate(initial_capacity, arena),
           initial_capacity, initial_len, filler),
@@ -784,7 +781,7 @@ class GrowableArrayCHeap : public GrowableArrayWithAllocator<E, GrowableArrayCHe
 
   STATIC_ASSERT(F != mtNone);
 
-  static E* allocate(int max, MEMFLAGS flags) {
+  static E* allocate(uint32_t max, MEMFLAGS flags) {
     if (max == 0) {
       return nullptr;
     }
@@ -803,12 +800,12 @@ class GrowableArrayCHeap : public GrowableArrayWithAllocator<E, GrowableArrayCHe
   }
 
 public:
-  GrowableArrayCHeap(int initial_capacity = 0) :
+  GrowableArrayCHeap(uint32_t initial_capacity = 0) :
       GrowableArrayWithAllocator<E, GrowableArrayCHeap<E, F> >(
           allocate(initial_capacity, F),
           initial_capacity) {}
 
-  GrowableArrayCHeap(int initial_capacity, int initial_len, const E& filler) :
+  GrowableArrayCHeap(uint32_t initial_capacity, uint32_t initial_len, const E& filler) :
       GrowableArrayWithAllocator<E, GrowableArrayCHeap<E, F> >(
           allocate(initial_capacity, F),
           initial_capacity, initial_len, filler) {}
@@ -838,11 +835,11 @@ class GrowableArrayIterator : public StackObj {
 
  private:
   const GrowableArrayView<E>* _array; // GrowableArray we iterate over
-  int _position;                      // The current position in the GrowableArray
+  uint32_t _position;                      // The current position in the GrowableArray
 
   // Private constructor used in GrowableArray::begin() and GrowableArray::end()
-  GrowableArrayIterator(const GrowableArrayView<E>* array, int position) : _array(array), _position(position) {
-    assert(0 <= position && position <= _array->length(), "illegal position");
+  GrowableArrayIterator(const GrowableArrayView<E>* array, uint32_t position) : _array(array), _position(position) {
+    assert(position <= _array->length(), "illegal position");
   }
 
  public:
@@ -868,7 +865,7 @@ class GrowableArrayFilterIterator : public StackObj {
 
  private:
   const GrowableArrayView<E>* _array; // GrowableArray we iterate over
-  int _position;                      // Current position in the GrowableArray
+  uint32_t _position;                      // Current position in the GrowableArray
   UnaryPredicate _predicate;          // Unary predicate the elements of the GrowableArray should satisfy
 
  public:
