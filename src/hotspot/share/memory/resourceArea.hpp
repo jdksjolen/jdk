@@ -57,6 +57,8 @@ class ResourceArea: public Arena {
     size_t max_used;
     double average;
     double count;
+    ResourceAreaStats() {
+    }
     ResourceAreaStats(ResourceArea* self):
       myself(self), max_used(0), average(0.0), count(0.0) {
     }
