@@ -161,7 +161,7 @@ public:
       for (int i = 0; i < _stats.length(); i++) {
         ResourceAreaStats* s = _stats.adr_at(i);
         if (s->myself == this) {
-          s->average = (s->average * s->count) + (_size_in_bytes - state._size_in_bytes) / (s->count+1);
+          s->average = ((s->average * s->count) + (_size_in_bytes - state._size_in_bytes)) / (s->count+1);
           s->count++;
           s->max_used = MAX2(s->max_used, _size_in_bytes);
           break;
