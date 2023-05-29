@@ -55,12 +55,14 @@ class ResourceArea: public Arena {
   struct ResourceAreaStats {
     ResourceArea* myself;
     size_t max_used;
-    double average;
+    double average_allocation;
+    double average_used;
     double count;
     ResourceAreaStats() {
     }
-    ResourceAreaStats(ResourceArea* self):
-      myself(self), max_used(0), average(0.0), count(0.0) {
+    ResourceAreaStats(ResourceArea* self)
+      : myself(self), max_used(0), average_allocation(0.0),
+        average_used(0.0), count(0.0) {
     }
   };
 public:
@@ -131,7 +133,8 @@ public:
             ResourceAreaStats s = _stats.at(i);
             log_info(dcmd)("==== COMPILER ResourceArea at: %p ======", s.myself);
             log_info(dcmd)("Maximum: %zu",s.max_used);
-            log_info(dcmd)("Average: %f", s.average);
+            log_info(dcmd)("Average allocated: %f", s.average_allocation);
+            log_info(dcmd)("Average allocated: %f", s.average_used);
           }
         }
       }
@@ -144,7 +147,8 @@ public:
             ResourceAreaStats s = _stats.at(i);
             log_info(dcmd)("==== ResourceArea at: %p ======", s.myself);
             log_info(dcmd)("Maximum: %zu",s.max_used);
-            log_info(dcmd)("Average: %f", s.average);
+            log_info(dcmd)("Average: %f", s.average_allocation);
+            log_info(dcmd)("Average allocated: %f", s.average_used);
           }
         }
       }
@@ -161,7 +165,8 @@ public:
       for (int i = 0; i < _stats.length(); i++) {
         ResourceAreaStats* s = _stats.adr_at(i);
         if (s->myself == this) {
-          s->average = ((s->average * s->count) + (_size_in_bytes - state._size_in_bytes)) / (s->count+1);
+          s->average_allocation = ((s->average_allocation * s->count) + (_size_in_bytes - state._size_in_bytes)) / (s->count+1);
+          s->average_used = ((s->average_used * s->count) + (_size_in_bytes)) / (s->count+1);
           s->count++;
           s->max_used = MAX2(s->max_used, _size_in_bytes);
           break;
