@@ -41,6 +41,9 @@ void ResourceArea::bias_to(MEMFLAGS new_flags) {
   }
 }
 
+GrowableArray<ResourceArea::ResourceAreaStats> ResourceArea::_stats{100, mtNMT};
+size_t ResourceArea::_rollback_count = 0;
+
 #ifdef ASSERT
 
 void ResourceArea::verify_has_resource_mark() {

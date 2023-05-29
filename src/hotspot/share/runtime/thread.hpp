@@ -109,6 +109,7 @@ class Thread: public ThreadShadow {
   friend class VMErrorCallbackMark;
   friend class VMStructs;
   friend class JVMCIVMStructs;
+  friend class ResourceArea;
  private:
 
 #ifndef USE_LIBRARY_BASED_TLS_ONLY

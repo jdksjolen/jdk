@@ -27,6 +27,9 @@
 
 #include "memory/allocation.hpp"
 #include "runtime/javaThread.hpp"
+#include "runtime/threadSMR.hpp"
+#include "runtime/threadCritical.hpp"
+#include "logging/log.hpp"
 
 // The resource area holds temporary data structures in the VM.
 // The actual allocation areas are thread local. Typical usage:
@@ -49,12 +52,29 @@ class ResourceArea: public Arena {
   void verify_has_resource_mark();
 #endif // ASSERT
 
+  struct ResourceAreaStats {
+    ResourceArea* myself;
+    size_t max_used;
+    double average;
+    double count;
+    ResourceAreaStats(ResourceArea* self):
+      myself(self), max_used(0), average(0.0), count(0.0) {
+    }
+  };
 public:
+  static size_t _rollback_count;
+  static GrowableArray<ResourceAreaStats> _stats;
   ResourceArea(MEMFLAGS flags = mtThread) :
-    Arena(flags) DEBUG_ONLY(COMMA _nesting(0)) {}
+    Arena(flags) DEBUG_ONLY(COMMA _nesting(0)) {
+    ThreadCritical tc;
+    _stats.push(ResourceAreaStats{this});
+  }
 
   ResourceArea(size_t init_size, MEMFLAGS flags = mtThread) :
-    Arena(flags, init_size) DEBUG_ONLY(COMMA _nesting(0)) {}
+    Arena(flags, init_size) DEBUG_ONLY(COMMA _nesting(0)) {
+    ThreadCritical tc;
+    _stats.push(ResourceAreaStats{this});
+  }
 
   char* allocate_bytes(size_t size, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
 
@@ -99,11 +119,58 @@ public:
     DEBUG_ONLY(--_nesting;)
   }
 
+  void report() {
+    ThreadsListHandle tls;
+    for (uint i = 0; i < tls.length(); i++) {
+      JavaThread* thr = tls.thread_at(i);
+      if (thr->is_Compiler_thread()) {
+        for (int j = 0; j < _stats.length(); j++) {
+          if (_stats.at(j).myself == thr->_resource_area) {
+            ResourceAreaStats s = _stats.at(i);
+            log_info(dcmd)("==== COMPILER ResourceArea at: %p ======", s.myself);
+            log_info(dcmd)("Maximum: %zu",s.max_used);
+            log_info(dcmd)("Average: %f", s.average);
+          }
+        }
+      }
+    }
+    for (uint i = 0; i < tls.length(); i++) {
+      JavaThread* thr = tls.thread_at(i);
+      if (!thr->is_Compiler_thread()) {
+        for (int j = 0; j < _stats.length(); j++) {
+          if (_stats.at(j).myself == thr->_resource_area) {
+            ResourceAreaStats s = _stats.at(i);
+            log_info(dcmd)("==== ResourceArea at: %p ======", s.myself);
+            log_info(dcmd)("Maximum: %zu",s.max_used);
+            log_info(dcmd)("Average: %f", s.average);
+          }
+        }
+      }
+    }
+  }
   // Roll back the allocation state to the indicated state values.
   // The state must be the current state for this thread.
   void rollback_to(const SavedState& state) {
     assert(_nesting > state._nesting, "rollback to inactive mark");
     assert((_nesting - state._nesting) == 1, "rollback across another mark");
+
+    {
+      ThreadCritical tc;
+      for (int i = 0; i < _stats.length(); i++) {
+        ResourceAreaStats* s = _stats.adr_at(i);
+        if (s->myself == this) {
+          s->average = (s->average * s->count) + (_hwm - state._hwm);
+          s->count++;
+          s->average /= s->count;
+          s->max_used = MAX2(s->max_used, _size_in_bytes);
+          break;
+        }
+      }
+      _rollback_count = (_rollback_count + 1) % 2048;
+      if (_rollback_count == 1024) {
+        report();
+      }
+    }
 
     if (state._chunk->next() != nullptr) { // Delete later chunks.
       // Reset size before deleting chunks.  Otherwise, the total
