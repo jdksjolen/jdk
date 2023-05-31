@@ -26,6 +26,7 @@
 #include "gc/shared/barrierSet.hpp"
 #include "gc/shared/c2/barrierSetC2.hpp"
 #include "libadt/vectset.hpp"
+#include "logging/logStream.hpp"
 #include "memory/allocation.inline.hpp"
 #include "memory/resourceArea.hpp"
 #include "opto/ad.hpp"
@@ -2753,10 +2754,18 @@ const RegMask &Node::in_RegMask(uint) const {
 }
 
 void Node_Array::grow(uint i) {
-  assert(_max > 0, "invariant");
+  //assert(_max > 0, "invariant");
+  if (_max == 0) _max = 4;
   uint old = _max;
   _max = next_power_of_2(i);
-  _nodes = (Node**)_a->Arealloc( _nodes, old*sizeof(Node*),_max*sizeof(Node*));
+  Node** new_nodes = (Node**)_a->Arealloc( _nodes, old*sizeof(Node*),_max*sizeof(Node*));;
+if (new_nodes !=_nodes) {
+    LogStream st(Log(mmu)::info());
+    NativeCallStack ncs;
+    st.print_cr("==== CLOBBERED REALLOC: %u BYTES ====", _max);
+    ncs.print_on(&st);
+  }
+  _nodes = new_nodes;
   Copy::zero_to_bytes( &_nodes[old], (_max-old)*sizeof(Node*) );
 }
 

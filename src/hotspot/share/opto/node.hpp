@@ -1618,13 +1618,17 @@ public:
     : Node_List(static_cast<uint>(0)),
       _in_worklist(),
       _clock_index(0) {
-    this->grow(max);
+    _max = max;
+    _nodes = NEW_ARENA_ARRAY(Thread::current()->resource_area(), Node*, max);
+    clear();
   }
   Unique_Node_List(Arena *a, uint max = OptoNodeListSize)
     : Node_List(a, 0),
       _in_worklist(a),
       _clock_index(0) {
-    this->grow(max);
+    _max = max;
+    _nodes = NEW_ARENA_ARRAY(a, Node*, max);
+    clear();
   }
 
   void remove( Node *n );

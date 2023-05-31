@@ -24,6 +24,8 @@
  */
 
 #include "precompiled.hpp"
+#include "logging/logStream.hpp"
+#include "logging/log.hpp"
 #include "memory/allocation.hpp"
 #include "memory/allocation.inline.hpp"
 #include "memory/resourceArea.hpp"
