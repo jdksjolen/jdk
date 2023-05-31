@@ -1548,6 +1548,10 @@ protected:
   void   grow( uint i );        // Grow array node to fit
 public:
   Node_Array(Arena* a, uint max = OptoNodeListSize) : _a(a), _max(max) {
+    if (max == 0) {
+      _nodes = nullptr;
+      return;
+    }
     _nodes = NEW_ARENA_ARRAY(a, Node*, max);
     clear();
   }
@@ -1607,8 +1611,21 @@ class Unique_Node_List : public Node_List {
   VectorSet _in_worklist;
   uint _clock_index;            // Index in list where to pop from next
 public:
-  Unique_Node_List() : Node_List(), _clock_index(0) {}
-  Unique_Node_List(Arena *a) : Node_List(a), _in_worklist(a), _clock_index(0) {}
+  // We avoid allocating any space for the elements of Node_List in order to
+  // placing _in_worklist after Node_List in memory. This reduces clobbering
+  // when the Node_List needs to reallocate its elements.
+  Unique_Node_List(uint max = OptoNodeListSize)
+    : Node_List(static_cast<uint>(0)),
+      _in_worklist(),
+      _clock_index(0) {
+    this->grow(max);
+  }
+  Unique_Node_List(Arena *a, uint max = OptoNodeListSize)
+    : Node_List(a, 0),
+      _in_worklist(a),
+      _clock_index(0) {
+    this->grow(max);
+  }
 
   void remove( Node *n );
   bool member( Node *n ) { return _in_worklist.test(n->_idx) != 0; }
