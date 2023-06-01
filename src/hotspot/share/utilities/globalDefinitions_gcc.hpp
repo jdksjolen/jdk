@@ -69,7 +69,7 @@
 // same size as a pointer.
 #ifdef __GNUC__
 struct Poison {};
-static const Poison poison;
+static const Poison _poison;
 #undef NULL
 #define NULL _poison
   #ifdef _LP64
