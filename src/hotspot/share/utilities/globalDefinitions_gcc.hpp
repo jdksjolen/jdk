@@ -69,11 +69,11 @@
 // same size as a pointer.
 #ifdef __GNUC__
   #ifdef _LP64
-    #define NULL_WORD  nullptr
+    #define NULL_WORD  0L
   #else
     // Cast 0 to intptr_t rather than int32_t since they are not the same type
     // on platforms such as Mac OS X.
-    #define NULL_WORD  nullptr
+    #define NULL_WORD  ((intptr_t)0)
   #endif
 #endif
 

@@ -173,7 +173,7 @@ char* NativeLookup::pure_jni_name(const methodHandle& method) {
   st.print("Java_");
   // Klass name
   if (!map_escaped_name_on(&st, method->klass_name())) {
-    return nullptr;
+    return NULL;
   }
   st.print("_");
   // Method name
