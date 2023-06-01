@@ -75,8 +75,6 @@
     // on platforms such as Mac OS X.
     #define NULL_WORD  ((intptr_t)0)
   #endif
-#else
-  #define NULL_WORD  NULL
 #endif
 
 #if !defined(LINUX) && !defined(_ALLBSD_SOURCE)
