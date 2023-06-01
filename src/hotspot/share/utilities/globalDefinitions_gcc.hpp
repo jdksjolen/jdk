@@ -68,6 +68,8 @@
 // sizeof(void*), so here we want something which is integer type, but has the
 // same size as a pointer.
 #ifdef __GNUC__
+struct Poison {};
+static const Poison poison;
 #undef NULL
 #define NULL _poison
   #ifdef _LP64
