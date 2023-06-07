@@ -36,7 +36,7 @@
 //------------------------------VectorSet--------------------------------------
 class VectorSet : public AnyObj {
 private:
-
+  static const uint start_size = 256;
   static const uint word_bits = 5;
   static const uint bit_mask  = 31;
 

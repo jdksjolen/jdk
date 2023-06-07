@@ -38,9 +38,9 @@ VectorSet::VectorSet(Arena* arena) {
 }
 
 void VectorSet::init(Arena* arena) {
-  _size = 2;
-  _data = NEW_ARENA_ARRAY(arena, uint32_t, 2);
-  _data_size = 2;
+  _size = start_size;
+  _data = NEW_ARENA_ARRAY(arena, uint32_t, start_size);
+  _data_size = start_size;
   _set_arena = arena;
   _data[0] = 0;
   _data[1] = 0;

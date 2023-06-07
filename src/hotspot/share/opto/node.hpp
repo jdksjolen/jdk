@@ -1547,9 +1547,16 @@ protected:
   Node** _nodes;
   void   grow( uint i );        // Grow array node to fit
 public:
-  Node_Array(Arena* a, uint max = OptoNodeListSize) : _a(a), _max(max) {
-    _nodes = NEW_ARENA_ARRAY(a, Node*, max);
+  void init(uint max) {
+    assert(max > 0 && _nodes == nullptr, "must be");
+    _max = max;
+    _nodes = NEW_ARENA_ARRAY(_a, Node*, max);
     clear();
+  }
+  Node_Array(Arena* a, uint max = OptoNodeListSize) : _a(a), _max(max) {
+    if (max > 0) {
+      init(max);
+    }
   }
   Node_Array() : Node_Array(Thread::current()->resource_area()) {}
 
@@ -1618,8 +1625,14 @@ class Unique_Node_List : public Node_List {
   VectorSet _in_worklist;
   uint _clock_index;            // Index in list where to pop from next
 public:
-  Unique_Node_List() : Node_List(), _clock_index(0) {}
-  Unique_Node_List(Arena *a) : Node_List(a), _in_worklist(a), _clock_index(0) {}
+  // Delay initialization of Node_Array's backing memory in order
+  // to achieve [VectorSet_data, Node_Array_data] arrangement in the Arena.
+  Unique_Node_List() : Node_List((uint)0), _in_worklist(), _clock_index(0) {
+    Node_Array::init(OptoNodeListSize);
+  }
+  Unique_Node_List(Arena *a) : Node_List(a, 0), _in_worklist(a), _clock_index(0) {
+    Node_Array::init(OptoNodeListSize);
+  }
 
   NONCOPYABLE(Unique_Node_List);
   Unique_Node_List& operator=(Unique_Node_List&&) = delete;
