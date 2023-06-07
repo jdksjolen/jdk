@@ -42,8 +42,7 @@ void VectorSet::init(Arena* arena) {
   _data = NEW_ARENA_ARRAY(arena, uint32_t, start_size);
   _data_size = start_size;
   _set_arena = arena;
-  _data[0] = 0;
-  _data[1] = 0;
+  Copy::zero_to_bytes(_data, _size * sizeof(uint32_t));
 }
 
 // Expand the existing set to a bigger size
