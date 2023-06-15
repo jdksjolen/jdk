@@ -604,6 +604,7 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
       }
     }
   }
+  ObjectMonitorWorld::omworld = new ObjectMonitorWorld{};
 
   assert(Universe::is_fully_initialized(), "not initialized");
   if (VerifyDuringStartup) {

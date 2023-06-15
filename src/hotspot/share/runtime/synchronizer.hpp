@@ -29,7 +29,47 @@
 #include "oops/markWord.hpp"
 #include "runtime/basicLock.hpp"
 #include "runtime/handles.hpp"
+#include "runtime/thread.hpp"
+#include "utilities/concurrentHashTable.hpp"
+#include "utilities/concurrentHashTable.inline.hpp"
 #include "utilities/resourceHash.hpp"
+#include "runtime/objectMonitor.hpp"
+
+// CHT storing our ObjectMonitors
+class ObjectMonitorWorld : public CHeapObj<mtThread> {
+  struct Entry : public CHeapObj<mtThread> {
+    ObjectMonitor* mon;
+    WeakHandle* obj;
+    Entry(ObjectMonitor* mon, WeakHandle* obj)  : mon(mon), obj(obj) {}
+  };
+  class Config {
+  public:
+    using Value = Entry*;
+    static uintx get_hash(Value const& value, bool* is_dead);
+    static void* allocate_node(void* context, size_t size, Value const& value) {
+      return AllocateHeap(size, mtThread);
+    };
+    static void free_node(void* context, void* memory, Value const& value) {
+      FreeHeap(memory);
+    }
+  };
+  using ConcurrentTable = ConcurrentHashTable<Config, mtThread>;
+  ConcurrentTable* _table;
+
+  class Lookup : public StackObj {
+    oop _obj;
+  public:
+    Lookup(oop obj) : _obj(obj) {}
+    uintx get_hash() const;
+    bool equals(Entry** value, bool* is_dead);
+  };
+
+public:
+  static ObjectMonitorWorld* omworld;
+  ObjectMonitorWorld() : _table{new ConcurrentTable()} {}
+  ObjectMonitor* monitor_for(oop obj);
+  ObjectMonitor* monitor_put(oop obj);
+};
 
 template <typename T> class GrowableArray;
 class LogStream;

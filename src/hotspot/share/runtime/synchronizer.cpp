@@ -62,6 +62,39 @@
 #include "utilities/linkedlist.hpp"
 #include "utilities/preserveException.hpp"
 
+ uintx ObjectMonitorWorld::Config::get_hash(const Value &value, bool *is_dead) {
+  return (uintx)value->mon->header().hash();
+}
+uintx ObjectMonitorWorld::Lookup::get_hash() const {
+  return _obj->mark().hash();
+}
+bool ObjectMonitorWorld::Lookup::equals(Entry** value, bool* is_dead) {
+  oop woop = (*value)->obj->peek();
+  if (woop == nullptr) {
+    *is_dead = true;
+    return false;
+  }
+  return woop == _obj;
+}
+ObjectMonitorWorld* ObjectMonitorWorld::omworld = nullptr;
+ObjectMonitor* ObjectMonitorWorld::monitor_for(oop obj) {
+    ObjectMonitor* result = nullptr;
+    Lookup l{obj};
+    auto found = [&](Entry** found) {
+      result = (*found)->mon;
+    };
+    _table->get(Thread::current(), l, found);
+    return result;
+}
+ObjectMonitor* ObjectMonitorWorld::monitor_put(oop obj) {
+  ObjectMonitor* result = new ObjectMonitor(obj);
+  Entry* e = new Entry{result, result->whandle()};
+  Lookup l{obj};
+  bool b = _table->insert(Thread::current(), l, e);
+  assert(b == true, "must");
+  return result;
+}
+
 class ObjectMonitorsHashtable::PtrList :
   public LinkedListImpl<ObjectMonitor*,
                         AnyObj::C_HEAP, mtThread,
@@ -1314,10 +1347,15 @@ void ObjectSynchronizer::inflate_helper(oop obj) {
 ObjectMonitor* ObjectSynchronizer::inflate(Thread* current, oop object,
                                            const InflateCause cause) {
   EventJavaMonitorInflate event;
-
+  ObjectMonitor* om = ObjectMonitorWorld::omworld->monitor_for(object);
+  if (om != nullptr) {
+    return om;
+  } else {
+    return ObjectMonitorWorld::omworld->monitor_put(object);
+  }
+  ShouldNotReachHere();
   for (;;) {
     const markWord mark = object->mark_acquire();
-
     // The mark can be in one of the following states:
     // *  inflated     - Just return if using stack-locking.
     //                   If using fast-locking and the ObjectMonitor owner
