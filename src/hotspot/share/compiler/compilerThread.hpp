@@ -60,7 +60,8 @@ public:
   ContiguousProvider _matcher_memory; // Backing memory for the Matcher class.
   ContiguousProvider _chaitin_memory1; // Backing memory for the Chaitin class.
   ContiguousProvider _chaitin_memory2; // Backing memory for the Chaitin class.
-  ContiguousProvider _cfg_memory; // Backing memory for the Chaitin class.
+  ContiguousProvider _cfg_memory; // Backing memory for phasecfg.
+  ContiguousProvider _phaseccp_memory; // Backing memory for phaseccp.
   // Backing memory for the Node arenas
   ContiguousProvider _narena_mem_one;
   ContiguousProvider _narena_mem_two;
@@ -69,6 +70,7 @@ public:
     _matcher_memory.reset_full();
     _chaitin_memory1.reset_full();
     _chaitin_memory2.reset_full();
+    _phaseccp_memory.reset_full();
     _cfg_memory.reset_full();
     if (force) {
       // Minimize memory usage -- we're probably idling

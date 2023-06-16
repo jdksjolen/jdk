@@ -1953,7 +1953,7 @@ void PhaseCCP::analyze() {
   // CCP worklist is placed on a local arena, so that we can allow ResourceMarks on "Compile::current()->resource_arena()".
   // We also do not want to put the worklist on "Compile::current()->comp_arena()", as that one only gets de-allocated after
   // Compile is over. The local arena gets de-allocated at the end of its scope.
-  ResourceArea local_arena(mtCompiler);
+  ResourceArea local_arena(&CompilerThread::current()->_phaseccp_memory, mtCompiler);
   Unique_Node_List worklist(&local_arena);
   DEBUG_ONLY(Unique_Node_List worklist_verify(&local_arena);)
 
