@@ -58,14 +58,16 @@ public:
   ContiguousProvider _compiler_memory; // Backing memory for the Compile class.
   // Memory for the various resource areas allocated for a compilation.
   ContiguousProvider _matcher_memory; // Backing memory for the Matcher class.
-  ContiguousProvider _chaitin_memory; // Backing memory for the Chaitin class.
+  ContiguousProvider _chaitin_memory1; // Backing memory for the Chaitin class.
+  ContiguousProvider _chaitin_memory2; // Backing memory for the Chaitin class.
   // Backing memory for the Node arenas
   ContiguousProvider _narena_mem_one;
   ContiguousProvider _narena_mem_two;
   void reset_memory(bool force = false) {
     // This backs a ResourceArea, so always kill everything.
     _matcher_memory.reset_full();
-    _chaitin_memory.reset_full();
+    _chaitin_memory1.reset_full();
+    _chaitin_memory2.reset_full();
     if (force) {
       // Minimize memory usage -- we're probably idling
       _compiler_memory.reset_full();
