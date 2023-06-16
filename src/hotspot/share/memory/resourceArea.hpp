@@ -50,12 +50,17 @@ class ResourceArea: public Arena {
 #endif // ASSERT
 
 public:
-  ResourceArea(MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
+  explicit ResourceArea(MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
     Arena(flags, Arena::ProvideAProviderPlease{})
      DEBUG_ONLY(COMMA _nesting(0)) {
     if (use_chunk_pool) {
       init_memory_provider(nullptr);
     }
+  }
+  explicit ResourceArea(ContiguousProvider* mem, MEMFLAGS flags = mtThread) :
+    Arena(flags, Arena::ProvideAProviderPlease{})
+    DEBUG_ONLY(COMMA _nesting(0)) {
+    init_memory_provider(mem);
   }
 
   ~ResourceArea() {
@@ -70,9 +75,8 @@ public:
       init_memory_provider(nullptr);
     }
   }
-  explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, ContiguousProvider* mem = nullptr)
+  explicit ResourceArea(size_t init_size, ContiguousProvider* mem, MEMFLAGS flags = mtThread)
     : Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
-    assert(mem != nullptr, "must be - c++ limitation");
     init_memory_provider(mem);
   }
 

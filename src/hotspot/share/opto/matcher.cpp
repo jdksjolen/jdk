@@ -61,7 +61,7 @@ const uint Matcher::_end_rematerialize   = _END_REMATERIALIZE;
 //---------------------------Matcher-------------------------------------------
 Matcher::Matcher()
 : PhaseTransform( Phase::Ins_Select ),
-  _states_arena(Chunk::medium_size, mtCompiler, (ContiguousProvider*)&CompilerThread::current()->_matcher_memory),
+  _states_arena(Chunk::medium_size, &CompilerThread::current()->_matcher_memory, mtCompiler),
   _visited(&_states_arena),
   _shared(&_states_arena),
   _dontcare(&_states_arena),

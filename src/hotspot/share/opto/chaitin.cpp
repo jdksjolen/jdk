@@ -368,8 +368,8 @@ void PhaseChaitin::Register_Allocate() {
   _matcher._allocation_started = true;
 
   // Explicitly use right constructor
-  ResourceArea split_arena(mtCompiler, (ContiguousProvider*)&CompilerThread::current()->_chaitin_memory1);     // Arena for Split local resources
-  ResourceArea live_arena(mtCompiler,(ContiguousProvider*)&CompilerThread::current()->_chaitin_memory2);      // Arena for liveness & IFG info
+  ResourceArea split_arena(&CompilerThread::current()->_chaitin_memory1, mtCompiler);     // Arena for Split local resources
+  ResourceArea live_arena(&CompilerThread::current()->_chaitin_memory2, mtCompiler);      // Arena for liveness & IFG info
   ResourceMark rm(&live_arena);
 
   // Need live-ness for the IFG; need the IFG for coalescing.  If the
