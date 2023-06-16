@@ -70,8 +70,9 @@ public:
       init_memory_provider(nullptr);
     }
   }
-  explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, ContiguousProvider* mem)
+  explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, ContiguousProvider* mem = nullptr)
     : Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
+    assert(mem != nullptr, "must be - c++ limitation");
     init_memory_provider(mem);
   }
 
