@@ -33,6 +33,8 @@ CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
   : JavaThread(&CompilerThread::thread_entry, 0, false),
     _resource_area_memory{mtCompiler, false},
     _compiler_memory{mtCompiler, false},
+    _matcher_memory{mtCompiler, false},
+    _chaitin_memory{mtCompiler, false},
     _narena_mem_one{mtCompiler, false},
     _narena_mem_two{mtCompiler, false}
     {
