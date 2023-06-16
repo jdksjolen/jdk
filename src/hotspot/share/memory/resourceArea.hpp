@@ -72,12 +72,12 @@ public:
   explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
     Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
     if (use_chunk_pool) {
-      init_memory_provider(nullptr);
+      init_memory_provider(nullptr, init_size);
     }
   }
   explicit ResourceArea(size_t init_size, ContiguousProvider* mem, MEMFLAGS flags = mtThread)
     : Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
-    init_memory_provider(mem);
+    init_memory_provider(mem, init_size);
   }
 
   void init(ContiguousProvider* amp) {

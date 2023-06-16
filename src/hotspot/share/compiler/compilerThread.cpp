@@ -36,6 +36,7 @@ CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
     _matcher_memory{mtCompiler, false},
     _chaitin_memory1{mtCompiler, false},
     _chaitin_memory2{mtCompiler, false},
+    _cfg_memory{mtCompiler, false},
     _narena_mem_one{mtCompiler, false},
     _narena_mem_two{mtCompiler, false}
     {

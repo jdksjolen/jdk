@@ -124,7 +124,7 @@ public:
   void reset_full(int64_t memory_to_leave = -1) {
     if (offset == start) return;
     offset = start;
-    size_t memory = memory_to_leave == -1 ? chunk_size : (size_t)memory_to_leave;
+    size_t memory = memory_to_leave == -1 ? 0 : (size_t)memory_to_leave;
     // Try to get rid of any huge pages accidentally allocated by doing size - memory
     // instead of committed_boundary
     assert(::madvise(offset+memory, size - memory, MADV_DONTNEED) == 0, "must");
