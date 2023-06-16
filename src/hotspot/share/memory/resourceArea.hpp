@@ -59,6 +59,9 @@ public:
   }
 
   ~ResourceArea() {
+    if (_mem != nullptr) {
+      _mem->reset_to(_first->bottom());
+    }
   }
 
   ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
