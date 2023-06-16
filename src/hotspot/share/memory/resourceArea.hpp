@@ -60,7 +60,7 @@ public:
 
   ~ResourceArea() {
     if (_mem != nullptr) {
-      _mem->reset_to(_first->bottom());
+      _mem->reset_full();
     }
   }
 
