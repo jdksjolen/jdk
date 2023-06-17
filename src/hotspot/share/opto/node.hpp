@@ -1737,7 +1737,7 @@ inline void Compile::remove_for_igvn(Node* n) {
 }
 
 //------------------------------Node_Stack-------------------------------------
-class Node_Stack {
+class Node_Stack : public StackObj {
   friend class VMStructs;
 protected:
   struct INode {
@@ -1747,20 +1747,21 @@ protected:
   INode *_inode_top; // tos, stack grows up
   INode *_inode_max; // End of _inodes == _inodes + _max
   INode *_inodes;    // Array storage for the stack
-  Arena *_a;         // Arena to allocate in
+  ResourceMark _rm;
   void grow();
 public:
-  Node_Stack(int size) {
+  Node_Stack(int size) :
+    _rm{CompilerThread::current()->stack_area()} {
     size_t max = (size > OptoNodeListSize) ? size : OptoNodeListSize;
-    _a = Thread::current()->resource_area();
-    _inodes = NEW_ARENA_ARRAY( _a, INode, max );
+    _inodes = NEW_ARENA_ARRAY(CompilerThread::current()->stack_area(), INode, max);
     _inode_max = _inodes + max;
     _inode_top = _inodes - 1; // stack is empty
   }
 
-  Node_Stack(Arena *a, int size) : _a(a) {
+  Node_Stack(Arena *a, int size) :
+    _rm{CompilerThread::current()->stack_area()} {
     size_t max = (size > OptoNodeListSize) ? size : OptoNodeListSize;
-    _inodes = NEW_ARENA_ARRAY( _a, INode, max );
+    _inodes = NEW_ARENA_ARRAY(CompilerThread::current()->stack_area(), INode, max);
     _inode_max = _inodes + max;
     _inode_top = _inodes - 1; // stack is empty
   }

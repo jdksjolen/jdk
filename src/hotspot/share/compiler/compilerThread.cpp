@@ -26,6 +26,7 @@
 #include "compiler/compileBroker.hpp"
 #include "compiler/compileTask.hpp"
 #include "compiler/compilerThread.hpp"
+#include "memory/resourceArea.hpp"
 #include "runtime/javaThread.inline.hpp"
 
 // Create a CompilerThread
@@ -39,6 +40,7 @@ CompilerThread::CompilerThread(CompileQueue* queue,
   _counters = counters;
   _buffer_blob = nullptr;
   _compiler = nullptr;
+  _stack_resourcearea = new(mtCompiler) ResourceArea{Chunk::size, mtCompiler};
 
   // Compiler uses resource area for compilation, let's bias it to mtCompiler
   resource_area()->bias_to(mtCompiler);

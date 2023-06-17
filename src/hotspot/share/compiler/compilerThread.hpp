@@ -26,6 +26,7 @@
 #define SHARE_COMPILER_COMPILERTHREAD_HPP
 
 #include "runtime/javaThread.hpp"
+#include "memory/resourceArea.hpp"
 
 class BufferBlob;
 class AbstractCompiler;
@@ -53,8 +54,13 @@ class CompilerThread : public JavaThread {
 
   AbstractCompiler*     _compiler;
   TimeStamp             _idle_time;
-
+  // Explicit resourceArea for work stacks.
+  ResourceArea*          _stack_resourcearea;
  public:
+
+  ResourceArea* stack_area() {
+    return _stack_resourcearea;
+  }
 
   static CompilerThread* current() {
     return CompilerThread::cast(JavaThread::current());

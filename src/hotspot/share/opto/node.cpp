@@ -2963,7 +2963,15 @@ void Node_Stack::grow() {
   size_t old_top = pointer_delta(_inode_top,_inodes,sizeof(INode)); // save _top
   size_t old_max = pointer_delta(_inode_max,_inodes,sizeof(INode));
   size_t max = old_max << 1;             // max * 2
-  _inodes = REALLOC_ARENA_ARRAY(_a, INode, _inodes, old_max, max);
+  INode* old_ptr = _inodes;
+  _inodes = REALLOC_ARENA_ARRAY(CompilerThread::current()->stack_area(), INode, _inodes, old_max, max);
+#ifdef ASSERT
+  if (_inodes != old_ptr) {
+    log_info(mmu)("IS_CLOBBERED");
+  } else {
+    log_info(mmu)("NOT_CLOBBERED");
+  }
+#endif
   _inode_max = _inodes + max;
   _inode_top = _inodes + old_top;        // restore _top
 }
