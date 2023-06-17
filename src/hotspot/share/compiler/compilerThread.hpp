@@ -79,9 +79,9 @@ public:
       _narena_mem_two.reset_full();
     } else {
       // Only keep the amount of memory that the last compilation needed
-      _compiler_memory.reset_full(_compiler_memory.used());
-      _narena_mem_one.reset_full(_narena_mem_one.used());
-      _narena_mem_two.reset_full(_narena_mem_two.used());
+      _compiler_memory.reset_full(/*_compiler_memory.used()*/);
+      _narena_mem_one.reset_full(/*_narena_mem_one.used()*/);
+      _narena_mem_two.reset_full(/*_narena_mem_two.used()*/);
     }
   }
 

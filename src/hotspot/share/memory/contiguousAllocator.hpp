@@ -121,14 +121,13 @@ public:
   void free(void* p) {
   }
 
-  void reset_full(int64_t memory_to_leave = -1) {
+  void reset_full(size_t memory_to_leave = 0) {
     if (offset == start) return;
     offset = start;
-    size_t memory = memory_to_leave == -1 ? 0 : (size_t)memory_to_leave;
     // Try to get rid of any huge pages accidentally allocated by doing size - memory
     // instead of committed_boundary
-    assert(::madvise(offset+memory, size - memory, MADV_DONTNEED) == 0, "must");
-    committed_boundary = offset+memory;
+    assert(::madvise(offset+memory_to_leave, size - memory_to_leave, MADV_DONTNEED) == 0, "must");
+    committed_boundary = offset + memory_to_leave;;
   }
 
   void reset_to(void* p) {

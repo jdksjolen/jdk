@@ -53,15 +53,17 @@ public:
 
 class ContiguousProvider final : public ArenaMemoryProvider {
   ContiguousAllocator _cont_allocator;
+  ContiguousAllocator::AllocationResult returned_chunks[3];
 public:
   explicit ContiguousProvider(MEMFLAGS flag, bool useHugePages) :
-    _cont_allocator(flag, useHugePages) {}
+    _cont_allocator(flag, useHugePages), returned_chunks{} {}
   explicit ContiguousProvider(MEMFLAGS flag) :
-    _cont_allocator(flag) {}
+    _cont_allocator(flag), returned_chunks{} {}
   explicit ContiguousProvider(MEMFLAGS flag, size_t max_size) :
-    _cont_allocator(max_size, flag) {}
+    _cont_allocator(max_size, flag), returned_chunks{} {}
 
   AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
+    size_t chunk_aligned_size = align_up(bytes, _cont_allocator.chunk_size);
     ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(bytes);
      if (p.loc != nullptr) {
        return {p.loc, p.sz};
@@ -80,7 +82,7 @@ public:
     _cont_allocator.reset_to(ptr);
     return true;
  }
-  bool reset_full(size_t memory_to_leave = -1) {
+  bool reset_full(size_t memory_to_leave = 0) {
     _cont_allocator.reset_full(memory_to_leave);
     return true;
   }
