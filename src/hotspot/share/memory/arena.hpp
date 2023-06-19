@@ -28,6 +28,7 @@
 #include "memory/allocation.hpp"
 #include "memory/contiguousAllocator.hpp"
 #include "runtime/globals.hpp"
+#include "logging/log.hpp"
 #include "runtime/threadCritical.hpp"
 #include "services/memTracker.hpp"
 #include "utilities/align.hpp"
@@ -231,6 +232,15 @@ protected:
 #endif
     if (((char*)ptr) + size == _hwm) {
       _hwm = (char*)ptr;
+      if (_hwm == _chunk->bottom()) {
+        log_info(mmu)("FREE_CHUNK!");
+        Chunk* n_current = _first;
+        while (n_current->next() != _chunk) {
+          n_current = n_current->next();
+        }
+        Chunk::chop(_chunk, _mem);
+        _chunk = n_current;
+      }
       return true;
     } else {
       // Unable to fast free, so we just drop it.
