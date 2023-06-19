@@ -233,11 +233,13 @@ protected:
     if (((char*)ptr) + size == _hwm) {
       _hwm = (char*)ptr;
       if (_hwm == _chunk->bottom()) {
-        log_info(mmu)("FREE_CHUNK!");
         Chunk* n_current = _first;
+        int n = 0;
         while (n_current->next() != _chunk) {
           n_current = n_current->next();
+          n++;
         }
+        log_info(mmu)("FREE_CHUNK! %d with size %zu", n, _chunk->length());
         Chunk::chop(_chunk, _mem);
         _chunk = n_current;
       }
