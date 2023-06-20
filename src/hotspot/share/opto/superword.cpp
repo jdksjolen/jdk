@@ -65,7 +65,7 @@ SuperWord::SuperWord(PhaseIdealLoop* phase) :
   _dg(_arena),                                              // dependence graph
   _visited(arena()),                                        // visited node set
   _post_visited(arena()),                                   // post visited node set
-  _n_idx_list(arena(), 8),                                  // scratch list of (node,index) pairs
+  _n_idx_list(8),                                           // scratch list of (node,index) pairs
   _nlist(arena(), 8, 0, nullptr),                           // scratch list of nodes
   _stk(arena(), 8, 0, nullptr),                             // scratch stack of nodes
   _lpt(nullptr),                                            // loop tree node
@@ -2603,7 +2603,7 @@ void SuperWord::schedule_reorder_memops(Node_List &memops_schedule) {
 
 #ifndef PRODUCT
 void SuperWord::print_loop(bool whole) {
-  Node_Stack stack(_arena, _phase->C->unique() >> 2);
+  Node_Stack stack( _phase->C->unique() >> 2);
   Node_List rpo_list;
   VectorSet visited(_arena);
   visited.set(lpt()->_head->_idx);

@@ -761,7 +761,7 @@ class Invariance : public StackObj {
  public:
   Invariance(Arena* area, IdealLoopTree* lpt) :
     _visited(area), _invariant(area),
-    _stack(area, 10 /* guess */),
+    _stack(10 /* guess */),
     _clone_visited(area), _old_new(area),
     _lpt(lpt), _phase(lpt->_phase),
     _data_dependency_on(nullptr)

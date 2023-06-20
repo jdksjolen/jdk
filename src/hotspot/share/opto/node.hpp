@@ -1758,14 +1758,6 @@ public:
     _inode_top = _inodes - 1; // stack is empty
   }
 
-  Node_Stack(Arena *a, int size) :
-    _rm{CompilerThread::current()->stack_area()} {
-    size_t max = (size > OptoNodeListSize) ? size : OptoNodeListSize;
-    _inodes = NEW_ARENA_ARRAY(CompilerThread::current()->stack_area(), INode, max);
-    _inode_max = _inodes + max;
-    _inode_top = _inodes - 1; // stack is empty
-  }
-
   void pop() {
     assert(_inode_top >= _inodes, "node stack underflow");
     --_inode_top;
