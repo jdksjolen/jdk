@@ -30,6 +30,7 @@
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
+#include "logging/log.hpp"
 
 #include <new>
 
@@ -94,9 +95,10 @@ protected:
 
   MEMFLAGS    _flags;           // Memory tracking flags
 
-  Chunk *_first;                // First chunk
-  Chunk *_chunk;                // current chunk
-  char *_hwm, *_max;            // High water mark and max in current chunk
+  Chunk* _first;                // First chunk
+  Chunk* _chunk;                // current chunk
+  char* _hwm;                   // High water mark and
+  char* _max;                   // max in current chunk
   // Get a new Chunk of at least size x
   void* grow(size_t x, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
   size_t _size_in_bytes;        // Size of arena (used for native memory tracking)
@@ -108,6 +110,7 @@ protected:
       _hwm += x;
       return old;
     } else {
+      log_info(mmu)("LEAVING: %zu", pointer_delta(_max, _hwm, 1));
       return grow(x, alloc_failmode);
     }
   }
