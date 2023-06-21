@@ -98,7 +98,7 @@
           "Trace all operations on this IndexSet (-1 means all, 0 none)")   \
           range(-1, 0)                                                      \
                                                                             \
-  develop(intx, OptoNodeListSize, 4,                                        \
+  develop(intx, OptoNodeListSize, 256,                                      \
           "Starting allocation size of Node_List data structures")          \
           range(1, max_jint)                                                \
                                                                             \

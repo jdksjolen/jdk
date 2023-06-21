@@ -38,12 +38,13 @@ VectorSet::VectorSet(Arena* arena) {
 }
 
 void VectorSet::init(Arena* arena) {
-  _size = 2;
-  _data = NEW_ARENA_ARRAY(arena, uint32_t, 2);
-  _data_size = 2;
+  _size = 8;
+  _data = NEW_ARENA_ARRAY(arena, uint32_t, 8);
+  _data_size = 8;
   _set_arena = arena;
-  _data[0] = 0;
-  _data[1] = 0;
+  for (int i = 0; i < 8; i++) {
+    _data[i] = 0;
+  }
 }
 
 // Expand the existing set to a bigger size
