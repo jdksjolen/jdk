@@ -126,7 +126,8 @@ public:
     offset = start;
     // Try to get rid of any huge pages accidentally allocated by doing size - memory
     // instead of committed_boundary
-    assert(::madvise(offset+memory_to_leave, size - memory_to_leave, MADV_DONTNEED) == 0, "must");
+    int ret = ::madvise(offset+memory_to_leave, size - memory_to_leave, MADV_DONTNEED);
+    assert(ret == 0, "must");
     committed_boundary = offset + memory_to_leave;;
   }
 
@@ -142,7 +143,8 @@ public:
     // so we ask the OS to throw away the physical backing, while keeping the memory reserved.
     if (unused_bytes >= slack) {
       // Look into MADV_FREE/MADV_COLD
-      assert(::madvise(offset, unused_bytes, MADV_DONTNEED) == 0, "must");
+      int ret = ::madvise(offset, unused_bytes, MADV_DONTNEED);
+      assert(ret == 0, "must");
       committed_boundary = offset;
       // The actual reserved region(s) might not cover this whole area, therefore
       // the reserved region will not be found. We must first register a covering region.
