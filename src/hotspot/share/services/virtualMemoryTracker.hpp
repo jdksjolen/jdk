@@ -30,6 +30,7 @@
 #include "memory/metaspaceStats.hpp"
 #include "services/allocationSite.hpp"
 #include "services/nmtCommon.hpp"
+#include "utilities/growableArray.hpp"
 #include "utilities/linkedlist.hpp"
 #include "utilities/nativeCallStack.hpp"
 #include "utilities/ostream.hpp"
@@ -373,6 +374,57 @@ class VirtualMemoryTracker : AllStatic {
 
  public:
   static bool initialize(NMT_TrackingLevel level);
+
+  struct AnonMapping {
+    int fd; ReservedMemoryRegion rgn;
+    // Dead ctr for GrowableArray
+    AnonMapping() : fd(0), rgn((address)0x1, 1) {
+    }
+    AnonMapping(int fd, ReservedMemoryRegion&& rgn) : fd(fd), rgn(rgn) {
+    }
+  };
+  static GrowableArray<AnonMapping> anon_mappings;
+  static void add_view_into_file(address base_addr, size_t size, int fd,
+                                 const NativeCallStack& stack, MEMFLAGS flag = mtNone) {
+    #ifdef ASSERT
+    // Some basic checks that what we're doing is sensible.
+    for (int i = 0; i < anon_mappings.length(); i++) {
+      AnonMapping am = anon_mappings.at(i);
+      // regions overlapping implies that they should map into the same file descriptor
+      assert(!am.rgn.overlap_region(base_addr, size) || am.fd == fd, "Overlapping memory regions pointing into different files.");
+    }
+    assert(_reserved_regions != nullptr, "Must be initialized");
+    LinkedListNode<ReservedMemoryRegion>* head = _reserved_regions->head();
+    while (head != nullptr) {
+      const ReservedMemoryRegion* rgn = head->peek();
+      assert(!rgn->overlap_region(base_addr, size), "Can't map both into fd and ordinary virtual memory");
+      head = head->next();
+    }
+    #endif
+    anon_mappings.push(AnonMapping{fd, ReservedMemoryRegion{base_addr, size, stack, flag }});
+  }
+  static void remove_view_into_file(address base_addr, size_t size) {
+    int idx = -1;
+    for (int i = 0; i < anon_mappings.length(); i++) {
+      AnonMapping am = anon_mappings.at(i);
+      if (am.rgn.base() == base_addr && am.rgn.size() == size) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx != -1) {
+      anon_mappings.remove_at(idx);
+    }
+  }
+
+  static void remove_all_views_into_file(int fd) {
+    for (int i = 0; i < anon_mappings.length(); i++) {
+      AnonMapping am = anon_mappings.at(i);
+      if (am.fd == fd) {
+        anon_mappings.delete_at(fd);
+      }
+    }
+  }
 
   static bool add_reserved_region (address base_addr, size_t size, const NativeCallStack& stack, MEMFLAGS flag = mtNone);
 

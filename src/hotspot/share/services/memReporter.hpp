@@ -164,6 +164,7 @@ class MemDetailReporter : public MemSummaryReporter {
   // The report contains summary and detail sections.
   virtual void report() {
     MemSummaryReporter::report();
+    report_anonymous_mappings();
     report_virtual_memory_map();
     report_detail();
   }
@@ -173,6 +174,8 @@ class MemDetailReporter : public MemSummaryReporter {
   void report_detail();
   // Report virtual memory map
   void report_virtual_memory_map();
+  // Report anonymous mappings
+  void report_anonymous_mappings();
   // Report malloc allocation sites; returns number of omitted sites
   int report_malloc_sites();
   // Report virtual memory reservation sites; returns number of omitted sites

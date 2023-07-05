@@ -34,6 +34,8 @@
 
 size_t VirtualMemorySummary::_snapshot[CALC_OBJ_SIZE_IN_TYPE(VirtualMemorySnapshot, size_t)];
 
+GrowableArray<VirtualMemoryTracker::AnonMapping> VirtualMemoryTracker::anon_mappings{0, mtNMT};
+
 void VirtualMemorySummary::initialize() {
   assert(sizeof(_snapshot) >= sizeof(VirtualMemorySnapshot), "Sanity Check");
   // Use placement operator new to initialize static data area.

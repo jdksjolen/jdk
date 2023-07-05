@@ -368,6 +368,34 @@ int MemDetailReporter::report_virtual_memory_allocation_sites()  {
   return num_omitted;
 }
 
+void MemDetailReporter::report_anonymous_mappings() {
+  using AM = VirtualMemoryTracker::AnonMapping;
+  GrowableArray<AM>& map = _baseline._anon_mappings;
+  // Sort by fd.
+  map.sort([](AM* a, AM* b) -> int {
+    return a->fd - b->fd;
+  });
+
+  // Iterate
+  outputStream* out = output();
+  int last_fd = -1;
+  uint i = 0;
+  uint len = map.length();
+  while (i < len) {
+    AM am = map.at(i);
+    last_fd = am.fd;
+    out->print_cr("Anonymous file %d:", am.fd);
+    out->inc(4);
+    while (i < len && am.fd == last_fd) {
+      am = map.at(i);
+      ReservedMemoryRegion rgn = am.rgn;
+      out->indent();
+      out->print_cr("%s Region of size %zu starting at %p", rgn.flag_name(), rgn.size(), rgn.base());
+      i++;
+    }
+    out->dec(4);
+  }
+}
 
 void MemDetailReporter::report_virtual_memory_map() {
   // Virtual memory map always in base address order

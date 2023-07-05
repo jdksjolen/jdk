@@ -199,8 +199,12 @@ void MemBaseline::baseline(bool summaryOnly) {
       MemTracker::tracking_level() == NMT_detail) {
     baseline_allocation_sites();
     _baseline_type = Detail_baselined;
+    _anon_mappings.clear();
+    _anon_mappings.reserve(VirtualMemoryTracker::anon_mappings.length());
+    for (int i = 0; i < VirtualMemoryTracker::anon_mappings.length(); i++) {
+      _anon_mappings.push(VirtualMemoryTracker::anon_mappings.at(i));
+    }
   }
-
 }
 
 int compare_allocation_site(const VirtualMemoryAllocationSite& s1,

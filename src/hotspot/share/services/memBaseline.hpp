@@ -65,6 +65,9 @@ class MemBaseline {
   size_t                 _instance_class_count;
   size_t                 _array_class_count;
 
+public:
+  GrowableArray<VirtualMemoryTracker::AnonMapping> _anon_mappings;
+private:
   // Allocation sites information
   // Malloc allocation sites
   LinkedListImpl<MallocSite>                  _malloc_sites;
@@ -85,6 +88,7 @@ class MemBaseline {
   // create a memory baseline
   MemBaseline():
     _instance_class_count(0), _array_class_count(0),
+    _anon_mappings(0, mtNMT),
     _baseline_type(Not_baselined) {
   }
 
