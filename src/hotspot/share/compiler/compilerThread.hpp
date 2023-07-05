@@ -54,6 +54,17 @@ class CompilerThread : public JavaThread {
   AbstractCompiler*     _compiler;
   TimeStamp             _idle_time;
 public:
+  struct CompilerMemory {
+    size_t size;
+    char* start;
+    size_t divided_by;
+  public:
+    CompilerMemory(size_t divided_by) :
+      size(4096*M),
+      start(nullptr),
+      divided_by(divided_by) {n
+    }
+  };
   ContiguousProvider _resource_area_memory; // Backing memory for the ResourceArea
   ContiguousProvider _compiler_memory; // Backing memory for the Compile class.
   // Memory for the various resource areas allocated for a compilation.
