@@ -57,14 +57,43 @@ public:
   struct CompilerMemory {
     size_t size;
     char* start;
-    size_t divided_by;
+    size_t size_per;
   public:
-    CompilerMemory(size_t divided_by) :
+    CompilerMemory(size_t divided_by, size_t chunk_size) :
       size(4096*M),
       start(nullptr),
-      divided_by(divided_by) {n
+      size_per(0) /* Set later */ {
+      char* addr = (char*)::mmap(nullptr, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+      assert(addr != MAP_FAILED, "mustn't");
+
+      char* aligned_addr = align_up(addr, chunk_size);
+      if (aligned_addr != addr) {
+        ::munmap(addr, aligned_addr - addr);
+        size -= aligned_addr - addr;
+        addr = aligned_addr;
+      }
+
+      // Avoid mapping 2MB huge page
+      if (is_aligned(addr, 2*M)) {
+        const size_t cz = chunk_size;
+        ::munmap(addr, cz);
+        addr += cz;
+        size -= cz;
+      }
+      // Update
+      start = addr;
+      size_per = align_down(size / divided_by, chunk_size);
+      MemTracker::record_virtual_memory_reserve(start, size, CALLER_PC, mtCompiler);
+    }
+
+    ContiguousAllocator::MemoryArea next() {
+      ContiguousAllocator::MemoryArea ma{start, size_per};
+      start += size_per;
+      return ma;
     }
   };
+
+  CompilerMemory _backing_compiler_memory; // All of the compiler memory
   ContiguousProvider _resource_area_memory; // Backing memory for the ResourceArea
   ContiguousProvider _compiler_memory; // Backing memory for the Compile class.
   // Memory for the various resource areas allocated for a compilation.

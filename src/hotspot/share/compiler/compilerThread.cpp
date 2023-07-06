@@ -31,15 +31,16 @@
 // Create a CompilerThread
 CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
   : JavaThread(&CompilerThread::thread_entry, 0, false),
-    _resource_area_memory{mtCompiler, false},
-    _compiler_memory{mtCompiler, false},
-    _matcher_memory{mtCompiler, false},
-    _chaitin_memory1{mtCompiler, false},
-    _chaitin_memory2{mtCompiler, false},
-    _cfg_memory{mtCompiler, false},
-    _phaseccp_memory{mtCompiler, false},
-    _narena_mem_one{mtCompiler, false},
-    _narena_mem_two{mtCompiler, false}
+    _backing_compiler_memory{9, ContiguousAllocator::get_chunk_size(false)},
+    _resource_area_memory{_backing_compiler_memory.next(), mtCompiler},
+    _compiler_memory{_backing_compiler_memory.next(), mtCompiler},
+    _matcher_memory{_backing_compiler_memory.next(), mtCompiler},
+    _chaitin_memory1{_backing_compiler_memory.next(), mtCompiler},
+    _chaitin_memory2{_backing_compiler_memory.next(), mtCompiler},
+    _cfg_memory{_backing_compiler_memory.next(), mtCompiler},
+    _phaseccp_memory{_backing_compiler_memory.next(), mtCompiler},
+    _narena_mem_one{_backing_compiler_memory.next(), mtCompiler},
+    _narena_mem_two{_backing_compiler_memory.next(), mtCompiler}
     {
   _env   = nullptr;
   _log   = nullptr;

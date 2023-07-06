@@ -18,10 +18,10 @@
 class ContiguousAllocator {
 public:
   struct AllocationResult { void* loc; size_t sz; };
-private:
   static size_t get_chunk_size(bool useHugePages) {
     return align_up(useHugePages ? 2*M : 4*K, os::vm_page_size());
   }
+private:
 
   char* allocate_virtual_address_range(bool useHugePages) {
     constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS;
@@ -66,12 +66,14 @@ private:
       }*/
 
     if (next_offset >= start + this->size) {
+      vm_exit_out_of_memory(chunk_aligned_size, OOM_MALLOC_ERROR, "FIRST");
       return {nullptr, 0};
     }
 
     constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE;
     char* addr = (char*)::mmap(this->offset, chunk_aligned_size, PROT_READ|PROT_WRITE, flags, -1, 0);
     if (addr == MAP_FAILED) {
+      vm_exit_out_of_memory(chunk_aligned_size, OOM_MALLOC_ERROR, "end: %p, offs: %p len: %zu, err: %d",start + this->size,  this->offset, chunk_aligned_size, errno);
       return {nullptr, 0};
     }
     assert(addr == this->offset, "not equal");
@@ -106,13 +108,12 @@ public:
   }
 
   ContiguousAllocator(MEMFLAGS flag, bool useHugePages = false)
-    : ContiguousAllocator(default_size, flag, useHugePages) {
-  }
+    : ContiguousAllocator(default_size, flag, useHugePages) {}
 
-  ContiguousAllocator(char* start, size_t size, MEMFLAGS flag)
-    : flag(flag), size(size), chunk_size(get_chunk_size(false)),
-      start(start), offset(start), committed_boundary(start) {
-  }
+  struct MemoryArea { char* start; size_t size; };
+  ContiguousAllocator(MemoryArea ma, MEMFLAGS flag)
+    : flag(flag), size(ma.size), chunk_size(get_chunk_size(false)),
+      start(ma.start), offset(start), committed_boundary(start) {}
 
   ~ContiguousAllocator() {
     os::release_memory(start, size);

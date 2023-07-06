@@ -62,6 +62,8 @@ public:
     _cont_allocator(flag), returned_chunks{} {}
   explicit ContiguousProvider(MEMFLAGS flag, size_t max_size) :
     _cont_allocator(max_size, flag), returned_chunks{} {}
+  explicit ContiguousProvider(ContiguousAllocator::MemoryArea ma, MEMFLAGS flag) :
+    _cont_allocator(ma, flag) {}
 
   AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
     size_t chunk_aligned_size = align_up(bytes, _cont_allocator.chunk_size);
