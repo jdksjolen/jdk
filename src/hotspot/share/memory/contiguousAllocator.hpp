@@ -109,6 +109,11 @@ public:
     : ContiguousAllocator(default_size, flag, useHugePages) {
   }
 
+  ContiguousAllocator(char* start, size_t size, MEMFLAGS flag)
+    : flag(flag), size(size), chunk_size(get_chunk_size(false)),
+      start(start), offset(start), committed_boundary(start) {
+  }
+
   ~ContiguousAllocator() {
     os::release_memory(start, size);
   }
