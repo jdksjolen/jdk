@@ -64,9 +64,6 @@ public:
   }
 
   ~ResourceArea() {
-    if (_mem != nullptr) {
-      _mem->reset_full();
-    }
   }
 
   explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
