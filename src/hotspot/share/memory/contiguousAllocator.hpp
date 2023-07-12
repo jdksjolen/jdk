@@ -113,7 +113,7 @@ public:
   struct MemoryArea { char* start; size_t size; };
   ContiguousAllocator(MemoryArea ma, MEMFLAGS flag)
     : flag(flag), size(ma.size), chunk_size(get_chunk_size(false)),
-      start(ma.start), offset(start), committed_boundary(start) {}
+      start(ma.start), offset(ma.start), committed_boundary(ma.start) {}
 
   ~ContiguousAllocator() {
     os::release_memory(start, size);

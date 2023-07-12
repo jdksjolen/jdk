@@ -63,12 +63,13 @@ public:
       size(4096*M),
       start(nullptr),
       size_per(0) /* Set later */ {
-      char* addr = (char*)::mmap(nullptr, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-      assert(addr != MAP_FAILED, "mustn't");
-
+      void* ret = ::mmap(nullptr, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+      assert(ret != MAP_FAILED, "mustn't");
+      char* addr = (char*)ret;
       char* aligned_addr = align_up(addr, chunk_size);
       if (aligned_addr != addr) {
-        ::munmap(addr, aligned_addr - addr);
+        int x = ::munmap(addr, aligned_addr - addr);
+        assert(x == 0, "must");
         size -= aligned_addr - addr;
         addr = aligned_addr;
       }
@@ -76,7 +77,8 @@ public:
       // Avoid mapping 2MB huge page
       if (is_aligned(addr, 2*M)) {
         const size_t cz = chunk_size;
-        ::munmap(addr, cz);
+        int x = ::munmap(addr, cz);
+        assert(x == 0, "must");
         addr += cz;
         size -= cz;
       }
@@ -88,6 +90,10 @@ public:
 
     ContiguousAllocator::MemoryArea next() {
       ContiguousAllocator::MemoryArea ma{start, size_per};
+      if (is_aligned(ma.start, 2*M)) {
+        ma.start += 4096;
+        ma.size -= 4096;
+      }
       start += size_per;
       return ma;
     }
