@@ -57,12 +57,13 @@ public:
   struct CompilerMemory {
     size_t size;
     char* start;
+    char* current;
     size_t size_per;
   public:
-    CompilerMemory(size_t divided_by, size_t chunk_size) :
-      size(4096*M),
-      start(nullptr),
-      size_per(0) /* Set later */ {
+    CompilerMemory(size_t divided_by, size_t chunk_size)
+      : size(4096*M),
+        start(nullptr),
+        size_per(0) /* Set later */ {
       void* ret = ::mmap(nullptr, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
       assert(ret != MAP_FAILED, "mustn't");
       char* addr = (char*)ret;
@@ -84,18 +85,22 @@ public:
       }
       // Update
       start = addr;
+      current = start;
       size_per = align_down(size / divided_by, chunk_size);
       MemTracker::record_virtual_memory_reserve(start, size, CALLER_PC, mtCompiler);
     }
 
     ContiguousAllocator::MemoryArea next() {
-      ContiguousAllocator::MemoryArea ma{start, size_per};
+      ContiguousAllocator::MemoryArea ma{current, size_per};
       if (is_aligned(ma.start, 2*M)) {
-        ma.start += 4096;
-        ma.size -= 4096;
+        ma.start += ContiguousAllocator::get_chunk_size(false);
+        ma.size -= ContiguousAllocator::get_chunk_size(false);
       }
-      start += size_per;
+      current += size_per;
       return ma;
+    }
+    ~CompilerMemory() {
+      ::munmap(start, size);
     }
   };
 

@@ -54,14 +54,13 @@ public:
 
 class ContiguousProvider final : public ArenaMemoryProvider {
   ContiguousAllocator _cont_allocator;
-  ContiguousAllocator::AllocationResult returned_chunks[3];
 public:
   explicit ContiguousProvider(MEMFLAGS flag, bool useHugePages) :
-    _cont_allocator(flag, useHugePages), returned_chunks{} {}
+    _cont_allocator(flag, useHugePages) {}
   explicit ContiguousProvider(MEMFLAGS flag) :
-    _cont_allocator(flag), returned_chunks{} {}
+    _cont_allocator(flag) {}
   explicit ContiguousProvider(MEMFLAGS flag, size_t max_size) :
-    _cont_allocator(max_size, flag), returned_chunks{} {}
+    _cont_allocator(max_size, flag) {}
   explicit ContiguousProvider(ContiguousAllocator::MemoryArea ma, MEMFLAGS flag) :
     _cont_allocator(ma, flag) {}
 

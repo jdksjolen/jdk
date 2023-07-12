@@ -95,15 +95,18 @@ public:
   char* start;
   char* offset;
   char* committed_boundary;
+  bool dont_free;
   ContiguousAllocator(size_t size, MEMFLAGS flag, bool useHugePages = false)
     : flag(flag), size(size),
       chunk_size(get_chunk_size(false)),
       start(allocate_virtual_address_range(false)),
       offset(align_up(start, chunk_size)),
-      committed_boundary(align_up(start, chunk_size)) {
+      committed_boundary(align_up(start, chunk_size)),
+      dont_free(false) {
     // Pre-fault first 64k.
     constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE;
     char* addr = (char*)::mmap(this->offset, align_up(64*K, chunk_size), PROT_READ|PROT_WRITE, flags, -1, 0);
+    assert(addr != MAP_FAILED, "must be");
     committed_boundary = addr;
   }
 
@@ -113,9 +116,18 @@ public:
   struct MemoryArea { char* start; size_t size; };
   ContiguousAllocator(MemoryArea ma, MEMFLAGS flag)
     : flag(flag), size(ma.size), chunk_size(get_chunk_size(false)),
-      start(ma.start), offset(ma.start), committed_boundary(ma.start) {}
+      start(ma.start), offset(ma.start), committed_boundary(ma.start),
+      dont_free(true) {
+    // Pre-fault first 64k.
+    constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE;
+    char* addr = (char*)::mmap(this->offset, align_up(64 * K, chunk_size), PROT_READ | PROT_WRITE,
+                               flags, -1, 0);
+    assert(addr != MAP_FAILED, "must be");
+    committed_boundary = addr;
+  }
 
   ~ContiguousAllocator() {
+    if (dont_free) return;
     os::release_memory(start, size);
   }
 
@@ -134,7 +146,7 @@ public:
     // instead of committed_boundary
     int ret = ::madvise(offset+memory_to_leave, size - memory_to_leave, MADV_DONTNEED);
     assert(ret == 0, "must");
-    committed_boundary = offset + memory_to_leave;;
+    committed_boundary = offset + memory_to_leave;
   }
 
   void reset_to(void* p) {
