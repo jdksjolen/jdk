@@ -31,8 +31,8 @@
 // Create a CompilerThread
 CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
   : JavaThread(&CompilerThread::thread_entry, 0, false),
-    _backing_compiler_memory{9, ContiguousAllocator::get_chunk_size(false)},
-    _resource_area_memory{_backing_compiler_memory.next(), mtCompiler},
+    _backing_compiler_memory{8, ContiguousAllocator::get_chunk_size(false)},
+    _resource_area_memory{mtCompiler}, // Lifetime issue
     _compiler_memory{_backing_compiler_memory.next(), mtCompiler},
     _matcher_memory{_backing_compiler_memory.next(), mtCompiler},
     _chaitin_memory1{_backing_compiler_memory.next(), mtCompiler},
