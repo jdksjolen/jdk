@@ -101,6 +101,7 @@ public:
     }
     ~CompilerMemory() {
       ::munmap(start, size);
+      MemTracker::record_virtual_memory_release(start, size);
     }
   };
 
