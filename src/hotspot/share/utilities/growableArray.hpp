@@ -280,7 +280,6 @@ public:
   void sort(int f(E*, E*)) {
     qsort(_data, length(), sizeof(E), (_sort_Fn)f);
   }
-
   // sort by fixed-stride sub arrays:
   void sort(int f(E*, E*), int stride) {
     qsort(_data, length() / stride, sizeof(E) * stride, (_sort_Fn)f);
