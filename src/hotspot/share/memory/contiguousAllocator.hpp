@@ -19,7 +19,7 @@ class ContiguousAllocator {
 public:
   struct AllocationResult { void* loc; size_t sz; };
   static size_t get_chunk_size(bool useHugePages) {
-    return align_up(useHugePages ? 2*M : 4*K, os::vm_page_size());
+    return align_up(useHugePages ? 2*M : 16*K, os::vm_page_size());
   }
 private:
 
@@ -88,7 +88,7 @@ private:
 public:
   static const size_t default_size = 1*G;
   // The size of unused-but-allocated chunks that we allow before madvising() that they're not needed.
-  static const size_t slack = 16*K;
+  static const size_t slack = 48*K;
   MEMFLAGS flag;
   size_t size;
   size_t chunk_size;
