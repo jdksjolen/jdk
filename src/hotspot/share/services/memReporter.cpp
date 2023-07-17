@@ -390,7 +390,7 @@ void MemDetailReporter::report_anonymous_mappings() {
       am = map.at(i);
       ReservedMemoryRegion rgn = am.rgn;
       out->indent();
-      out->print_cr("%s Region of size %zu starting at %p", rgn.flag_name(), rgn.size(), rgn.base());
+      out->print_cr("[%s] %p-%p at offset %zu", rgn.flag_name(), rgn.base(), rgn.base() + rgn.size(), am.offset);
       i++;
     }
     out->dec(4);

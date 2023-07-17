@@ -376,32 +376,35 @@ class VirtualMemoryTracker : AllStatic {
   static bool initialize(NMT_TrackingLevel level);
 
   struct AnonMapping {
-    int fd; ReservedMemoryRegion rgn;
+    int fd; ReservedMemoryRegion rgn; size_t offset;
     // Dead ctr for GrowableArray
-    AnonMapping() : fd(0), rgn((address)0x1, 1) {
+    AnonMapping() : fd(0), rgn((address)0x1, 1), offset(0) {
     }
-    AnonMapping(int fd, ReservedMemoryRegion&& rgn) : fd(fd), rgn(rgn) {
+    AnonMapping(int fd, size_t offset, ReservedMemoryRegion&& rgn) : fd(fd), rgn(rgn), offset(offset) {
     }
   };
   static GrowableArray<AnonMapping> anon_mappings;
-  static void add_view_into_file(address base_addr, size_t size, int fd,
+  static void add_view_into_file(address base_addr, size_t size, int fd, size_t offset,
                                  const NativeCallStack& stack, MEMFLAGS flag = mtNone) {
     #ifdef ASSERT
     // Some basic checks that what we're doing is sensible.
     for (int i = 0; i < anon_mappings.length(); i++) {
       AnonMapping am = anon_mappings.at(i);
-      // regions overlapping implies that they should map into the same file descriptor
+      // Regions overlapping implies that they should map into the same file descriptor
       assert(!am.rgn.overlap_region(base_addr, size) || am.fd == fd, "Overlapping memory regions pointing into different files.");
+      // Overlapping regions should have the same memory flag -- unnecessarily restrictive for now.
+      assert(!am.rgn.overlap_region(base_addr, size) || am.flag == flag, "Overlapping memory regions having different memory flag");
     }
     assert(_reserved_regions != nullptr, "Must be initialized");
     LinkedListNode<ReservedMemoryRegion>* head = _reserved_regions->head();
+    // A region should only be present as either a mapping into a file or into virtual memory
     while (head != nullptr) {
       const ReservedMemoryRegion* rgn = head->peek();
       assert(!rgn->overlap_region(base_addr, size), "Can't map both into fd and ordinary virtual memory");
       head = head->next();
     }
     #endif
-    anon_mappings.push(AnonMapping{fd, ReservedMemoryRegion{base_addr, size, stack, flag }});
+    anon_mappings.push(AnonMapping{fd, offset, ReservedMemoryRegion{base_addr, size, stack, flag}});
   }
   static void remove_view_into_file(address base_addr, size_t size) {
     int idx = -1;
