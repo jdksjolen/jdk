@@ -408,6 +408,47 @@ bool VirtualMemoryTracker::add_reserved_region(address base_addr, size_t size,
   }
 }
 
+void VirtualMemoryTracker::add_view_into_file(address base_addr, size_t size, int fd, size_t offset,
+                               const NativeCallStack& stack, MEMFLAGS flag) {
+#ifdef ASSERT
+  // Some basic checks that what we're doing is sensible.
+  for (int i = 0; i < anon_mappings.length(); i++) {
+    AnonMapping am = anon_mappings.at(i);
+    // Regions overlapping implies that they should map into the same file descriptor
+    assert(!am.rgn.overlap_region(base_addr, size) || am.fd == fd,
+           "Overlapping memory regions pointing into different files.");
+    // Overlapping regions should have the same memory flag -- unnecessarily restrictive for now.
+    assert(!am.rgn.overlap_region(base_addr, size) || am.rgn.flag() == flag,
+           "Overlapping memory regions having different memory flag");
+  }
+  assert(_reserved_regions != nullptr, "Must be initialized");
+  LinkedListNode<ReservedMemoryRegion>* head = _reserved_regions->head();
+  // A region should only be present as either a mapping into a file or into virtual memory
+  while (head != nullptr) {
+    const ReservedMemoryRegion* rgn = head->peek();
+    assert(!rgn->overlap_region(base_addr, size),
+           "Can't map both into fd and ordinary virtual memory");
+    head = head->next();
+  }
+    #endif
+    anon_mappings.push(AnonMapping{fd, offset, ReservedMemoryRegion{base_addr, size, stack, flag}});
+}
+
+void VirtualMemoryTracker::remove_view_into_file(address base_addr, size_t size) {
+    int idx = -1;
+    for (int i = 0; i < anon_mappings.length(); i++) {
+      AnonMapping am = anon_mappings.at(i);
+      if (am.rgn.base() == base_addr && am.rgn.size() == size) {
+        idx = i;
+        break;
+      }
+    }
+    if (idx != -1) {
+      anon_mappings.remove_at(idx);
+    }
+  }
+
+
 void VirtualMemoryTracker::set_reserved_region_type(address addr, MEMFLAGS flag) {
   assert(addr != nullptr, "Invalid address");
   assert(_reserved_regions != nullptr, "Sanity check");
