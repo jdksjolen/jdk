@@ -118,22 +118,26 @@ public:
   ContiguousProvider _narena_mem_one;
   ContiguousProvider _narena_mem_two;
   void reset_memory(bool force = false) {
-    // This backs a ResourceArea, so always kill everything.
-    _matcher_memory.reset_full();
-    _chaitin_memory1.reset_full();
-    _chaitin_memory2.reset_full();
-    _phaseccp_memory.reset_full();
-    _cfg_memory.reset_full();
     if (force) {
       // Minimize memory usage -- we're probably idling
+      _matcher_memory.reset_full();
+      _chaitin_memory1.reset_full();
+      _chaitin_memory2.reset_full();
+      _phaseccp_memory.reset_full();
+      _cfg_memory.reset_full();
       _compiler_memory.reset_full();
       _narena_mem_one.reset_full();
       _narena_mem_two.reset_full();
     } else {
       // Only keep the amount of memory that the last compilation needed
-      _compiler_memory.reset_full(/*_compiler_memory.used()*/);
-      _narena_mem_one.reset_full(/*_narena_mem_one.used()*/);
-      _narena_mem_two.reset_full(/*_narena_mem_two.used()*/);
+      _matcher_memory.reset_full(_matcher_memory.used());
+      _chaitin_memory1.reset_full(_chaitin_memory1.used());
+      _chaitin_memory2.reset_full(_chaitin_memory2.used());
+      _phaseccp_memory.reset_full(_phaseccp_memory.used());
+      _cfg_memory.reset_full(_cfg_memory.used());
+      _compiler_memory.reset_full(_compiler_memory.used());
+      _narena_mem_one.reset_full(_narena_mem_one.used());
+      _narena_mem_two.reset_full(_narena_mem_two.used());
     }
   }
 
