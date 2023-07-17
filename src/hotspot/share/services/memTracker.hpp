@@ -187,7 +187,7 @@ class MemTracker : AllStatic {
   static inline void record_view_into_file(address base_addr, size_t size, int fd, size_t offset,  const NativeCallStack& stack, MEMFLAGS flag = mtNone) {
     assert_post_init();
     if (!enabled()) return;
-    if (addr != nullptr) {
+    if (base_addr != nullptr) {
       ThreadCritical tc;
       VirtualMemoryTracker::add_view_into_file(base_addr, size, fd, offset, stack, flag);
     }
@@ -195,7 +195,7 @@ class MemTracker : AllStatic {
   static inline void remove_view_into_file(address base_addr, size_t size) {
     assert_post_init();
     if (!enabled()) return;
-    if (addr != nullptr) {
+    if (base_addr != nullptr) {
       ThreadCritical tc;
       VirtualMemoryTracker::remove_view_into_file(base_addr, size);
     }
