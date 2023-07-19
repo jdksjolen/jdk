@@ -74,15 +74,9 @@ public:
         size -= aligned_addr - addr;
         addr = aligned_addr;
       }
+      // Transparent huge pages are unacceptable.
+      ::madvise(addr, size, MADV_NOHUGEPAGE);
 
-      // Avoid mapping 2MB huge page
-      if (is_aligned(addr, 2*M)) {
-        const size_t cz = chunk_size;
-        int x = ::munmap(addr, cz);
-        assert(x == 0, "must");
-        addr += cz;
-        size -= cz;
-      }
       // Update
       start = addr;
       current = start;
