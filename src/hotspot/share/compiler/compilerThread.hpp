@@ -78,9 +78,11 @@ public:
       // Transparent huge pages are unacceptable.
 #ifndef MADV_NOHUGEPAGE
 #define MADV_NOHUGEPAGE 15
-#endif
       ::madvise(addr, size, MADV_NOHUGEPAGE);
 #undef MADV_NOHUGEPAGE
+#else
+      ::madvise(addr, size, MADV_NOHUGEPAGE);
+#endif
 
       // Update
       start = addr;
