@@ -76,7 +76,11 @@ public:
         addr = aligned_addr;
       }
       // Transparent huge pages are unacceptable.
+#ifndef MADV_NOHUGEPAGE
+#define MADV_NOHUGEPAGE 15 /* Not worth backing with hugepages.  */
+#endif
       ::madvise(addr, size, MADV_NOHUGEPAGE);
+#undef MADV_NOHUGEPAGE
 
       // Update
       start = addr;
