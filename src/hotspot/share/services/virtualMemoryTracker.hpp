@@ -34,6 +34,7 @@
 #include "utilities/linkedlist.hpp"
 #include "utilities/nativeCallStack.hpp"
 #include "utilities/ostream.hpp"
+#include "runtime/atomic.hpp"
 
 
 /*
@@ -375,24 +376,54 @@ class VirtualMemoryTracker : AllStatic {
  public:
   static bool initialize(NMT_TrackingLevel level);
 
-  struct AnonMapping {
-    int fd; ReservedMemoryRegion rgn; size_t offset;
-    // Dead ctr for GrowableArray
-    AnonMapping() : fd(0), rgn((address)0x1, 1), offset(0) {
+  // Uniquely identifies a physical memory space (such as a file descriptor)
+  struct PhysicalMemorySpace {
+  private:
+    static volatile uint32_t _unique;
+    static uint32_t next_unique() {
+      return Atomic::fetch_then_add(&_unique, 1);
     }
-    AnonMapping(int fd, size_t offset, ReservedMemoryRegion&& rgn) : fd(fd), rgn(rgn), offset(offset) {
+  private:
+    uint32_t _id;
+  public:
+    explicit PhysicalMemorySpace() : _id(next_unique()) {
+    }
+    explicit PhysicalMemorySpace(uint id) : _id(id) {
+    }
+    bool operator ==(PhysicalMemorySpace const &space) const {
+      return space._id == this->_id;
+    }
+    uint32_t id() const {
+      return _id;
+    }
+  };
+
+  // A memory region mapping to a physical memory space.
+  struct AnonMapping {
+    PhysicalMemorySpace space; ReservedMemoryRegion rgn; size_t offset;
+    // Dead ctr -- necessary for GrowableArray to be able to store this struct.
+    AnonMapping() : space(0), rgn((address)0x1, 1), offset(0) {
+    }
+    AnonMapping(PhysicalMemorySpace fd, size_t offset, ReservedMemoryRegion&& rgn) : space(fd), rgn(rgn), offset(offset) {
     }
   };
   static GrowableArray<AnonMapping> anon_mappings;
-  static void add_view_into_file(address base_addr, size_t size, int fd, size_t offset,
-                                 const NativeCallStack& stack, MEMFLAGS flag = mtNone);
-  static void remove_view_into_file(address base_addr, size_t size);
+  static PhysicalMemorySpace register_space() {
+     return PhysicalMemorySpace{};
+  }
+  // Map [base_addr, base_addr+size) into space starting at offset.
+  static void add_view_into_space(address base_addr, size_t size,
+                                  const PhysicalMemorySpace space, size_t offset,
+                                  const NativeCallStack& stack, MEMFLAGS flag = mtNone);
+  // Remove mapping of [base_addr, base_addr+size)
+  // There is no need to provide the PhysicalMemorySpace as there is only one virtual memory space.
+  static void remove_view_into_space(address base_addr, size_t size);
 
-  static void remove_all_views_into_file(int fd) {
+  static void remove_all_views_into_space(const PhysicalMemorySpace space) {
     for (int i = 0; i < anon_mappings.length(); i++) {
       AnonMapping am = anon_mappings.at(i);
-      if (am.fd == fd) {
-        anon_mappings.delete_at(fd);
+      if (am.space == space) {
+        anon_mappings.delete_at(space.id());
       }
     }
   }

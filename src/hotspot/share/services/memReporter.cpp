@@ -373,7 +373,7 @@ void MemDetailReporter::report_anonymous_mappings() {
   GrowableArray<AM>& map = _baseline._anon_mappings;
   // Sort by fd.
   map.sort([](AM* a, AM* b) -> int {
-    return a->fd - b->fd;
+    return a->space - b->space;
   });
 
   // Iterate
@@ -383,10 +383,10 @@ void MemDetailReporter::report_anonymous_mappings() {
   uint len = map.length();
   while (i < len) {
     AM am = map.at(i);
-    last_fd = am.fd;
-    out->print_cr("Anonymous file %d:", am.fd);
+    last_fd = am.space;
+    out->print_cr("Anonymous file %d:", am.space);
     out->inc(4);
-    while (i < len && am.fd == last_fd) {
+    while (i < len && am.space == last_fd) {
       am = map.at(i);
       ReservedMemoryRegion rgn = am.rgn;
       out->indent();

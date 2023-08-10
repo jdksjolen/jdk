@@ -197,7 +197,7 @@ class MemTracker : AllStatic {
     if (!enabled()) return;
     if (base_addr != nullptr) {
       ThreadCritical tc;
-      VirtualMemoryTracker::remove_view_into_file(base_addr, size);
+      VirtualMemoryTracker::remove_view_into_space(base_addr, size);
     }
   }
 
