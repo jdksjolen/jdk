@@ -382,7 +382,12 @@ void MemDetailReporter::report_anonymous_mappings() {
   PMS last_space{0};
   uint i = 0;
   uint len = map.length();
+  if (len > 0) {
+    out->print_cr("Anonymous memory file mappings:");
+    out->inc(4);
+  }
   while (i < len) {
+    out->indent();
     AM am = map.at(i);
     last_space = am.space;
     out->print_cr("Anonymous file #%d:", am.space.id());
