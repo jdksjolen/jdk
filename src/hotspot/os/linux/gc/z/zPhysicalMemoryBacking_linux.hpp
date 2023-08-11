@@ -26,6 +26,7 @@
 
 #include "gc/z/zAddress.hpp"
 #include  "services/virtualMemoryTracker.hpp"
+#include "services/memTracker.hpp"
 
 class ZErrno;
 

@@ -452,8 +452,6 @@ jint Threads::create_vm(JavaVMInitArgs* args, bool* canTryAgain) {
 
   // Initialize NMT right after argument parsing to keep the pre-NMT-init window small.
   MemTracker::initialize();
-  MemTracker::record_view_into_file((address)0xdeadbeef, 255, 25, 100, CALLER_PC, mtNMT);
-  MemTracker::record_view_into_file((address)0xcafebabe, 100, 23, 0, CALLER_PC, mtNMT);
   os::init_before_ergo();
 
   jint ergo_result = Arguments::apply_ergo();

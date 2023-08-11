@@ -184,15 +184,15 @@ class MemTracker : AllStatic {
     }
   }
 
-  static inline void record_view_into_file(address base_addr, size_t size, int fd, size_t offset,  const NativeCallStack& stack, MEMFLAGS flag = mtNone) {
+  static inline void add_view_into_space(address base_addr, size_t size, VirtualMemoryTracker::PhysicalMemorySpace pms, size_t offset,  const NativeCallStack& stack, MEMFLAGS flag = mtNone) {
     assert_post_init();
     if (!enabled()) return;
     if (base_addr != nullptr) {
       ThreadCritical tc;
-      VirtualMemoryTracker::add_view_into_file(base_addr, size, fd, offset, stack, flag);
+      VirtualMemoryTracker::add_view_into_space(base_addr, size, pms, offset, stack, flag);
     }
   }
-  static inline void remove_view_into_file(address base_addr, size_t size) {
+  static inline void remove_view_into_space(address base_addr, size_t size) {
     assert_post_init();
     if (!enabled()) return;
     if (base_addr != nullptr) {

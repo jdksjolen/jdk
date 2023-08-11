@@ -712,7 +712,7 @@ void ZPhysicalMemoryBacking::map(zaddress_unsafe addr, size_t size, zoffset offs
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());
   }
-  VirtualMemoryTracker::add_view_into_space((address)addr, size, _memspace, untype(offset), CALLER_PC);
+  MemTracker::add_view_into_space((address)addr, size, _memspace, untype(offset), CALLER_PC);
 }
 
 void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
@@ -724,5 +724,5 @@ void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());
   }
-  VirtualMemoryTracker::remove_view_into_space((address)addr, size);
+  MemTracker::remove_view_into_space((address)addr, size);
 }
