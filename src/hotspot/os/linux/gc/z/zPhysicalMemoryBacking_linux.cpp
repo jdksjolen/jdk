@@ -119,11 +119,12 @@ static int z_fallocate_hugetlbfs_attempts = 3;
 static bool z_fallocate_supported = true;
 
 ZPhysicalMemoryBacking::ZPhysicalMemoryBacking(size_t max_capacity)
-  : _fd(-1),
-    _filesystem(0),
-    _block_size(0),
-    _available(0),
-    _initialized(false) {
+: _memspace(),
+  _fd(-1),
+  _filesystem(0),
+  _block_size(0),
+  _available(0),
+  _initialized(false) {
 
   // Create backing file
   _fd = create_fd(ZFILENAME_HEAP);
@@ -711,6 +712,7 @@ void ZPhysicalMemoryBacking::map(zaddress_unsafe addr, size_t size, zoffset offs
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());
   }
+  VirtualMemoryTracker::add_view_into_space((address)addr, size, _memspace, untype(offset), CALLER_PC);
 }
 
 void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
@@ -722,4 +724,5 @@ void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());
   }
+  VirtualMemoryTracker::remove_view_into_space((address)addr, size);
 }
