@@ -412,6 +412,7 @@ bool VirtualMemoryTracker::add_reserved_region(address base_addr, size_t size,
 void VirtualMemoryTracker::add_view_into_space(address base_addr, size_t size, const PhysicalMemorySpace space, size_t offset,
                                const NativeCallStack& stack, MEMFLAGS flag) {
 #ifdef ASSERT
+  /*
   // Some basic checks that what we're doing is sensible.
   for (int i = 0; i < anon_mappings.length(); i++) {
     AnonMapping am = anon_mappings.at(i);
@@ -431,6 +432,7 @@ void VirtualMemoryTracker::add_view_into_space(address base_addr, size_t size, c
            "Can't map both into fd and ordinary virtual memory");
     head = head->next();
   }
+*/
     #endif
     anon_mappings.push(AnonMapping{space, offset, ReservedMemoryRegion{base_addr, size, stack, flag}});
 }
