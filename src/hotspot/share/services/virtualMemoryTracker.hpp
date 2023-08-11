@@ -382,16 +382,20 @@ class VirtualMemoryTracker : AllStatic {
     // Assuming that we will never run out of these.
     static volatile uint32_t _unique;
     static uint32_t next_unique() {
-      return Atomic::fetch_then_add(&_unique, 1);
+      return Atomic::fetch_then_add<uint32_t, uint32_t>(&_unique, 1);
     }
+
   private:
     uint32_t _id;
+
   public:
-    explicit PhysicalMemorySpace() : _id(next_unique()) {
+    explicit PhysicalMemorySpace()
+      : _id(next_unique()) {
     }
-    explicit PhysicalMemorySpace(uint id) : _id(id) {
+    explicit PhysicalMemorySpace(uint id)
+      : _id(id) {
     }
-    bool operator ==(PhysicalMemorySpace const &space) const {
+    bool operator==(PhysicalMemorySpace const& space) const {
       return space._id == this->_id;
     }
     uint32_t id() const {
