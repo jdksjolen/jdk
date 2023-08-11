@@ -370,23 +370,24 @@ int MemDetailReporter::report_virtual_memory_allocation_sites()  {
 
 void MemDetailReporter::report_anonymous_mappings() {
   using AM = VirtualMemoryTracker::AnonMapping;
+  using PMS = VirtualMemoryTracker::PhysicalMemorySpace;
   GrowableArray<AM>& map = _baseline._anon_mappings;
   // Sort by fd.
   map.sort([](AM* a, AM* b) -> int {
-    return a->space - b->space;
+    return (int)a->space.id() - (int)b->space.id();
   });
 
   // Iterate
   outputStream* out = output();
-  int last_fd = -1;
+  PMS last_space{0};
   uint i = 0;
   uint len = map.length();
   while (i < len) {
     AM am = map.at(i);
-    last_fd = am.space;
-    out->print_cr("Anonymous file %d:", am.space);
+    last_space = am.space;
+    out->print_cr("Anonymous file #%d:", am.space.id());
     out->inc(4);
-    while (i < len && am.space == last_fd) {
+    while (i < len && am.space == last_space) {
       am = map.at(i);
       ReservedMemoryRegion rgn = am.rgn;
       out->indent();
