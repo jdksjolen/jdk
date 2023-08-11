@@ -32,7 +32,7 @@ class ZErrno;
 
 class ZPhysicalMemoryBacking {
 private:
-  VirtualMemoryTracker::PhsyicalMemorySpace _memspace;
+  VirtualMemoryTracker::PhysicalMemorySpace _memspace;
   int      _fd;
   size_t   _size;
   uint64_t _filesystem;
