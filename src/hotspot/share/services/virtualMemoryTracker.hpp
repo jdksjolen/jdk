@@ -379,6 +379,7 @@ class VirtualMemoryTracker : AllStatic {
   // Uniquely identifies a physical memory space (such as a file descriptor)
   struct PhysicalMemorySpace {
   private:
+    // Assuming that we will never run out of these.
     static volatile uint32_t _unique;
     static uint32_t next_unique() {
       return Atomic::fetch_then_add(&_unique, 1);
