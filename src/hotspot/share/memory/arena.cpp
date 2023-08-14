@@ -51,12 +51,13 @@ class ChunkPool {
   static constexpr int _num_pools = 4;
   static ChunkPool _pools[_num_pools];
 
+  Mutex* _lock;
   Chunk*       _first;
   const size_t _size;         // (inner payload) size of the chunks this pool serves
 
   // Returns null if pool is empty.
   Chunk* take_from_pool() {
-    ThreadCritical tc;
+    MutexLocker lock{_lock};
     Chunk* c = _first;
     if (_first != nullptr) {
       _first = _first->next();
@@ -65,13 +66,14 @@ class ChunkPool {
   }
   void return_to_pool(Chunk* chunk) {
     assert(chunk->length() == _size, "wrong pool for this chunk");
-    ThreadCritical tc;
+    MutexLocker lock{_lock};
     chunk->set_next(_first);
     _first = chunk;
   }
 
   // Clear this pool of all contained chunks
   void prune() {
+    MutexLocker lock{_lock};
     // Free all chunks while in ThreadCritical lock
     // so NMT adjustment is stable.
     ThreadCritical tc;
@@ -96,9 +98,21 @@ class ChunkPool {
   }
 
 public:
-  ChunkPool(size_t size) : _first(nullptr), _size(size) {}
+  ChunkPool(size_t size)
+  : _lock(new Mutex(Mutex::nosafepoint, "chunk pool")),
+    _first(nullptr),
+    _size(size) {}
 
-  static void clean() {
+   ~ChunkPool() {
+    free(_lock);
+  }
+  ChunkPool(ChunkPool&& pool)
+    : _lock{pool._lock},
+      _first{pool._first},
+      _size{pool._size} {}
+  NONCOPYABLE(ChunkPool);
+
+      static void clean() {
     NativeHeapTrimmer::SuspendMark sm("chunk pool cleaner");
     for (int i = 0; i < _num_pools; i++) {
       _pools[i].prune();
