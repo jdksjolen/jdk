@@ -30,6 +30,7 @@
 #include "memory/metaspaceStats.hpp"
 #include "services/allocationSite.hpp"
 #include "services/nmtCommon.hpp"
+#include "utilities/growableArray.hpp"
 #include "utilities/linkedlist.hpp"
 #include "utilities/nativeCallStack.hpp"
 #include "utilities/ostream.hpp"
@@ -364,6 +365,222 @@ int compare_reserved_region_base(const ReservedMemoryRegion& r1, const ReservedM
 class VirtualMemoryWalker : public StackObj {
  public:
    virtual bool do_allocation_site(const ReservedMemoryRegion* rgn) { return false; }
+};
+
+class NewVirtualMemoryTracker {
+   using Id = uint32_t;
+public:
+   static constexpr Id process_space = 0; // Special-case when mapping virtual memory onto itself
+   struct PhysicalMemorySpace {
+    Id id; // Uniquely identifies the device
+    const char* name; // Provided by user for pretty-printing
+    static Id unique_id; // Next unique device = 1
+    static Id next_unique() {
+      return unique_id++;
+    }
+   };
+
+  struct Range {
+    address start;
+    size_t size;
+    Range(address start, size_t size)
+    : start(start), size(size) {}
+    address end() {
+      return start + size;
+    }
+  };
+  struct TrackedRange : public Range {
+    size_t offset; // What offset (address) into the PhysicalMemorySpace does it point to?
+    const NativeCallStack* stack; // From whence did this happen?
+    TrackedRange(address start = 0, size_t size = 0, size_t offset = 0, const NativeCallStack* stack = nullptr)
+    :  Range(start, size),
+        offset(offset),
+        stack(stack) {
+    }
+    TrackedRange(const TrackedRange& rng) = default;
+    TrackedRange& operator=(const TrackedRange& rng) {
+      this->start = rng.start;
+      this->size = rng.size;
+      this->offset = rng.offset;
+      this->stack = rng.stack;
+      return *this;
+    }
+    TrackedRange(TrackedRange&& rng)
+    : Range(rng.start, rng.size), offset(rng.offset), stack(rng.stack) {}
+   };
+
+private:
+
+  // Split the range to_split by removing to_remove from it, storing the remaining parts in out.
+  // Returns true if an overlap was found and will fill the out array with at most 2 elements.
+  // The integer pointed to by len will be  set to the number of resulting TrackedRanges.
+  static bool overlap_of(TrackedRange to_split, Range to_remove, TrackedRange* out, int* len) {
+    // to_split enclosed entirely by to_remove -- nothing is left
+    if (to_split.start >= to_remove.start && to_split.end() <= to_remove.end()) {
+      *len = 0;
+      return true;
+    }
+    // to_remove enclosed entirely by to_split -- we end up with two ranges and a hole in the middle
+    if (to_remove.start >= to_split.start && to_remove.end() < to_split.end()) {
+      *len = 2;
+      address left_start = to_split.start;
+      size_t left_size = static_cast<size_t>(to_remove.start - to_split.start);
+      size_t left_offset = to_split.offset;
+      out[0] = TrackedRange{left_start, left_size , to_split.offset, to_split.stack};
+      address right_start = to_remove.end();
+      size_t right_size = static_cast<size_t>((to_split.start + to_split.size) - right_start);
+      size_t right_offset =
+          to_split.offset +
+          (right_start - left_start); // How far along have we traversed into our offset?
+      out[1] = TrackedRange{right_start, right_size, right_offset, to_split.stack};
+      return true;
+    }
+    // Overlap from the left -- We end up with one region on the right
+    if (to_remove.start < to_split.start && to_remove.end() > to_split.start &&
+        to_remove.end() < to_split.end()) {
+      *len = 1;
+      out[0] = TrackedRange{to_remove.end(), static_cast<size_t>(to_split.end() - to_remove.end()), to_split.offset + (to_remove.end() - to_split.start), to_split.stack};
+      return true;
+    }
+    // overlap from the right
+    if (to_split.start < to_remove.start && to_split.end() > to_remove.start &&
+        to_split.end() < to_remove.end()) {
+      *len = 1;
+      out[0] = TrackedRange{to_split.start, static_cast<size_t>(to_remove.start - to_split.start), to_split.offset, to_split.stack};
+      return true;
+    }
+    // No overlap at all
+    *len = 0;
+    return false;
+   }
+
+  using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
+  static GrowableArrayCHeap<RegionStorage*, mtNMT>* reserved_regions;
+  static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
+  // TODO: What to do about the stacks? Seems like we need a ref-counting hashtable for them.
+  static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
+public:
+  static void init() {
+    reserved_regions = new GrowableArrayCHeap<RegionStorage*, mtNMT>{5};
+    committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
+    all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{};
+  }
+
+   static PhysicalMemorySpace register_space() {
+     const  PhysicalMemorySpace next_space = PhysicalMemorySpace{PhysicalMemorySpace::next_unique()};
+     reserved_regions->reserve(next_space.id);
+     committed_regions->reserve(next_space.id);
+     RegionStorage* memregs = NEW_C_HEAP_ARRAY(RegionStorage, mt_number_of_types, mtNMT);
+     for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
+       ::new(&memregs[memflag]) RegionStorage{8};
+     }
+     reserved_regions->at_put(next_space.id, memregs);
+     return next_space;
+  }
+  static void add_view_into_space(address base_addr, size_t size,
+                                  const PhysicalMemorySpace space, size_t offset,
+                                  MEMFLAGS flag, const NativeCallStack& stack) {
+    int idx = all_the_stacks->length();
+    all_the_stacks->push(stack);
+    reserved_regions->at(space.id)[static_cast<int>(flag)].push(TrackedRange{base_addr, size, offset, all_the_stacks->adr_at(idx)});
+  }
+  static void remove_view_into_space(const PhysicalMemorySpace space, address base_addr, size_t size) {
+    Range range_to_remove{base_addr, size};
+    RegionStorage* arr = reserved_regions->at(space.id);
+    for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
+      RegionStorage* range_array = &arr[memflag];
+      for (int i = 0; i < range_array->length(); i++) {
+        TrackedRange out[2];
+        int len;
+        bool has_overlap = overlap_of(range_array->at(i), range_to_remove, out, &len);
+        if (has_overlap) {
+          // Delete old region.
+          range_array->delete_at(i);
+          for (int j = 0; j < len; j++) {
+            range_array->push(out[j]);
+          }
+        }
+      }
+    }
+  }
+  static void remove_all_views_into_space(const PhysicalMemorySpace space) {
+    RegionStorage* arr = reserved_regions->at(space.id);
+    for (int i = 0; i < mt_number_of_types; i++) {
+      arr[i].clear_and_deallocate();
+    }
+  }
+  static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
+    int idx = all_the_stacks->length();
+    all_the_stacks->push(stack);
+    // Points at itself
+    committed_regions->at_ref_grow(space.id, [](RegionStorage* p) -> void {
+      ::new (p) RegionStorage{};
+    }).push(TrackedRange{(address)offset, size, offset, all_the_stacks->adr_at(idx)});
+  }
+
+  static void uncommit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size) {
+    Range range_to_remove{(address)offset, size};
+    RegionStorage& commits = committed_regions->at(space.id);
+    for (int i = 0; i < commits.length(); i++) {
+      TrackedRange out[2];
+      int len;
+      bool has_overlap = overlap_of(commits.at(i), range_to_remove, out, &len);
+      if (has_overlap) {
+        // Delete old region.
+        commits.delete_at(i);
+        for (int j = 0; j < len; j++) {
+          commits.push(out[j]);
+        }
+      }
+    }
+  }
+
+  static void report() {
+    for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
+      tty->print_cr("Virtual memory map of space %d", space_id);
+      auto comm_regs = committed_regions->adr_at(space_id);
+      comm_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
+        return a->start - b->start;
+      });
+      RegionStorage* memflag_regs = reserved_regions->at(space_id);
+      for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
+        int cursor = 0; // Cursor into comm_regs
+        RegionStorage* res_regs = &memflag_regs[memflag];
+        res_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
+          return a->start - b->start;
+        });
+        for (int rr = 0; rr < res_regs->length(); rr++) {
+          TrackedRange rng = res_regs->at(rr);
+          // Skipping size as it's a given
+          tty->print_cr("[%p - %p] reserved %luKiB for %s", rng.start, rng.start+rng.size, rng.size/1024, NMTUtil::flag_to_name((MEMFLAGS)memflag));
+          // TODO:Temporarily needed, should not exist as we're guaranteed to have NMT running in reality
+          if (rng.stack->get_frame(0) != (address)-2) {
+            tty->print("from ");
+            rng.stack->print_on(tty, 4);
+          }
+          while (cursor < comm_regs->length()) {
+            TrackedRange comrng = comm_regs->at(cursor);
+            // If the committed range has any overlap with the reserved memory range, then we print it
+            // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
+            // In the future we might want to split the range when printing so that exactly the covered area
+            // is printed. This condition would probably stay, however
+            if (comrng.start >= (address)rng.offset && // If the committed range starts within the reserved range
+                comrng.start < ((address)rng.offset + rng.size) || // Or
+
+                comrng.start + comrng.size >= (address)rng.offset && // the committed range ends within the reserved range
+                comrng.start + comrng.size < (address)rng.offset + rng.size) {
+              tty->print("[%p - %p] committed %luKiB from XXX", comrng.start, comrng.start+comrng.size, comrng.size/1024);
+              cursor++;
+            } else {
+              // Not inside and both arrays are sorted =>
+              // we can break
+              break;
+            }
+          }
+        }
+      }
+    }
+  }
 };
 
 // Main class called from MemTracker to track virtual memory allocations, commits and releases.

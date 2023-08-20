@@ -32,6 +32,11 @@
 #include "services/virtualMemoryTracker.hpp"
 #include "utilities/ostream.hpp"
 
+uint32_t NewVirtualMemoryTracker::PhysicalMemorySpace::unique_id = 0;
+GrowableArrayCHeap<NewVirtualMemoryTracker::RegionStorage*, mtNMT>* NewVirtualMemoryTracker::reserved_regions = nullptr;
+GrowableArrayCHeap<NewVirtualMemoryTracker::RegionStorage, mtNMT>* NewVirtualMemoryTracker::committed_regions = nullptr;
+GrowableArrayCHeap<NativeCallStack, mtNMT>* NewVirtualMemoryTracker::all_the_stacks = nullptr;
+
 size_t VirtualMemorySummary::_snapshot[CALC_OBJ_SIZE_IN_TYPE(VirtualMemorySnapshot, size_t)];
 
 void VirtualMemorySummary::initialize() {
@@ -320,6 +325,7 @@ address ReservedMemoryRegion::thread_stack_uncommitted_bottom() const {
 }
 
 bool VirtualMemoryTracker::initialize(NMT_TrackingLevel level) {
+  NewVirtualMemoryTracker::init();
   assert(_reserved_regions == nullptr, "only call once");
   if (level >= NMT_summary) {
     VirtualMemorySummary::initialize();

@@ -563,3 +563,32 @@ TEST_VM(NMT_VirtualMemoryTracker, remove_uncommitted_region) {
     tty->print_cr("skipped.");
   }
 }
+
+TEST_VM(NMT_VirtualMemoryTracker, NewTracker) {
+  using NVM = NewVirtualMemoryTracker;
+  NVM::PhysicalMemorySpace ps = NVM::register_space();
+  NVM::PhysicalMemorySpace ps2 = NVM::register_space();
+  NVM::add_view_into_space((address)0xdeadbeef, 255, ps, 0, mtNMT, CURRENT_PC);
+  NVM::commit_memory_into_space(ps, 0, 255, CURRENT_PC);
+
+  NVM::commit_memory_into_space(ps2, 255, 500, CURRENT_PC);
+
+  // Some test
+  NVM::PhysicalMemorySpace device = NVM::register_space();
+  // Received 8TiB worth of heap space mapped directly onto virtual memory
+  NVM::add_view_into_space(0, 8*1024*1024, ps2, 0, mtGC, CURRENT_PC);
+
+  // We want to page in 2MiB of memory
+  // These two are order-independent and can occur concurrently:
+  // Commit 2MiB to the device
+  NVM::commit_memory_into_space(device, 0, 2*1024*1024, CURRENT_PC);
+  // Redirect first 2MiB to the device's space
+  NVM::add_view_into_space(0, 2*1024*1024, device, 0, mtGC, CURRENT_PC);
+  // Later on, we want to free the memory
+  // Same as before: order independent, can occur concurrently
+  NVM::report();
+  tty->print_cr("==================");
+  NVM::remove_view_into_space(device, 0, 2 * 1024 * 1024);
+  NVM::uncommit_memory_into_space(device, 0, 2*1024*1024);
+  NVM::report();
+}
