@@ -459,11 +459,13 @@ private:
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
   // TODO: What to do about the stacks? Seems like we need a ref-counting hashtable for them.
   static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
+  static PhysicalMemorySpace virt_mem;
 public:
   static void init() {
     reserved_regions = new GrowableArrayCHeap<RegionStorage*, mtNMT>{5};
     committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
     all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{};
+    virt_mem = register_space();
   }
 
    static PhysicalMemorySpace register_space() {
