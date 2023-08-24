@@ -33,6 +33,7 @@
 #include "utilities/ostream.hpp"
 
 uint32_t NewVirtualMemoryTracker::PhysicalMemorySpace::unique_id = 0;
+NewVirtualMemoryTracker::PhysicalMemorySpace NewVirtualMemoryTracker::virt_mem{};
 GrowableArrayCHeap<NewVirtualMemoryTracker::RegionStorage*, mtNMT>* NewVirtualMemoryTracker::reserved_regions = nullptr;
 GrowableArrayCHeap<NewVirtualMemoryTracker::RegionStorage, mtNMT>* NewVirtualMemoryTracker::committed_regions = nullptr;
 GrowableArrayCHeap<NativeCallStack, mtNMT>* NewVirtualMemoryTracker::all_the_stacks = nullptr;
@@ -338,6 +339,7 @@ bool VirtualMemoryTracker::initialize(NMT_TrackingLevel level) {
 
 bool VirtualMemoryTracker::add_reserved_region(address base_addr, size_t size,
     const NativeCallStack& stack, MEMFLAGS flag) {
+  NewVirtualMemoryTracker::add_view_into_space(base_addr, size, NewVirtualMemoryTracker::virt_mem, (size_t)base_addr, flag, stack);
   assert(base_addr != nullptr, "Invalid address");
   assert(size > 0, "Invalid size");
   assert(_reserved_regions != nullptr, "Sanity check");
@@ -430,6 +432,7 @@ void VirtualMemoryTracker::set_reserved_region_type(address addr, MEMFLAGS flag)
 
 bool VirtualMemoryTracker::add_committed_region(address addr, size_t size,
   const NativeCallStack& stack) {
+  NewVirtualMemoryTracker::commit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (size_t)addr, size, stack);
   assert(addr != nullptr, "Invalid address");
   assert(size > 0, "Invalid size");
   assert(_reserved_regions != nullptr, "Sanity check");
@@ -450,6 +453,7 @@ bool VirtualMemoryTracker::add_committed_region(address addr, size_t size,
 }
 
 bool VirtualMemoryTracker::remove_uncommitted_region(address addr, size_t size) {
+  NewVirtualMemoryTracker::uncommit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (size_t)addr, size);
   assert(addr != nullptr, "Invalid address");
   assert(size > 0, "Invalid size");
   assert(_reserved_regions != nullptr, "Sanity check");
@@ -486,6 +490,7 @@ bool VirtualMemoryTracker::remove_released_region(ReservedMemoryRegion* rgn) {
 }
 
 bool VirtualMemoryTracker::remove_released_region(address addr, size_t size) {
+  NewVirtualMemoryTracker::remove_view_into_space(NewVirtualMemoryTracker::virt_mem, addr, size);
   assert(addr != nullptr, "Invalid address");
   assert(size > 0, "Invalid size");
   assert(_reserved_regions != nullptr, "Sanity check");

@@ -459,8 +459,8 @@ private:
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
   // TODO: What to do about the stacks? Seems like we need a ref-counting hashtable for them.
   static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
-  static PhysicalMemorySpace virt_mem;
 public:
+  static PhysicalMemorySpace virt_mem;
   static void init() {
     reserved_regions = new GrowableArrayCHeap<RegionStorage*, mtNMT>{5};
     committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
@@ -537,9 +537,9 @@ public:
     }
   }
 
-  static void report() {
+  static void report(outputStream* output = tty) {
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
-      tty->print_cr("Virtual memory map of space %d", space_id);
+      output->print_cr("Virtual memory map of space %d", space_id);
       auto comm_regs = committed_regions->adr_at(space_id);
       comm_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
         return a->start - b->start;
@@ -553,14 +553,12 @@ public:
         });
         for (int rr = 0; rr < res_regs->length(); rr++) {
           TrackedRange rng = res_regs->at(rr);
-          tty->print_cr("[%p - %p] with offset %lu reserved %lu bytes for %s", rng.start, rng.start+rng.size, rng.offset, rng.size, NMTUtil::flag_to_name((MEMFLAGS)memflag));
+          output->print_cr("[%p - %p] with offset %lu reserved %lu bytes for %s", rng.start, rng.start+rng.size, rng.offset, rng.size, NMTUtil::flag_to_name((MEMFLAGS)memflag));
           // TODO:Temporarily needed, should not exist as we're guaranteed to have NMT running in reality
-          /*if (rng.stack->get_frame(0) != (address)-2) {
-            tty->print("from ");
-            rng.stack->print_on(tty, 4);
-            tty->cr();
-            }*/
-          tty->set_indentation(4);
+          output->print("from ");
+          rng.stack->print_on(output, 4);
+          output->cr();
+          output->set_indentation(4);
           while (cursor < comm_regs->length()) {
             TrackedRange comrng = comm_regs->at(cursor);
             // If the committed range has any overlap with the reserved memory range, then we print it
@@ -572,8 +570,8 @@ public:
 
                 comrng.start + comrng.size >= (address)rng.offset && // the committed range ends within the reserved range
                 comrng.start + comrng.size < (address)rng.offset + rng.size) {
-              tty->indent();
-              tty->print_cr("[%p - %p] committed %lu bytes", comrng.start, comrng.start+comrng.size, comrng.size);
+              output->indent();
+              output->print_cr("[%p - %p] committed %lu bytes", comrng.start, comrng.start+comrng.size, comrng.size);
               cursor++;
             } else {
               // Not inside and both arrays are sorted =>
@@ -581,7 +579,7 @@ public:
               break;
             }
           }
-          tty->set_indentation(0);
+          output->set_indentation(0);
         }
       }
     }
