@@ -476,7 +476,7 @@ public:
      for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
        ::new(&memregs[memflag]) RegionStorage{8};
      }
-     reserved_regions->at_put(next_space.id, memregs);
+     reserved_regions->at_put_grow(next_space.id, memregs);
      return next_space;
   }
   static void add_view_into_space(address base_addr, size_t size,
@@ -553,13 +553,14 @@ public:
         });
         for (int rr = 0; rr < res_regs->length(); rr++) {
           TrackedRange rng = res_regs->at(rr);
-          // Skipping size as it's a given
-          tty->print_cr("[%p - %p] reserved %luKiB for %s", rng.start, rng.start+rng.size, rng.size/1024, NMTUtil::flag_to_name((MEMFLAGS)memflag));
+          tty->print_cr("[%p - %p] with offset %lu reserved %lu bytes for %s", rng.start, rng.start+rng.size, rng.offset, rng.size, NMTUtil::flag_to_name((MEMFLAGS)memflag));
           // TODO:Temporarily needed, should not exist as we're guaranteed to have NMT running in reality
-          if (rng.stack->get_frame(0) != (address)-2) {
+          /*if (rng.stack->get_frame(0) != (address)-2) {
             tty->print("from ");
             rng.stack->print_on(tty, 4);
-          }
+            tty->cr();
+            }*/
+          tty->set_indentation(4);
           while (cursor < comm_regs->length()) {
             TrackedRange comrng = comm_regs->at(cursor);
             // If the committed range has any overlap with the reserved memory range, then we print it
@@ -571,7 +572,8 @@ public:
 
                 comrng.start + comrng.size >= (address)rng.offset && // the committed range ends within the reserved range
                 comrng.start + comrng.size < (address)rng.offset + rng.size) {
-              tty->print("[%p - %p] committed %luKiB from XXX", comrng.start, comrng.start+comrng.size, comrng.size/1024);
+              tty->indent();
+              tty->print_cr("[%p - %p] committed %lu bytes", comrng.start, comrng.start+comrng.size, comrng.size);
               cursor++;
             } else {
               // Not inside and both arrays are sorted =>
@@ -579,6 +581,7 @@ public:
               break;
             }
           }
+          tty->set_indentation(0);
         }
       }
     }

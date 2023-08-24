@@ -442,12 +442,13 @@ public:
     return this->_data[i];
   }
 
-  E at_grow(int i, const E&& fill = E()) {
+  E at_grow(int i, const E& fill = E()) {
     assert(0 <= i, "negative index %d", i);
     if (i >= this->_len) {
       if (i >= this->_capacity) grow(i);
-      for (int j = this->_len; j <= i; j++)
+      for (int j = this->_len; j <= i; j++) {
         this->_data[j] = fill;
+      }
       this->_len = i+1;
     }
     return this->_data[i];

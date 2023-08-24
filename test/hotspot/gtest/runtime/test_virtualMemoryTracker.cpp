@@ -564,31 +564,29 @@ TEST_VM(NMT_VirtualMemoryTracker, remove_uncommitted_region) {
   }
 }
 
+#define PRINT_DO(x) tty->print_cr(#x); x
 TEST_VM(NMT_VirtualMemoryTracker, NewTracker) {
   using NVM = NewVirtualMemoryTracker;
-  NVM::PhysicalMemorySpace ps = NVM::register_space();
-  NVM::PhysicalMemorySpace ps2 = NVM::register_space();
-  NVM::add_view_into_space((address)0xdeadbeef, 255, ps, 0, mtNMT, CURRENT_PC);
-  NVM::commit_memory_into_space(ps, 0, 255, CURRENT_PC);
+  tty->print_cr("New Virtual Memory Tracker exploration test! N.B: We're skipping callstacks, but they're implemented.");
+  tty->print_cr("We start by registering a 'physical memory space' with register_space()");
+  PRINT_DO(NVM::PhysicalMemorySpace ps = NVM::register_space();)
+  tty->print_cr("And now let's reserve some memory, using the new add_view_into_space");
+  tty->print_cr("We'll map the virtual memory from 0xdeadbeef to 0xdeadbeef in the physical space -- this is equivalent to old reserve_memory");
+  PRINT_DO(NVM::add_view_into_space((address)0xdeadbeef, 2*1024, ps, 0xdeadbeef, mtGC, CURRENT_PC);)
+  tty->print_cr("And now let's commit some memory in the physical space, we'll commit the exact memory that we mapped");
+  PRINT_DO(NVM::commit_memory_into_space(ps, 0xdeadbeef, 2*1024, CURRENT_PC);)
+  tty->print_cr("OK! Let's produce a report");
+  PRINT_DO(NVM::report();)
 
-  NVM::commit_memory_into_space(ps2, 255, 500, CURRENT_PC);
+  tty->print_cr("Let's clear up the reserved and committed memory, first the reserved and then the committed and finally report the results:");
+  PRINT_DO(NVM::remove_view_into_space(ps, (address)0xdeadbeef, 2*1024);)
+  PRINT_DO(NVM::uncommit_memory_into_space(ps, 0xdeadbeef, 2*1024));
+  tty->print_cr("And let's produce a report to ensure that it's empty:");
+  PRINT_DO(NVM::report());
 
-  // Some test
-  NVM::PhysicalMemorySpace device = NVM::register_space();
-  // Received 8TiB worth of heap space mapped directly onto virtual memory
-  NVM::add_view_into_space(0, 8*1024*1024, ps2, 0, mtGC, CURRENT_PC);
-
-  // We want to page in 2MiB of memory
-  // These two are order-independent and can occur concurrently:
-  // Commit 2MiB to the device
-  NVM::commit_memory_into_space(device, 0, 2*1024*1024, CURRENT_PC);
-  // Redirect first 2MiB to the device's space
-  NVM::add_view_into_space(0, 2*1024*1024, device, 0, mtGC, CURRENT_PC);
-  // Later on, we want to free the memory
-  // Same as before: order independent, can occur concurrently
-  NVM::report();
-  tty->print_cr("==================");
-  NVM::remove_view_into_space(device, 0, 2 * 1024 * 1024);
-  NVM::uncommit_memory_into_space(device, 0, 2*1024*1024);
-  NVM::report();
+  tty->print_cr("So far this is all old stuff, let's do something we couldn't before!");
+  tty->print_cr("Let's map 0xdeadbeef in virtual memory to the address 100 in our physical space and commit the memory at address 100");
+  PRINT_DO(NVM::add_view_into_space((address)0xdeadbeef, 4*1024, ps, 100, mtGC, CURRENT_PC));
+  PRINT_DO(NVM::commit_memory_into_space(ps, 100, 4*1024, CURRENT_PC));
+  PRINT_DO(NVM::report());
 }
