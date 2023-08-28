@@ -513,14 +513,14 @@ public:
   }
 
   static void set_view_region_type(const PhysicalMemorySpace space, address base_addr, MEMFLAGS flag) {
-    RegionStorage* arr = reserve_regions->at(space.id);
+    RegionStorage* arr = reserved_regions->at(space.id);
     // Must be mtNone
     RegionStorage& range_array = arr[static_cast<int>(mtNone)];
     for (int i = 0; i < range_array.length(); i++) {
       TrackedRange* r = range_array.adr_at(i);
       if (r->start == base_addr) {
         // Found it. Make a copy and push to correct flag
-        arr[static_cast<int>(flag)]->push(*r);
+        arr[static_cast<int>(flag)].push(*r);
         // Delete old one.
         range_array.delete_at(i);
         // Assume exactly one match.
