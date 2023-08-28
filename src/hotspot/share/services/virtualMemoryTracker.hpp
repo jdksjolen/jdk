@@ -538,8 +538,13 @@ public:
   }
 
   static void report(outputStream* output = tty) {
+    auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
+      const char* scale = current_scale();
+      output->print("[" PTR_FORMAT " - " PTR_FORMAT "] %s " SIZE_FORMAT "%s", p2i(base),
+                    p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024); // TODO: hardcoded scale
+    };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
-      output->print_cr("Virtual memory map of space %d", space_id);
+      output->print_cr("Virtual memory map of space %d:", space_id);
       auto comm_regs = committed_regions->adr_at(space_id);
       comm_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
         return a->start - b->start;
@@ -553,11 +558,15 @@ public:
         });
         for (int rr = 0; rr < res_regs->length(); rr++) {
           TrackedRange rng = res_regs->at(rr);
-          output->print_cr("[%p - %p] with offset %lu reserved %lu bytes for %s", rng.start, rng.start+rng.size, rng.offset, rng.size, NMTUtil::flag_to_name((MEMFLAGS)memflag));
-          output->print_cr("from:");
-          rng.stack->print_on(output, 4);
-          output->cr();
-          output->set_indentation(4);
+          output->print_cr(" "); // Imitating
+          print_virtual_memory_region("reserved", rng.start, rng.size);
+          output->print(" for %s", NMTUtil::flag_to_name((MEMFLAGS)memflag));
+          if (stack->is_empty()) {
+            out->print_cr(" ");
+          } else {
+            output->print_cr(" from");
+            rng.stack->print_on(output, 4);
+          }
           while (cursor < comm_regs->length()) {
             TrackedRange comrng = comm_regs->at(cursor);
             // If the committed range has any overlap with the reserved memory range, then we print it
@@ -569,8 +578,13 @@ public:
 
                 comrng.start + comrng.size >= (address)rng.offset && // the committed range ends within the reserved range
                 comrng.start + comrng.size < (address)rng.offset + rng.size) {
-              output->indent();
-              output->print_cr("[%p - %p] committed %lu bytes", comrng.start, comrng.start+comrng.size, comrng.size);
+              print_virtual_memory_region("committed", comrng.start, comrng.size);
+              if (stack->is_empty()) {
+                out->print_cr(" ");
+              } else {
+                out->print_cr(" from");
+                stack->print_on(out, 12);
+              }
               cursor++;
             } else {
               // Not inside and both arrays are sorted =>
