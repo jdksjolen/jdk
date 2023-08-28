@@ -421,7 +421,7 @@ private:
       return true;
     }
     // to_remove enclosed entirely by to_split -- we end up with two ranges and a hole in the middle
-    if (to_remove.start >= to_split.start && to_remove.end() < to_split.end()) {
+    if (to_remove.start >= to_split.start && to_remove.end() <= to_split.end()) {
       *len = 2;
       address left_start = to_split.start;
       size_t left_size = static_cast<size_t>(to_remove.start - to_split.start);
@@ -559,7 +559,7 @@ public:
   /*
     TODOs:
     1. Implement merge() to cut down on adjacent regions for printing.
-    2. There are missing committed ranges, where did they go? 
+    2. There are missing committed ranges, where did they go?
    */
   static void report(outputStream* output = tty) {
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
@@ -603,6 +603,7 @@ public:
             int len; // Unused
             bool has_overlap = overlap_of(rng, Range{comrng.start, comrng.size}, out, &len);
             if (has_overlap) {
+              output->print("\n\t");
               print_virtual_memory_region("committed", comrng.start, comrng.size);
               if (stack->is_empty()) {
                 output->print_cr(" ");
