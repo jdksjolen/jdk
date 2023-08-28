@@ -556,6 +556,11 @@ public:
     }
   }
 
+  /*
+    TODOs:
+    1. Implement merge() to cut down on adjacent regions for printing.
+    2. There are missing committed ranges, where did they go? 
+   */
   static void report(outputStream* output = tty) {
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
       const char* scale = "KB";
@@ -605,12 +610,13 @@ public:
                 output->print_cr(" from");
                 stack->print_on(output, 12);
               }
-              cursor++;
+              // cursor++;
             } else {
               // Not inside and both arrays are sorted =>
               // we can break
-              break;
+              // break;
             }
+            cursor++;
           }
           output->set_indentation(0);
         }
