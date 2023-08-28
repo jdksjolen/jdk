@@ -546,7 +546,7 @@ public:
       });
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
       for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
-        int cursor = 0; // Cursor into comm_regs
+        int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
         RegionStorage* res_regs = &memflag_regs[memflag];
         res_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
           return a->start - b->start;
@@ -554,8 +554,7 @@ public:
         for (int rr = 0; rr < res_regs->length(); rr++) {
           TrackedRange rng = res_regs->at(rr);
           output->print_cr("[%p - %p] with offset %lu reserved %lu bytes for %s", rng.start, rng.start+rng.size, rng.offset, rng.size, NMTUtil::flag_to_name((MEMFLAGS)memflag));
-          // TODO:Temporarily needed, should not exist as we're guaranteed to have NMT running in reality
-          output->print("from ");
+          output->print_cr("from:");
           rng.stack->print_on(output, 4);
           output->cr();
           output->set_indentation(4);

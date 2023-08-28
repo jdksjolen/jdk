@@ -155,7 +155,6 @@ void NMTDCmd::report(bool summaryOnly, size_t scale_unit) {
   } else {
     MemDetailReporter rpt(baseline, output(), scale_unit);
     rpt.report();
-    NewVirtualMemoryTracker::report(output());
   }
 }
 
