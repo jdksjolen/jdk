@@ -541,7 +541,7 @@ public:
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
       const char* scale = "KB";
       output->print("[" PTR_FORMAT " - " PTR_FORMAT "] %s " SIZE_FORMAT "%s", p2i(base),
-                    p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024)); // TODO: hardcoded scale
+                    p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024), scale); // TODO: hardcoded scale
     };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
       output->print_cr("Virtual memory map of space %d:", space_id);
