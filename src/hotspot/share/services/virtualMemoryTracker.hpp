@@ -515,17 +515,16 @@ public:
   // TODO: This operation is slow and forms a weird part of the API that should be phased out IMHO.
   static void set_view_region_type(const PhysicalMemorySpace space, address base_addr, MEMFLAGS flag) {
     RegionStorage* arr = reserve_regions->at(space.id);
-    TrackedRange* found_range = nullptr;
     // Delete anything matching the base address
     for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
       RegionStorage& range_array = arr[memflag];
       for (int i = 0; i < range_array.length(); i++) {
         TrackedRange* r = range_array.adr_at(i);
-        if (r.start == base_addr) {
+        if (r->start == base_addr) {
           // Found it. Make a copy and push to correct flag
-          arr[flag]->push(*r);
+          arr[static_cast<int>(flag)]->push(*r);
           // Delete old one.
-          range_aray.delete_at(i);
+          range_array.delete_at(i);
           // Assume exactly one match.
           return;
         }
