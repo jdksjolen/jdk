@@ -481,7 +481,7 @@ public:
   }
   static void add_view_into_space(address base_addr, size_t size,
                                   const PhysicalMemorySpace space, size_t offset,
-                                  MEMFLAGS flag, const NativeCallStack& stack) {
+                                  MEMFLAGS flag, const NativeCallStack stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
     reserved_regions->at(space.id)[static_cast<int>(flag)].push(TrackedRange{base_addr, size, offset, all_the_stacks->adr_at(idx)});
@@ -530,7 +530,7 @@ public:
     // TODO: We should assert that one must be found.
   }
 
-  static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
+  static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
     // Points at itself
