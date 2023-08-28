@@ -437,14 +437,14 @@ private:
     }
     // Overlap from the left -- We end up with one region on the right
     if (to_remove.start < to_split.start && to_remove.end() > to_split.start &&
-        to_remove.end() < to_split.end()) {
+        to_remove.end() <= to_split.end()) {
       *len = 1;
       out[0] = TrackedRange{to_remove.end(), static_cast<size_t>(to_split.end() - to_remove.end()), to_split.offset + (to_remove.end() - to_split.start), to_split.stack_idx};
       return true;
     }
     // overlap from the right
     if (to_split.start < to_remove.start && to_split.end() > to_remove.start &&
-        to_split.end() < to_remove.end()) {
+        to_split.end() <= to_remove.end()) {
       *len = 1;
       out[0] = TrackedRange{to_split.start, static_cast<size_t>(to_remove.start - to_split.start), to_split.offset, to_split.stack_idx};
       return true;
