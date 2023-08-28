@@ -589,7 +589,7 @@ public:
           }
           while (cursor < comm_regs->length()) {
             TrackedRange comrng = comm_regs->at(cursor);
-            stack = all_the_stacks.adr_at(comrng.stack_idx);
+            stack = all_the_stacks->adr_at(comrng.stack_idx);
             // If the committed range has any overlap with the reserved memory range, then we print it
             // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
             // In the future we might want to split the range when printing so that exactly the covered area
