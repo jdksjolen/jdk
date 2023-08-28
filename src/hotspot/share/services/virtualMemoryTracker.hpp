@@ -594,11 +594,10 @@ public:
             // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
             // In the future we might want to split the range when printing so that exactly the covered area
             // is printed. This condition would probably stay, however
-            if (comrng.start >= (address)rng.offset && // If the committed range starts within the reserved range
-                comrng.start < ((address)rng.offset + rng.size) || // Or
-
-                comrng.start + comrng.size >= (address)rng.offset && // the committed range ends within the reserved range
-                comrng.start + comrng.size < (address)rng.offset + rng.size) {
+            TrackedRange out[2]; // Unused
+            int len; // Unused
+            bool has_overlap = overlap_of(rng, Range{comrng.start, comrng.size}, out, &len);
+            if (has_overlap) {
               print_virtual_memory_region("committed", comrng.start, comrng.size);
               if (stack->is_empty()) {
                 output->print_cr(" ");
