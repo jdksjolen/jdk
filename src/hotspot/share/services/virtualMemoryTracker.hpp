@@ -539,9 +539,9 @@ public:
 
   static void report(outputStream* output = tty) {
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
-      const char* scale = current_scale();
+      const char* scale = "KB";
       output->print("[" PTR_FORMAT " - " PTR_FORMAT "] %s " SIZE_FORMAT "%s", p2i(base),
-                    p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024); // TODO: hardcoded scale
+                    p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024)); // TODO: hardcoded scale
     };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
       output->print_cr("Virtual memory map of space %d:", space_id);
@@ -558,11 +558,12 @@ public:
         });
         for (int rr = 0; rr < res_regs->length(); rr++) {
           TrackedRange rng = res_regs->at(rr);
+          auto stack = rng.stack;
           output->print_cr(" "); // Imitating
           print_virtual_memory_region("reserved", rng.start, rng.size);
           output->print(" for %s", NMTUtil::flag_to_name((MEMFLAGS)memflag));
           if (stack->is_empty()) {
-            out->print_cr(" ");
+            output->print_cr(" ");
           } else {
             output->print_cr(" from");
             rng.stack->print_on(output, 4);
@@ -580,10 +581,10 @@ public:
                 comrng.start + comrng.size < (address)rng.offset + rng.size) {
               print_virtual_memory_region("committed", comrng.start, comrng.size);
               if (stack->is_empty()) {
-                out->print_cr(" ");
+                output->print_cr(" ");
               } else {
-                out->print_cr(" from");
-                stack->print_on(out, 12);
+                output->print_cr(" from");
+                stack->print_on(output, 12);
               }
               cursor++;
             } else {
