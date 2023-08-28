@@ -527,6 +527,7 @@ public:
         return;
       }
     }
+    // TODO: We should assert that one must be found.
   }
 
   static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
