@@ -511,6 +511,28 @@ public:
       arr[i].clear_and_deallocate();
     }
   }
+
+  // TODO: This operation is slow and forms a weird part of the API that should be phased out IMHO.
+  static void set_view_region_type(const PhysicalMemorySpace space, address base_addr, MEMFLAGS flag) {
+    RegionStorage* arr = reserve_regions->at(space.id);
+    TrackedRange* found_range = nullptr;
+    // Delete anything matching the base address
+    for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
+      RegionStorage& range_array = arr[memflag];
+      for (int i = 0; i < range_array.length(); i++) {
+        TrackedRange* r = range_array.adr_at(i);
+        if (r.start == base_addr) {
+          // Found it. Make a copy and push to correct flag
+          arr[flag]->push(*r);
+          // Delete old one.
+          range_aray.delete_at(i);
+          // Assume exactly one match.
+          return;
+        }
+      }
+    }
+  }
+
   static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
@@ -552,12 +574,12 @@ public:
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
       for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
         int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
-        RegionStorage* res_regs = &memflag_regs[memflag];
-        res_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
+        RegionStorage& res_regs = memflag_regs[memflag];
+        res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
           return a->start - b->start;
         });
-        for (int rr = 0; rr < res_regs->length(); rr++) {
-          TrackedRange rng = res_regs->at(rr);
+        for (int rr = 0; rr < res_regs.length(); rr++) {
+          TrackedRange rng = res_regs.at(rr);
           auto stack = rng.stack;
           output->print_cr(" "); // Imitating
           print_virtual_memory_region("reserved", rng.start, rng.size);
