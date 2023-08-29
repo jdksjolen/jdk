@@ -628,36 +628,24 @@ public:
       output->print_cr("Virtual memory map of space %d:", space_id);
       RegionStorage& comm_regs =
           committed_regions->at(space_id);
+      // Can the sorting be converted to a - b? They're both unsigned so seems like it shouldn't work...
       comm_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-        //return a->start - b->start;
         if (a->physical_address == b->physical_address) return 0;
         if (a->physical_address >= b->physical_address) return 1;
         else return -1;
       });
-      /*output->print_cr("=====================================================");
-      for (int i = 0; i < comm_regs->length(); i++) {
-        print_virtual_memory_region("blargh", comm_regs->at(i).start, comm_regs->at(i).size);
-        all_the_stacks->at(comm_regs->at(i).stack_idx).print_on(output);
-      }
-      output->print_cr("=====================================================");*/
 
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
       for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
         int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
         RegionStorage& res_regs = memflag_regs[memflag];
-        // TODO: We're sorting on the virtual memory address,
-        // but we're really interested in matching physical_address with the committed memory
-        // so if we sort on that we can avoid having to iterate over all the committed memory ranges for each reserved region.
-        // Right now we're less concerned with speed and mostly concerned with getting a 1:1 representation of NMT's old output
-        // This is to confirm that we're identical.
         res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
           if (a->physical_address == b->physical_address) return 0;
           if (a->physical_address >= b->physical_address) return 1;
           else return -1;
-          //return a->physical_address - b->physical_address;
         });
         for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-          cursor = 0;
+          //cursor = 0;
           TrackedRange& rng = res_regs.at(res_reg_idx);
           NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
           output->print_cr(" "); // Imitating
@@ -686,13 +674,13 @@ public:
                 output->print_cr(" from");
                 stack.print_on(output, 12);
               }
-              // cursor++;
+              cursor++;
             } else {
               // Not inside and both arrays are sorted =>
               // we can break
-              // break;
+              break;
             }
-            cursor++;
+            //cursor++;
           }
           output->set_indentation(0);
         }
