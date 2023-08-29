@@ -611,7 +611,7 @@ private:
     }
     return merged_ranges;
   }
-  static bool overlaps(Range& a, Range& b) {
+  static bool overlaps(Range a, Range b) {
     return MAX2(a.start, b.start) < MIN2(a.start + a.size, b.start + b.size);
   }
 public:
