@@ -659,27 +659,38 @@ public:
             output->print_cr(" from");
             stack.print_on(output, 4);
           }
-          // Use binary search to find the committed region.
-          // This vastly cuts down on iteration and since we're repeatedly hitting comm_regs' data array
-          // we don't have to worry about poor caching behavior.
+          { // Use binary search to find the committed region with closest starting address still smaller than rng.
+            int min = cursor;
+            int max = comm_regs.length() - 1;
+            while (max >= min) {
+              int mid = (int)(((uint)max + min) / 2);
+              TrackedRange& comrng = comm_regs.at(mid);
+              if (comrng.physical_address < rng.physical_address) {
+                min = mid + 1;
+              } else if (comrng.physical_address > rng.physical_address) {
+                max = mid - 1;
+              } else if (comrng.physical_address == rng.physical_address) {
+                cursor = mid;
+                break;
+              }
+            }
+            cursor = min;
+          }
 
-          // TODO: After finding a match we should look at the left and right of us
-          // because there might be many committed regions that we match!
-          // It should be something like:
-          // 1. Find match with binary search
-          // 2. Move leftward until no longer overlapping
-          // 3. Start moving forward, now printing, until no longer overlapping
-          int min = cursor;
-          int max = comm_regs.length() - 1;
-          while (max >= min) {
-            int mid = (int)(((uint)max + min) / 2);
-            TrackedRange& comrng = comm_regs.at(mid);
-            if (comrng.physical_address >= (rng.physical_address + rng.size)) {
-              min = mid + 1;
-            } else if (comrng.physical_address + comrng.size <= rng.physical_address) {
-              max = mid - 1;
-            } else if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
-              cursor = mid; // Reminder: Reserved regions also sorted
+          { // While overlapping move leftward
+            TrackedRange* comrng = comm_regs.adr_at(cursor);
+            while (overlaps(Range{(address)rng.physical_address, rng.size},
+                            Range{comrng->start, comrng->size}) && cursor > 0) {
+              comrng = comm_regs.adr_at(cursor);
+              cursor--;
+            }
+          }
+
+          // Move forwards, printing all overlapping regions until we're no longer overlapping
+          bool found_one_overlap = false;
+          while (cursor < comm_regs.length()) {
+            TrackedRange& comrng = comm_regs.at(cursor);
+            if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
               NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
               output->print("\n\t");
               print_virtual_memory_region("committed", comrng.start, comrng.size);
@@ -690,11 +701,12 @@ public:
                 stack.print_on(output, 12);
               }
               printed_committed_regions++;
-              break;
-            } else {
-              output->print_cr("WHAT!?!?!?!");
+              found_one_overlap = true;
+            } else if (found_one_overlap) {
+              // We've stopped seeing overlaps, so we can break early
               break;
             }
+            cursor++;
           }
           output->set_indentation(0);
         }
