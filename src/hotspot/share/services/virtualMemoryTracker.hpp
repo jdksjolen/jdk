@@ -390,23 +390,23 @@ public:
     }
   };
   struct TrackedRange : public Range {
-    size_t offset; // What offset (address) into the PhysicalMemorySpace does it point to?
+    size_t physical_address; // What address into the PhysicalMemorySpace does start point to?
     int stack_idx; // From whence did this happen?
-    TrackedRange(address start = 0, size_t size = 0, size_t offset = 0, int stack_idx = -1)
+    TrackedRange(address start = 0, size_t size = 0, size_t physical_address = 0, int stack_idx = -1)
     :  Range(start, size),
-        offset(offset),
+        physical_address(physical_address),
         stack_idx(stack_idx) {
     }
     TrackedRange(const TrackedRange& rng) = default;
     TrackedRange& operator=(const TrackedRange& rng) {
       this->start = rng.start;
       this->size = rng.size;
-      this->offset = rng.offset;
+      this->physical_address = rng.physical_address;
       this->stack_idx = rng.stack_idx;
       return *this;
     }
     TrackedRange(TrackedRange&& rng)
-    : Range(rng.start, rng.size), offset(rng.offset), stack_idx(rng.stack_idx) {}
+    : Range(rng.start, rng.size), physical_address(rng.physical_address), stack_idx(rng.stack_idx) {}
    };
 
 private:
@@ -414,39 +414,62 @@ private:
   // Split the range to_split by removing to_remove from it, storing the remaining parts in out.
   // Returns true if an overlap was found and will fill the out array with at most 2 elements.
   // The integer pointed to by len will be  set to the number of resulting TrackedRanges.
+  // The physical address is managed appropriately for the out array.
   static bool overlap_of(TrackedRange to_split, Range to_remove, TrackedRange* out, int* len) {
-    // to_split enclosed entirely by to_remove -- nothing is left
-    if (to_split.start >= to_remove.start && to_split.end() <= to_remove.end()) {
+    const auto a = to_split.start; const auto b = to_split.end();
+    const auto c = to_remove.start; const auto d = to_remove.end();
+    /*
+      to_split enclosed entirely by to_remove -- nothing is left
+      Also handles the case where they are exactly the same, still has the same result.
+         a  b
+       | |  | | => None.
+       c      d
+     */
+    if (a >= c && b <= d) {
       *len = 0;
       return true;
     }
     // to_remove enclosed entirely by to_split -- we end up with two ranges and a hole in the middle
-    if (to_remove.start >= to_split.start && to_remove.end() <= to_split.end()) {
+    /*
+       a      b    a c   d b
+       | |  | | => | | , | |
+         c  d
+     */
+    if (c > a && d < b) {
       *len = 2;
-      address left_start = to_split.start;
-      size_t left_size = static_cast<size_t>(to_remove.start - to_split.start);
-      size_t left_offset = to_split.offset;
-      out[0] = TrackedRange{left_start, left_size , to_split.offset, to_split.stack_idx};
-      address right_start = to_remove.end();
-      size_t right_size = static_cast<size_t>((to_split.start + to_split.size) - right_start);
+      address left_start = a;
+      size_t left_size = static_cast<size_t>(c - a);
+      size_t left_offset = to_split.physical_address;
+      out[0] = TrackedRange{left_start, left_size , to_split.physical_address, to_split.stack_idx};
+      address right_start = d;
+      size_t right_size = static_cast<size_t>((a + to_split.size) - right_start);
       size_t right_offset =
-          to_split.offset +
+          to_split.physical_address +
           (right_start - left_start); // How far along have we traversed into our offset?
       out[1] = TrackedRange{right_start, right_size, right_offset, to_split.stack_idx};
       return true;
     }
     // Overlap from the left -- We end up with one region on the right
-    if (to_remove.start < to_split.start && to_remove.end() > to_split.start &&
-        to_remove.end() <= to_split.end()) {
+    /*
+        a    b    d  b
+      | | |  | => |  |
+      c   d
+     */
+    if (c <= a && d > a && d < b) {
       *len = 1;
-      out[0] = TrackedRange{to_remove.end(), static_cast<size_t>(to_split.end() - to_remove.end()), to_split.offset + (to_remove.end() - to_split.start), to_split.stack_idx};
+      out[0] = TrackedRange{d, static_cast<size_t>(b - d),
+                            to_split.physical_address + (d - a), to_split.stack_idx};
       return true;
     }
     // overlap from the right
-    if (to_split.start < to_remove.start && to_split.end() > to_remove.start &&
-        to_split.end() <= to_remove.end()) {
+    /*
+      a   b       a  c
+      | | |  | => |  |
+        c    d
+     */
+    if (a < c && c < b && b <= d) {
       *len = 1;
-      out[0] = TrackedRange{to_split.start, static_cast<size_t>(to_remove.start - to_split.start), to_split.offset, to_split.stack_idx};
+      out[0] = TrackedRange{a, static_cast<size_t>(c - a), to_split.physical_address, to_split.stack_idx};
       return true;
     }
     // No overlap at all
