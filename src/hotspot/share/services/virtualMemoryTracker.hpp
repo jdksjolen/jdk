@@ -641,7 +641,8 @@ public:
       int printed_committed_regions = 0;
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
       for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
-        int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
+        // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
+        int cursor = 0;
         RegionStorage& res_regs = memflag_regs[memflag];
         res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
           return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
@@ -658,14 +659,19 @@ public:
             output->print_cr(" from");
             stack.print_on(output, 4);
           }
-          while (cursor < comm_regs.length()) {
-            TrackedRange& comrng = comm_regs.at(cursor);
-            NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
-            // If the committed range has any overlap with the reserved memory range, then we print it
-            // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
-            // In the future we might want to split the range when printing so that exactly the covered area
-            // is printed. This condition would probably stay, however
-            if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
+          // Use binary search to find the committed region.
+          int min = cursor;
+          int max = length() - 1;
+          while (max >= min) {
+            int mid = (int)(((uint)max + min) / 2);
+            TrackedRange& comrng = comm_regs.at(mid);
+            if (comrng.physical_address >= (rng.physical_address + rng.size)) {
+              min = mid + 1;
+            } else if (comrng.physical_address + comrng.size <= rng.physical_address) {
+              max = mid - 1;
+            } else if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
+              cursor = mid; // Reminder: Reserved regions also sorted
+              NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
               output->print("\n\t");
               print_virtual_memory_region("committed", comrng.start, comrng.size);
               if (stack.is_empty()) {
@@ -675,8 +681,9 @@ public:
                 stack.print_on(output, 12);
               }
               printed_committed_regions++;
+            } else {
+              output->print_cr("WHAT!?!?!?!");
             }
-            cursor++;
           }
           output->set_indentation(0);
         }
