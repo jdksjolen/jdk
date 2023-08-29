@@ -621,6 +621,7 @@ public:
     1. Implement merge() to cut down on adjacent regions for printing.
     2. Incorporate SnapshotThreadStackWalker into the code!! That's where our missing committed regions are
     3. Why won't the sort + walk work for minimizing the walking of the committed regions to exactly once per mem flag?
+       The sort + walk doesn't work because we're not taking all reserved regions into account at the same time.
     4. We could actually use a 'work list' that we remove the committed regions from. Then we do have to copy them, and they'll be reported exactly once.
    */
   static void report(outputStream* output = tty) {
@@ -646,7 +647,6 @@ public:
           return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
         });
         for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-          //cursor = 0;
           TrackedRange& rng = res_regs.at(res_reg_idx);
           NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
           output->print_cr(" "); // Imitating
@@ -675,18 +675,13 @@ public:
                 stack.print_on(output, 12);
               }
               printed_committed_regions++;
-              cursor++;
-            } else {
-              // Not inside and both arrays are sorted =>
-              // we can break
-              break;
             }
-            //cursor++;
+            cursor++;
           }
           output->set_indentation(0);
         }
       }
-      output->print_cr("Printed CR:s %d, Total CR:s %d", printed_committed_regions, comm_regs.length())
+      output->print_cr("Printed CR:s %d, Total CR:s %d", printed_committed_regions, comm_regs.length());
     }
   }
 };
