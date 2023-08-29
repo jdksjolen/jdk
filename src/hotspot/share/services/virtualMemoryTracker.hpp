@@ -660,6 +660,15 @@ public:
             stack.print_on(output, 4);
           }
           // Use binary search to find the committed region.
+          // This vastly cuts down on iteration and since we're repeatedly hitting comm_regs' data array
+          // we don't have to worry about poor caching behavior.
+
+          // TODO: After finding a match we should look at the left and right of us
+          // because there might be many committed regions that we match!
+          // It should be something like:
+          // 1. Find match with binary search
+          // 2. Move leftward until no longer overlapping
+          // 3. Start moving forward, now printing, until no longer overlapping
           int min = cursor;
           int max = comm_regs.length() - 1;
           while (max >= min) {
@@ -681,8 +690,10 @@ public:
                 stack.print_on(output, 12);
               }
               printed_committed_regions++;
+              break;
             } else {
               output->print_cr("WHAT!?!?!?!");
+              break;
             }
           }
           output->set_indentation(0);
