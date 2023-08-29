@@ -659,7 +659,7 @@ public:
             output->print_cr(" from");
             stack.print_on(output, 4);
           }
-          { // Use binary search to find the committed region with closest starting address still smaller than rng.
+          /*{ // Use binary search to find the committed region with closest starting address still smaller than rng.
             int min = cursor;
             int max = comm_regs.length() - 1;
             while (max >= min) {
@@ -675,16 +675,16 @@ public:
               }
             }
             cursor = min;
-          }
+          }*/
 
-          { // While overlapping move leftward
+          /*{ // While overlapping move leftward
             TrackedRange* comrng = comm_regs.adr_at(cursor);
             while (overlaps(Range{(address)rng.physical_address, rng.size},
                             Range{comrng->start, comrng->size}) && cursor > 0) {
               comrng = comm_regs.adr_at(cursor);
               cursor--;
             }
-          }
+          }*/
 
           // Move forwards, printing all overlapping regions until we're no longer overlapping
           bool found_one_overlap = false;
