@@ -484,7 +484,8 @@ private:
   using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
   static GrowableArrayCHeap<RegionStorage*, mtNMT>* reserved_regions;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
-  // TODO: What to do about the stacks? Seems like we need a ref-counting hashtable for them.
+  // TODO: What to do about the stacks? I'd like to not have duplicates, hashtable would work
+  // need to be able to renumber the region stacks on resize.
   static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
 public:
   static PhysicalMemorySpace virt_mem;
@@ -507,13 +508,13 @@ public:
      return next_space;
   }
   static void add_view_into_space(address base_addr, size_t size,
-                                  const PhysicalMemorySpace space, size_t offset,
+                                  const PhysicalMemorySpace& space, size_t offset,
                                   MEMFLAGS flag, const NativeCallStack& stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
     reserved_regions->at(space.id)[static_cast<int>(flag)].push(TrackedRange{base_addr, size, offset, idx});
   }
-  static void remove_view_into_space(const PhysicalMemorySpace space, address base_addr, size_t size) {
+  static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
     RegionStorage* arr = reserved_regions->at(space.id);
     for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
@@ -533,14 +534,14 @@ public:
       }
     }
   }
-  static void remove_all_views_into_space(const PhysicalMemorySpace space) {
+  static void remove_all_views_into_space(const PhysicalMemorySpace& space) {
     RegionStorage* arr = reserved_regions->at(space.id);
     for (int i = 0; i < mt_number_of_types; i++) {
       arr[i].clear_and_deallocate();
     }
   }
 
-  static void set_view_region_type(const PhysicalMemorySpace space, address base_addr, MEMFLAGS flag) {
+  static void set_view_region_type(const PhysicalMemorySpace& space, address base_addr, MEMFLAGS flag) {
     RegionStorage* arr = reserved_regions->at(space.id);
     // Must be mtNone
     RegionStorage& range_array = arr[static_cast<int>(mtNone)];
@@ -558,7 +559,7 @@ public:
     // TODO: We should assert that one must be found.
   }
 
-  static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
+  static void commit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size,  const NativeCallStack& stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
     // Points at itself
@@ -567,7 +568,7 @@ public:
     }).push(TrackedRange{(address)offset, size, offset, idx});
   }
 
-  static void uncommit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size) {
+  static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size) {
     Range range_to_remove{(address)offset, size};
     RegionStorage& commits = committed_regions->at(space.id);
     for (int i = 0; i < commits.length(); i++) {
@@ -610,13 +611,17 @@ private:
     }
     return merged_ranges;
   }
+  static bool overlaps(Range& a, Range& b) {
+    return MAX2(a.start, b.start) < MIN2(a.start + a.size, b.start + b.size);
+  }
 public:
 
   /*
     TODOs:
     1. Implement merge() to cut down on adjacent regions for printing.
-    2. There are missing committed ranges, where did they go? This is explicitly for ThreadStack with no stack trace.
-       I have no clue where they are, they can't even be found...
+    2. Incorporate SnapshotThreadStackWalker into the code!! That's where our missing committed regions are
+    3. Why won't the sort + walk work for minimizing the walking of the committed regions to exactly once per mem flag?
+    4. We could actually use a 'work list' that we remove the committed regions from. Then we do have to copy them, and they'll be reported exactly once.
    */
   static void report(outputStream* output = tty) {
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
@@ -626,13 +631,11 @@ public:
     };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
       output->print_cr("Virtual memory map of space %d:", space_id);
-      RegionStorage& comm_regs =
-          committed_regions->at(space_id);
-      // Can the sorting be converted to a - b? They're both unsigned so seems like it shouldn't work...
+      // TODO: If we make a copy and delete printed committed regions from it, then we can avoid a lot of the work.
+      // We'd have to dynamically allocate at report time though, bad idea!
+      RegionStorage& comm_regs = committed_regions->at(space_id);
       comm_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-        if (a->physical_address == b->physical_address) return 0;
-        if (a->physical_address >= b->physical_address) return 1;
-        else return -1;
+        return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
       });
 
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
@@ -640,9 +643,7 @@ public:
         int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
         RegionStorage& res_regs = memflag_regs[memflag];
         res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-          if (a->physical_address == b->physical_address) return 0;
-          if (a->physical_address >= b->physical_address) return 1;
-          else return -1;
+          return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
         });
         for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
           //cursor = 0;
@@ -664,8 +665,7 @@ public:
             // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
             // In the future we might want to split the range when printing so that exactly the covered area
             // is printed. This condition would probably stay, however
-            bool no_overlap = rng.physical_address >= comrng.physical_end() || rng.physical_end() < comrng.physical_address;
-            if (!no_overlap) {
+            if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
               output->print("\n\t");
               print_virtual_memory_region("committed", comrng.start, comrng.size);
               if (stack.is_empty()) {
