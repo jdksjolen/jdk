@@ -626,10 +626,13 @@ public:
     };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
       output->print_cr("Virtual memory map of space %d:", space_id);
-      RegionStorage* comm_regs =
-          committed_regions->adr_at(space_id);
-      comm_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
-        return a->start - b->start;
+      RegionStorage& comm_regs =
+          committed_regions->at(space_id);
+      comm_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
+        //return a->start - b->start;
+        if (a->physical_address == b->physical_address) return 0;
+        if (a->physical_address >= b->physical_address) return 1;
+        else return -1;
       });
       /*output->print_cr("=====================================================");
       for (int i = 0; i < comm_regs->length(); i++) {
@@ -648,45 +651,48 @@ public:
         // Right now we're less concerned with speed and mostly concerned with getting a 1:1 representation of NMT's old output
         // This is to confirm that we're identical.
         res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-          return a->start - b->start;
+          if (a->physical_address == b->physical_address) return 0;
+          if (a->physical_address >= b->physical_address) return 1;
+          else return -1;
+          //return a->physical_address - b->physical_address;
         });
-        for (int rr = 0; rr < res_regs.length(); rr++) {
-          TrackedRange rng = res_regs.at(rr);
-          auto stack = all_the_stacks->adr_at(rng.stack_idx);
+        for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
+          cursor = 0;
+          TrackedRange& rng = res_regs.at(res_reg_idx);
+          NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
           output->print_cr(" "); // Imitating
           print_virtual_memory_region("reserved", rng.start, rng.size);
           output->print(" for %s", NMTUtil::flag_to_name((MEMFLAGS)memflag));
-          if (stack->is_empty()) {
+          if (stack.is_empty()) {
             output->print_cr(" ");
           } else {
             output->print_cr(" from");
-            stack->print_on(output, 4);
+            stack.print_on(output, 4);
           }
-          while (cursor < comm_regs->length()) {
-            TrackedRange comrng = comm_regs->at(cursor);
-            stack = all_the_stacks->adr_at(comrng.stack_idx);
+          while (cursor < comm_regs.length()) {
+            TrackedRange& comrng = comm_regs.at(cursor);
+            NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
             // If the committed range has any overlap with the reserved memory range, then we print it
             // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
             // In the future we might want to split the range when printing so that exactly the covered area
             // is printed. This condition would probably stay, however
-            TrackedRange out[2]; // Unused
-            int len; // Unused
-            bool has_overlap = overlap_of(rng, Range{(address)comrng.physical_address, comrng.size}, out, &len);
-            if (has_overlap) {
+            bool no_overlap = rng.physical_address >= comrng.physical_end() || rng.physical_end() < comrng.physical_address;
+            if (!no_overlap) {
               output->print("\n\t");
               print_virtual_memory_region("committed", comrng.start, comrng.size);
-              if (stack->is_empty()) {
+              if (stack.is_empty()) {
                 output->print_cr(" ");
               } else {
                 output->print_cr(" from");
-                stack->print_on(output, 12);
+                stack.print_on(output, 12);
               }
-              cursor++;
+              // cursor++;
             } else {
               // Not inside and both arrays are sorted =>
               // we can break
-              break;
+              // break;
             }
+            cursor++;
           }
           output->set_indentation(0);
         }
