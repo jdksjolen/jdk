@@ -661,7 +661,7 @@ public:
           }
           // Use binary search to find the committed region.
           int min = cursor;
-          int max = length() - 1;
+          int max = comm_regs.length() - 1;
           while (max >= min) {
             int mid = (int)(((uint)max + min) / 2);
             TrackedRange& comrng = comm_regs.at(mid);
