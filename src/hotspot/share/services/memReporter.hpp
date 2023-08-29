@@ -32,6 +32,8 @@
 #include "services/mallocTracker.hpp"
 #include "services/virtualMemoryTracker.hpp"
 
+#include <chrono>
+
 /*
  * Base class that provides helpers
 */
@@ -164,8 +166,16 @@ class MemDetailReporter : public MemSummaryReporter {
   // The report contains summary and detail sections.
   virtual void report() {
     MemSummaryReporter::report();
+    auto begin = std::chrono::high_resolution_clock::now();
     NewVirtualMemoryTracker::report(output());
+    auto end = std::chrono::high_resolution_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    output()->print_cr("!!!! ==== ELAPSED TIME: %ld !!!! =", elapsed.count());
+    begin = std::chrono::high_resolution_clock::now();
     report_virtual_memory_map();
+    end = std::chrono::high_resolution_clock::now();
+    elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    output()->print_cr("!!!! ==== ELAPSED TIME: %ld !!!! =", elapsed.count());
     report_detail();
   }
 

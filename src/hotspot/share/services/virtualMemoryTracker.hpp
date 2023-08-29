@@ -407,6 +407,10 @@ public:
     }
     TrackedRange(TrackedRange&& rng)
     : Range(rng.start, rng.size), physical_address(rng.physical_address), stack_idx(rng.stack_idx) {}
+
+    size_t physical_end() {
+      return physical_address + size;
+    }
    };
 
 private:
@@ -513,16 +517,17 @@ public:
     Range range_to_remove{base_addr, size};
     RegionStorage* arr = reserved_regions->at(space.id);
     for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
-      RegionStorage* range_array = &arr[memflag];
-      for (int i = 0; i < range_array->length(); i++) {
+      RegionStorage& range_array = arr[memflag];
+      for (int i = 0; i < range_array.length(); i++) {
         TrackedRange out[2];
         int len;
-        bool has_overlap = overlap_of(range_array->at(i), range_to_remove, out, &len);
+        bool has_overlap = overlap_of(range_array.at(i), range_to_remove, out, &len);
         if (has_overlap) {
           // Delete old region.
-          range_array->delete_at(i);
+          range_array.delete_at(i);
+          // Replace with the remaining ones
           for (int j = 0; j < len; j++) {
-            range_array->push(out[j]);
+            range_array.push(out[j]);
           }
         }
       }
@@ -579,10 +584,39 @@ public:
     }
   }
 
+private:
+  // Pre-condition: ranges is sorted in a left-aligned fashion
+  // That is: (a,b) comes before (c,d) if a <= c
+  // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
+  // 1. Their NativeCallStacks are the same
+  // 2. Their starts align correctly
+  static RegionStorage merge_committed(RegionStorage& ranges) {
+    RegionStorage merged_ranges;
+    auto rlen = ranges.length();
+    if (rlen == 0) return merged_ranges;
+    int j = 0;
+    merged_ranges.push(ranges.at(j));
+    for (int i = 1; i < rlen; i++) {
+      TrackedRange& merging_range = merged_ranges.at(j);
+      TrackedRange& potential_range = ranges.at(i);
+      if (merging_range.end() >= potential_range.start // There's overlap, known because of pre-condition
+          && all_the_stacks->at(merging_range.stack_idx).equals(all_the_stacks->at(potential_range.stack_idx))) {
+        // Merge it
+        merging_range.size = potential_range.end() - merging_range.start;
+      } else {
+        j++;
+        merged_ranges.push(potential_range);
+      }
+    }
+    return merged_ranges;
+  }
+public:
+
   /*
     TODOs:
     1. Implement merge() to cut down on adjacent regions for printing.
-    2. There are missing committed ranges, where did they go?
+    2. There are missing committed ranges, where did they go? This is explicitly for ThreadStack with no stack trace.
+       I have no clue where they are, they can't even be found...
    */
   static void report(outputStream* output = tty) {
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
@@ -592,14 +626,27 @@ public:
     };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
       output->print_cr("Virtual memory map of space %d:", space_id);
-      auto comm_regs = committed_regions->adr_at(space_id);
+      RegionStorage* comm_regs =
+          committed_regions->adr_at(space_id);
       comm_regs->sort([](TrackedRange* a, TrackedRange* b) -> int {
         return a->start - b->start;
       });
+      /*output->print_cr("=====================================================");
+      for (int i = 0; i < comm_regs->length(); i++) {
+        print_virtual_memory_region("blargh", comm_regs->at(i).start, comm_regs->at(i).size);
+        all_the_stacks->at(comm_regs->at(i).stack_idx).print_on(output);
+      }
+      output->print_cr("=====================================================");*/
+
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
       for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
         int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
         RegionStorage& res_regs = memflag_regs[memflag];
+        // TODO: We're sorting on the virtual memory address,
+        // but we're really interested in matching physical_address with the committed memory
+        // so if we sort on that we can avoid having to iterate over all the committed memory ranges for each reserved region.
+        // Right now we're less concerned with speed and mostly concerned with getting a 1:1 representation of NMT's old output
+        // This is to confirm that we're identical.
         res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
           return a->start - b->start;
         });
@@ -624,7 +671,7 @@ public:
             // is printed. This condition would probably stay, however
             TrackedRange out[2]; // Unused
             int len; // Unused
-            bool has_overlap = overlap_of(rng, Range{comrng.start, comrng.size}, out, &len);
+            bool has_overlap = overlap_of(rng, Range{(address)comrng.physical_address, comrng.size}, out, &len);
             if (has_overlap) {
               output->print("\n\t");
               print_virtual_memory_region("committed", comrng.start, comrng.size);
@@ -634,13 +681,12 @@ public:
                 output->print_cr(" from");
                 stack->print_on(output, 12);
               }
-              // cursor++;
+              cursor++;
             } else {
               // Not inside and both arrays are sorted =>
               // we can break
-              // break;
+              break;
             }
-            cursor++;
           }
           output->set_indentation(0);
         }
