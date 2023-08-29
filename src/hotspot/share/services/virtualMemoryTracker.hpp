@@ -637,7 +637,7 @@ public:
       comm_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
         return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
       });
-
+      int printed_committed_regions = 0;
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
       for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
         int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
@@ -674,6 +674,7 @@ public:
                 output->print_cr(" from");
                 stack.print_on(output, 12);
               }
+              printed_committed_regions++;
               cursor++;
             } else {
               // Not inside and both arrays are sorted =>
@@ -685,6 +686,7 @@ public:
           output->set_indentation(0);
         }
       }
+      output->print_cr("Printed CR:s %d, Total CR:s %d", printed_committed_regions, comm_regs.length())
     }
   }
 };
