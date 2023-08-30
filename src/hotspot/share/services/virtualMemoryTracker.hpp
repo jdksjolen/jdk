@@ -392,10 +392,12 @@ public:
   struct TrackedRange : public Range {
     size_t physical_address; // What address into the PhysicalMemorySpace does start point to?
     int stack_idx; // From whence did this happen?
-    TrackedRange(address start = 0, size_t size = 0, size_t physical_address = 0, int stack_idx = -1)
+    MEMFLAGS flag; // What flag does it have?
+    TrackedRange(address start = 0, size_t size = 0, size_t physical_address = 0, int stack_idx = -1, MEMFLAGS flag = mtNone)
     :  Range(start, size),
-        physical_address(physical_address),
-        stack_idx(stack_idx) {
+       physical_address(physical_address),
+       stack_idx(stack_idx),
+       flag(flag) {
     }
     TrackedRange(const TrackedRange& rng) = default;
     TrackedRange& operator=(const TrackedRange& rng) {
@@ -403,10 +405,11 @@ public:
       this->size = rng.size;
       this->physical_address = rng.physical_address;
       this->stack_idx = rng.stack_idx;
+      this->flag = rng.flag;
       return *this;
     }
     TrackedRange(TrackedRange&& rng)
-    : Range(rng.start, rng.size), physical_address(rng.physical_address), stack_idx(rng.stack_idx) {}
+      : Range(rng.start, rng.size), physical_address(rng.physical_address), stack_idx(rng.stack_idx), flag(rng.flag) {}
 
     size_t physical_end() {
       return physical_address + size;
@@ -444,13 +447,13 @@ private:
       address left_start = a;
       size_t left_size = static_cast<size_t>(c - a);
       size_t left_offset = to_split.physical_address;
-      out[0] = TrackedRange{left_start, left_size , to_split.physical_address, to_split.stack_idx};
+      out[0] = TrackedRange{left_start, left_size , to_split.physical_address, to_split.stack_idx, to_split.flag};
       address right_start = d;
       size_t right_size = static_cast<size_t>((a + to_split.size) - right_start);
       size_t right_offset =
           to_split.physical_address +
           (right_start - left_start); // How far along have we traversed into our offset?
-      out[1] = TrackedRange{right_start, right_size, right_offset, to_split.stack_idx};
+      out[1] = TrackedRange{right_start, right_size, right_offset, to_split.stack_idx, to_split.flag};
       return true;
     }
     // Overlap from the left -- We end up with one region on the right
@@ -462,7 +465,7 @@ private:
     if (c <= a && d > a && d < b) {
       *len = 1;
       out[0] = TrackedRange{d, static_cast<size_t>(b - d),
-                            to_split.physical_address + (d - a), to_split.stack_idx};
+                            to_split.physical_address + (d - a), to_split.stack_idx, to_split.flag};
       return true;
     }
     // overlap from the right
@@ -473,7 +476,7 @@ private:
      */
     if (a < c && c < b && b <= d) {
       *len = 1;
-      out[0] = TrackedRange{a, static_cast<size_t>(c - a), to_split.physical_address, to_split.stack_idx};
+      out[0] = TrackedRange{a, static_cast<size_t>(c - a), to_split.physical_address, to_split.stack_idx, to_split.flag};
       return true;
     }
     // No overlap at all
@@ -482,14 +485,14 @@ private:
    }
 
   using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
-  static GrowableArrayCHeap<RegionStorage*, mtNMT>* reserved_regions;
+  static GrowableArrayCHeap<RegionStorage, mtNMT>* reserved_regions;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
   // TODO: What to do about the stacks? Seems like we need a ref-counting hashtable for them.
   static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
 public:
   static PhysicalMemorySpace virt_mem;
   static void init() {
-    reserved_regions = new GrowableArrayCHeap<RegionStorage*, mtNMT>{5};
+    reserved_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
     committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
     all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{};
     virt_mem = register_space();
@@ -499,11 +502,7 @@ public:
      const  PhysicalMemorySpace next_space = PhysicalMemorySpace{PhysicalMemorySpace::next_unique()};
      reserved_regions->reserve(next_space.id);
      committed_regions->reserve(next_space.id);
-     RegionStorage* memregs = NEW_C_HEAP_ARRAY(RegionStorage, mt_number_of_types, mtNMT);
-     for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
-       ::new(&memregs[memflag]) RegionStorage{8};
-     }
-     reserved_regions->at_put_grow(next_space.id, memregs);
+     reserved_regions->at_put_grow(next_space.id);
      return next_space;
   }
   static void add_view_into_space(address base_addr, size_t size,
@@ -511,45 +510,40 @@ public:
                                   MEMFLAGS flag, const NativeCallStack& stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
-    reserved_regions->at(space.id)[static_cast<int>(flag)].push(TrackedRange{base_addr, size, offset, idx});
+    reserved_regions->at(space.id).push(TrackedRange{base_addr, size, offset, idx, flag});
   }
   // TODO: If the memory flag is provided (which it can be, a lot of the time), then this call requires much less work.
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
-    RegionStorage* arr = reserved_regions->at(space.id);
-    for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
-      RegionStorage& range_array = arr[memflag];
-      for (int i = 0; i < range_array.length(); i++) {
-        TrackedRange out[2];
-        int len;
-        bool has_overlap = overlap_of(range_array.at(i), range_to_remove, out, &len);
-        if (has_overlap) {
-          // Delete old region.
-          range_array.delete_at(i);
-          // Replace with the remaining ones
-          for (int j = 0; j < len; j++) {
-            range_array.push(out[j]);
-          }
+    RegionStorage& range_array = reserved_regions->at(space.id);
+    for (int i = 0; i < range_array.length(); i++) {
+      TrackedRange out[2];
+      int len;
+      bool has_overlap = overlap_of(range_array.at(i), range_to_remove, out, &len);
+      if (has_overlap) {
+        // Delete old region.
+        range_array.delete_at(i);
+        // Replace with the remaining ones
+        for (int j = 0; j < len; j++) {
+          range_array.push(out[j]);
         }
       }
     }
   }
   static void remove_all_views_into_space(const PhysicalMemorySpace space) {
-    RegionStorage* arr = reserved_regions->at(space.id);
-    for (int i = 0; i < mt_number_of_types; i++) {
-      arr[i].clear_and_deallocate();
-    }
+    reserved_regions->at(space.id).clear_and_deallocate();
   }
 
   static void set_view_region_type(const PhysicalMemorySpace space, address base_addr, MEMFLAGS flag) {
-    RegionStorage* arr = reserved_regions->at(space.id);
-    // Must be mtNone
-    RegionStorage& range_array = arr[static_cast<int>(mtNone)];
+    RegionStorage& range_array = reserved_regions->at(space.id);
     for (int i = 0; i < range_array.length(); i++) {
       TrackedRange* r = range_array.adr_at(i);
-      if (r->start == base_addr) {
+      // Must be mtNone
+      if (r->start == base_addr && r->flag == mtNone) {
         // Found it. Make a copy and push to correct flag
-        arr[static_cast<int>(flag)].push(*r);
+        TrackedRange copy{*r};
+        copy.flag = flag;
+        range_array.push(copy);
         // Delete old one.
         range_array.delete_at(i);
         // Assume exactly one match.
@@ -638,55 +632,50 @@ public:
       });
       RegionStorage comm_regs = merge_committed(committed_regions->at(space_id));
       int printed_committed_regions = 0;
-      RegionStorage* memflag_regs = reserved_regions->at(space_id);
-      for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
-        int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
-        RegionStorage& res_regs = memflag_regs[memflag];
-        res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-          if (a->physical_address == b->physical_address) return 0;
-          if (a->physical_address >= b->physical_address) return 1;
-          else return -1;
-        });
-        for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-          //cursor = 0;
-          TrackedRange& rng = res_regs.at(res_reg_idx);
-          NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
-          output->print_cr(" "); // Imitating
-          print_virtual_memory_region("reserved", rng.start, rng.size);
-          output->print(" for %s", NMTUtil::flag_to_name((MEMFLAGS)memflag));
-          if (stack.is_empty()) {
-            output->print_cr(" ");
-          } else {
-            output->print_cr(" from");
-            stack.print_on(output, 4);
-          }
-          while (cursor < comm_regs.length()) {
-            TrackedRange& comrng = comm_regs.at(cursor);
-            NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
-            // If the committed range has any overlap with the reserved memory range, then we print it
-            // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
-            // In the future we might want to split the range when printing so that exactly the covered area
-            // is printed. This condition would probably stay, however
-            bool no_overlap = rng.physical_address >= comrng.physical_end() || rng.physical_end() < comrng.physical_address;
-            if (!no_overlap) {
-              output->print("\n\t");
-              print_virtual_memory_region("committed", comrng.start, comrng.size);
-              if (stack.is_empty()) {
-                output->print_cr(" ");
-              } else {
-                output->print_cr(" from");
-                stack.print_on(output, 12);
-              }
-              cursor++;
-            } else {
-              // Not inside and both arrays are sorted =>
-              // we can break
-              break;
-            }
-            //cursor++;
-          }
-          output->set_indentation(0);
+      int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
+      RegionStorage& res_regs = reserved_regions->at(space_id);
+      res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
+        if (a->physical_address == b->physical_address) return 0;
+        if (a->physical_address >= b->physical_address) return 1;
+        else return -1;
+      });
+      for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
+        TrackedRange& rng = res_regs.at(res_reg_idx);
+        NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
+        output->print_cr(" "); // Imitating
+        print_virtual_memory_region("reserved", rng.start, rng.size);
+        output->print(" for %s", NMTUtil::flag_to_name(rng.flag));
+        if (stack.is_empty()) {
+          output->print_cr(" ");
+        } else {
+          output->print_cr(" from");
+          stack.print_on(output, 4);
         }
+        while (cursor < comm_regs.length()) {
+          TrackedRange& comrng = comm_regs.at(cursor);
+          NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
+          // If the committed range has any overlap with the reserved memory range, then we print it
+          // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
+          // In the future we might want to split the range when printing so that exactly the covered area
+          // is printed. This condition would probably stay, however
+          bool no_overlap = rng.physical_address >= comrng.physical_end() || rng.physical_end() < comrng.physical_address;
+          if (!no_overlap) {
+            output->print("\n\t");
+            print_virtual_memory_region("committed", comrng.start, comrng.size);
+            if (stack.is_empty()) {
+              output->print_cr(" ");
+            } else {
+              output->print_cr(" from");
+              stack.print_on(output, 12);
+            }
+            cursor++;
+          } else {
+            // Not inside and both arrays are sorted =>
+            // we can break
+            break;
+          }
+        }
+        output->set_indentation(0);
       }
     }
   }
