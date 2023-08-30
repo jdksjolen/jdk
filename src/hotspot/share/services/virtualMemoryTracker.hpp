@@ -487,7 +487,8 @@ private:
   using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* reserved_regions;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
-  // TODO: What to do about the stacks? Seems like we need a ref-counting hashtable for them.
+  // TODO: What to do about the stacks? I'd like to not have duplicates, hashtable would work
+  // need to be able to renumber the region stacks on resize.
   static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
 public:
   static PhysicalMemorySpace virt_mem;
@@ -506,7 +507,7 @@ public:
      return next_space;
   }
   static void add_view_into_space(address base_addr, size_t size,
-                                  const PhysicalMemorySpace space, size_t offset,
+                                  const PhysicalMemorySpace& space, size_t offset,
                                   MEMFLAGS flag, const NativeCallStack& stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
@@ -530,6 +531,7 @@ public:
       }
     }
   }
+
   static void remove_all_views_into_space(const PhysicalMemorySpace space) {
     reserved_regions->at(space.id).clear_and_deallocate();
   }
@@ -553,7 +555,7 @@ public:
     // TODO: We should assert that one must be found.
   }
 
-  static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
+  static void commit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size,  const NativeCallStack& stack) {
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
     // Points at itself
@@ -562,7 +564,7 @@ public:
     }).push(TrackedRange{(address)offset, size, offset, idx});
   }
 
-  static void uncommit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size) {
+  static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size) {
     Range range_to_remove{(address)offset, size};
     RegionStorage& commits = committed_regions->at(space.id);
     for (int i = 0; i < commits.length(); i++) {
@@ -608,6 +610,9 @@ private:
     }
     return merged_ranges;
   }
+  static bool overlaps(Range a, Range b) {
+    return MAX2(a.start, b.start) < MIN2(a.start + a.size, b.start + b.size);
+  }
 public:
 
   /*
@@ -632,50 +637,49 @@ public:
       });
       RegionStorage comm_regs = merge_committed(committed_regions->at(space_id));
       int printed_committed_regions = 0;
-      int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
+      // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
+      int cursor = 0;
       RegionStorage& res_regs = reserved_regions->at(space_id);
-      res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-        if (a->physical_address == b->physical_address) return 0;
-        if (a->physical_address >= b->physical_address) return 1;
-        else return -1;
-      });
-      for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-        TrackedRange& rng = res_regs.at(res_reg_idx);
-        NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
-        output->print_cr(" "); // Imitating
-        print_virtual_memory_region("reserved", rng.start, rng.size);
-        output->print(" for %s", NMTUtil::flag_to_name(rng.flag));
-        if (stack.is_empty()) {
-          output->print_cr(" ");
-        } else {
-          output->print_cr(" from");
-          stack.print_on(output, 4);
-        }
-        while (cursor < comm_regs.length()) {
-          TrackedRange& comrng = comm_regs.at(cursor);
-          NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
-          // If the committed range has any overlap with the reserved memory range, then we print it
-          // This is a bit too coarse-grained perhaps, but it doesn't invent new ranges.
-          // In the future we might want to split the range when printing so that exactly the covered area
-          // is printed. This condition would probably stay, however
-          bool no_overlap = rng.physical_address >= comrng.physical_end() || rng.physical_end() < comrng.physical_address;
-          if (!no_overlap) {
-            output->print("\n\t");
-            print_virtual_memory_region("committed", comrng.start, comrng.size);
-            if (stack.is_empty()) {
-              output->print_cr(" ");
-            } else {
-              output->print_cr(" from");
-              stack.print_on(output, 12);
+        res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
+          return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
+        });
+        for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
+          TrackedRange& rng = res_regs.at(res_reg_idx);
+          NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
+          output->print_cr(" "); // Imitating
+          print_virtual_memory_region("reserved", rng.start, rng.size);
+          output->print(" for %s", NMTUtil::flag_to_name(rng.flag));
+          if (stack.is_empty()) {
+            output->print_cr(" ");
+          } else {
+            output->print_cr(" from");
+            stack.print_on(output, 4);
+          }
+          // Move forwards, printing all overlapping regions until we're no longer overlapping
+          bool found_one_overlap = false;
+          while (cursor < comm_regs.length()) {
+            TrackedRange& comrng = comm_regs.at(cursor);
+            if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
+              NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
+              output->print("\n\t");
+              print_virtual_memory_region("committed", comrng.start, comrng.size);
+              if (stack.is_empty()) {
+                output->print_cr(" ");
+              } else {
+                output->print_cr(" from");
+                stack.print_on(output, 12);
+              }
+              printed_committed_regions++;
+              found_one_overlap = true;
+            } else if (found_one_overlap) {
+              // We've stopped seeing overlaps for this range, so we can now break
+              break;
             }
             cursor++;
-          } else {
-            // Not inside and both arrays are sorted =>
-            // we can break
-            break;
           }
+          output->set_indentation(0);
         }
-        output->set_indentation(0);
+        output->print_cr("Printed CR:s %d, Total CR:s %d", printed_committed_regions, comm_regs.length());
       }
     }
   }
