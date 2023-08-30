@@ -166,15 +166,15 @@ class MemDetailReporter : public MemSummaryReporter {
   // The report contains summary and detail sections.
   virtual void report() {
     MemSummaryReporter::report();
-    auto begin = std::chrono::high_resolution_clock::now();
+    auto begin = std::chrono::steady_clock::now();
     NewVirtualMemoryTracker::report(output());
-    auto end = std::chrono::high_resolution_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - begin);
     output()->print_cr("!!!! ==== ELAPSED TIME: %ld !!!! =", elapsed.count());
-    begin = std::chrono::high_resolution_clock::now();
+    begin = std::chrono::steady_clock::now();
     report_virtual_memory_map();
-    end = std::chrono::high_resolution_clock::now();
-    elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin);
+    end = std::chrono::steady_clock::now();
+    elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - begin);
     output()->print_cr("!!!! ==== ELAPSED TIME: %ld !!!! =", elapsed.count());
     report_detail();
   }

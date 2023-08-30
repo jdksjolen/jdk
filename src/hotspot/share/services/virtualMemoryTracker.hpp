@@ -616,12 +616,8 @@ public:
 
   /*
     TODOs:
-    2. Incorporate SnapshotThreadStackWalker into the code!! That's where our missing committed regions are
-    3. Why won't the sort + walk work for minimizing the walking of the committed regions to exactly once per mem flag?
-    The sort + walk doesn't work because we're not taking all reserved regions into account at the same time.
-    This is a trade-off between storing the memory flag for each TrackedRange or not.
-    If we did that, then they could be stored and sorted in the same array and would then turn this into a O(nlog n) sort + O(n) walk.
-    4. We could actually use a 'work list' that we remove the committed regions from. Then we do have to copy them, and they'll be reported exactly once.
+    1. Incorporate SnapshotThreadStackWalker into the code!! That's where our missing committed regions are
+    2. 'Double buffer' the merging of the CRs so that no dynamic allocation is done at report time.
   */
   static void report(outputStream* output = tty) {
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
