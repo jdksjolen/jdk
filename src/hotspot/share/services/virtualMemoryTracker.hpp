@@ -501,9 +501,12 @@ public:
 
    static PhysicalMemorySpace register_space() {
      const  PhysicalMemorySpace next_space = PhysicalMemorySpace{PhysicalMemorySpace::next_unique()};
-     reserved_regions->reserve(next_space.id);
-     committed_regions->reserve(next_space.id);
-     reserved_regions->at_put_grow(next_space.id);
+     reserved_regions->at_ref_grow(next_space.id, [](RegionStorage* p) -> void {
+      ::new (p) RegionStorage{};
+     });
+     committed_regions->at_ref_grow(next_space.id, [](RegionStorage* p) -> void {
+      ::new (p) RegionStorage{};
+     });
      return next_space;
   }
   static void add_view_into_space(address base_addr, size_t size,
@@ -559,9 +562,7 @@ public:
     int idx = all_the_stacks->length();
     all_the_stacks->push(stack);
     // Points at itself
-    committed_regions->at_ref_grow(space.id, [](RegionStorage* p) -> void {
-      ::new (p) RegionStorage{};
-    }).push(TrackedRange{(address)offset, size, offset, idx});
+    committed_regions->at(space.id).push(TrackedRange{(address)offset, size, offset, idx});
   }
 
   static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size) {
@@ -582,8 +583,9 @@ public:
   }
 
 private:
+  // b overlaps a
   static bool overlaps(Range a, Range b) {
-    return MAX2(a.start, b.start) < MIN2(a.start + a.size, b.start + b.size);
+    return MAX2(b.start, a.start) < MIN2(b.end(), a.end());
   }
   // Pre-condition: ranges is sorted in a left-aligned fashion
   // That is: (a,b) comes before (c,d) if a <= c
@@ -609,9 +611,6 @@ private:
       }
     }
     return merged_ranges;
-  }
-  static bool overlaps(Range a, Range b) {
-    return MAX2(a.start, b.start) < MIN2(a.start + a.size, b.start + b.size);
   }
 public:
 
@@ -657,7 +656,6 @@ public:
         }
         // Track whether we've started overlapping
         // Any committed region that isn't matched while found_one_overlap is false has no overlapping reserved region.
-        bool found_one_overlap = false;
         while (cursor < comm_regs.length()) {
           TrackedRange& comrng = comm_regs.at(cursor);
           if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
@@ -671,8 +669,19 @@ public:
               stack.print_on(output, 12);
             }
             printed_committed_regions++;
-            found_one_overlap = true;
-          } else if (found_one_overlap) {
+          } else if (comrng.end() < (address)rng.physical_address) {
+            output->print_cr("MISSING CR");
+            NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
+            output->print("\n\t");
+            print_virtual_memory_region("committed", comrng.start, comrng.size);
+            if (stack.is_empty()) {
+              output->print_cr(" ");
+            } else {
+              output->print_cr(" from");
+              stack.print_on(output, 12);
+            }
+            // This committed region has no reserved region
+          } else {
             // We've stopped seeing overlaps for this range, so we can now break
             break;
           }
