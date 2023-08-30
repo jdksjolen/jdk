@@ -513,7 +513,8 @@ public:
     all_the_stacks->push(stack);
     reserved_regions->at(space.id)[static_cast<int>(flag)].push(TrackedRange{base_addr, size, offset, idx});
   }
-  static void remove_view_into_space(const PhysicalMemorySpace space, address base_addr, size_t size) {
+  // TODO: If the memory flag is provided (which it can be, a lot of the time), then this call requires much less work.
+  static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
     RegionStorage* arr = reserved_regions->at(space.id);
     for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
@@ -585,6 +586,9 @@ public:
   }
 
 private:
+  static bool overlaps(Range a, Range b) {
+    return MAX2(a.start, b.start) < MIN2(a.start + a.size, b.start + b.size);
+  }
   // Pre-condition: ranges is sorted in a left-aligned fashion
   // That is: (a,b) comes before (c,d) if a <= c
   // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
@@ -614,9 +618,12 @@ public:
 
   /*
     TODOs:
-    1. Implement merge() to cut down on adjacent regions for printing.
-    2. There are missing committed ranges, where did they go? This is explicitly for ThreadStack with no stack trace.
-       I have no clue where they are, they can't even be found...
+    2. Incorporate SnapshotThreadStackWalker into the code!! That's where our missing committed regions are
+    3. Why won't the sort + walk work for minimizing the walking of the committed regions to exactly once per mem flag?
+       The sort + walk doesn't work because we're not taking all reserved regions into account at the same time.
+       This is a trade-off between storing the memory flag for each TrackedRange or not.
+       If we did that, then they could be stored and sorted in the same array and would then turn this into a O(nlog n) sort + O(n) walk.
+    4. We could actually use a 'work list' that we remove the committed regions from. Then we do have to copy them, and they'll be reported exactly once.
    */
   static void report(outputStream* output = tty) {
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
@@ -626,15 +633,11 @@ public:
     };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
       output->print_cr("Virtual memory map of space %d:", space_id);
-      RegionStorage& comm_regs =
-          committed_regions->at(space_id);
-      // Can the sorting be converted to a - b? They're both unsigned so seems like it shouldn't work...
-      comm_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-        if (a->physical_address == b->physical_address) return 0;
-        if (a->physical_address >= b->physical_address) return 1;
-        else return -1;
+      committed_regions->at(space_id).sort([](TrackedRange* a, TrackedRange* b) -> int {
+        return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
       });
-
+      RegionStorage comm_regs = merge_committed(committed_regions->at(space_id));
+      int printed_committed_regions = 0;
       RegionStorage* memflag_regs = reserved_regions->at(space_id);
       for (int memflag = 0; memflag < mt_number_of_types; memflag++) {
         int cursor = 0; // Cursor into comm_regs -- since both are sorted we'll be OK
