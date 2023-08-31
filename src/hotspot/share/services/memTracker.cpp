@@ -148,7 +148,11 @@ void MemTracker::report(bool summary_only, outputStream* output, size_t scale) {
     MemSummaryReporter rpt(baseline, output, scale);
     rpt.report();
   } else {
+    auto begin = std::chrono::steady_clock::now();
     MemDetailReporter rpt(baseline, output, scale);
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - begin);
+    output->print_cr("!!!! ==== SETUP TIME: %ld !!!! =", elapsed.count());
     rpt.report();
     output->print("Metaspace:");
     // The basic metaspace report avoids any locking and should be safe to

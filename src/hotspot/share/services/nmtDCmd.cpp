@@ -147,6 +147,7 @@ void NMTDCmd::execute(DCmdSource source, TRAPS) {
 }
 
 void NMTDCmd::report(bool summaryOnly, size_t scale_unit) {
+  auto begin = std::chrono::steady_clock::now();
   MemBaseline baseline;
   baseline.baseline(summaryOnly);
   if (summaryOnly) {
@@ -154,6 +155,9 @@ void NMTDCmd::report(bool summaryOnly, size_t scale_unit) {
     rpt.report();
   } else {
     MemDetailReporter rpt(baseline, output(), scale_unit);
+    auto end = std::chrono::steady_clock::now();
+    auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - begin);
+    output()->print_cr("!!!! ==== SETUP TIME: %ld !!!! =", elapsed.count());
     rpt.report();
   }
 }

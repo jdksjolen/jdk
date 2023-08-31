@@ -339,7 +339,7 @@ bool VirtualMemoryTracker::initialize(NMT_TrackingLevel level) {
 
 bool VirtualMemoryTracker::add_reserved_region(address base_addr, size_t size,
     const NativeCallStack& stack, MEMFLAGS flag) {
-  NewVirtualMemoryTracker::add_view_into_space(base_addr, size, NewVirtualMemoryTracker::virt_mem, (size_t)base_addr, flag, stack);
+  NewVirtualMemoryTracker::add_view_into_space(NewVirtualMemoryTracker::virt_mem, base_addr, size, (size_t)base_addr, flag, stack);
   assert(base_addr != nullptr, "Invalid address");
   assert(size > 0, "Invalid size");
   assert(_reserved_regions != nullptr, "Sanity check");
