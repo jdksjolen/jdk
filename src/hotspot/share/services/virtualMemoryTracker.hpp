@@ -25,6 +25,7 @@
 #ifndef SHARE_SERVICES_VIRTUALMEMORYTRACKER_HPP
 #define SHARE_SERVICES_VIRTUALMEMORYTRACKER_HPP
 
+#include "logging/logStream.hpp"
 #include "memory/allocation.hpp"
 #include "memory/metaspace.hpp" // For MetadataType
 #include "memory/metaspaceStats.hpp"
@@ -34,7 +35,7 @@
 #include "utilities/linkedlist.hpp"
 #include "utilities/nativeCallStack.hpp"
 #include "utilities/ostream.hpp"
-
+#include "logging/log.hpp"
 
 /*
  * Virtual memory counter
@@ -362,6 +363,12 @@ class ReservedMemoryRegion : public VirtualMemoryRegion {
 
 int compare_reserved_region_base(const ReservedMemoryRegion& r1, const ReservedMemoryRegion& r2);
 
+/*
+  Some ideas of potential things that can improve the situation:
+  1. We currently only compress committed regions.
+     This is not as trivial for the reserved regions, you need to check that both the physical_address and address are adjacent
+     to each other and also test the flag.
+ */
 class VirtualMemoryWalker : public StackObj {
  public:
    virtual bool do_allocation_site(const ReservedMemoryRegion* rgn) { return false; }
@@ -487,35 +494,48 @@ private:
   using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* reserved_regions;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
-  // TODO: What to do about the stacks? I'd like to not have duplicates, hashtable would work
-  // need to be able to renumber the region stacks on resize.
+
+  static constexpr const int static_stack_size = 256;
   static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
+  static int push_stack(const NativeCallStack& stack) {
+    int len = all_the_stacks->length();
+    int idx = stack.calculate_hash() % static_stack_size;
+    if (len < idx) {
+      all_the_stacks->at_put(idx, stack);
+      return idx;
+    }
+    // Exists and already there? No need for double storage
+    if (all_the_stacks->at(idx).equals(stack)) {
+      return idx;
+    }
+    all_the_stacks->push(stack);
+    return len;
+  }
 public:
   static PhysicalMemorySpace virt_mem;
   static void init() {
     reserved_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
     committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
-    all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{};
+    all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{static_stack_size};
     virt_mem = register_space();
   }
 
    static PhysicalMemorySpace register_space() {
      const  PhysicalMemorySpace next_space = PhysicalMemorySpace{PhysicalMemorySpace::next_unique()};
      reserved_regions->at_ref_grow(next_space.id, [](RegionStorage* p) -> void {
-      ::new (p) RegionStorage{};
+      ::new (p) RegionStorage{128};
      });
      committed_regions->at_ref_grow(next_space.id, [](RegionStorage* p) -> void {
-      ::new (p) RegionStorage{};
+      ::new (p) RegionStorage{128};
      });
      return next_space;
   }
   static void add_view_into_space(const PhysicalMemorySpace space, address base_addr, size_t size, size_t offset,
                                   MEMFLAGS flag, const NativeCallStack& stack) {
-    int idx = all_the_stacks->length();
-    all_the_stacks->push(stack);
+    int idx = push_stack(stack);
     reserved_regions->at(space.id).push(TrackedRange{base_addr, size, offset, idx, flag});
   }
-  // TODO: If the memory flag is provided (which it can be, a lot of the time), then this call requires much less work.
+
   static void remove_view_into_space(const PhysicalMemorySpace space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
     RegionStorage& range_array = reserved_regions->at(space.id);
@@ -558,8 +578,18 @@ public:
   }
 
   static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
-    int idx = all_the_stacks->length();
-    all_the_stacks->push(stack);
+    GrowableArrayCHeap<TrackedRange, MEMFLAGS::mtNMT>& crngs = committed_regions->at(space.id);
+    // Small optimization: Is the next commit adjacent to the last one? Then we don't need to push.
+    // Metaspace does a lot of commits and hits this branch a lot.
+    if (crngs.length() > 0) {
+      TrackedRange& crng = crngs.at(crngs.length() - 1);
+      if (crng.end() >= (address)offset &&
+          all_the_stacks->at(crng.stack_idx).equals(stack)) {
+        crng.size = (offset + size) - (size_t)crng.start;
+        return;
+      }
+    }
+    int idx = push_stack(stack);
     // Points at itself
     committed_regions->at(space.id).push(TrackedRange{(address)offset, size, offset, idx});
   }
@@ -582,7 +612,6 @@ public:
   }
 
 private:
-  // b overlaps a
   static bool overlaps(Range a, Range b) {
     return MAX2(b.start, a.start) < MIN2(b.end(), a.end());
   }
