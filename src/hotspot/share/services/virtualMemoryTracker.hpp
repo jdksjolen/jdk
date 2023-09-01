@@ -377,11 +377,10 @@ class VirtualMemoryWalker : public StackObj {
 class NewVirtualMemoryTracker {
    using Id = uint32_t;
 public:
-   static constexpr Id process_space = 0; // Special-case when mapping virtual memory onto itself
    struct PhysicalMemorySpace {
     Id id; // Uniquely identifies the device
     const char* name; // Provided by user for pretty-printing
-    static Id unique_id; // Next unique device = 1
+    static Id unique_id;
     static Id next_unique() {
       return unique_id++;
     }
@@ -530,13 +529,13 @@ public:
      });
      return next_space;
   }
-  static void add_view_into_space(const PhysicalMemorySpace space, address base_addr, size_t size, size_t offset,
+  static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size, size_t offset,
                                   MEMFLAGS flag, const NativeCallStack& stack) {
     int idx = push_stack(stack);
     reserved_regions->at(space.id).push(TrackedRange{base_addr, size, offset, idx, flag});
   }
 
-  static void remove_view_into_space(const PhysicalMemorySpace space, address base_addr, size_t size) {
+  static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
     RegionStorage& range_array = reserved_regions->at(space.id);
     for (int i = 0; i < range_array.length(); i++) {
@@ -554,11 +553,11 @@ public:
     }
   }
 
-  static void remove_all_views_into_space(const PhysicalMemorySpace space) {
+  static void remove_all_views_into_space(const PhysicalMemorySpace& space) {
     reserved_regions->at(space.id).clear_and_deallocate();
   }
 
-  static void set_view_region_type(const PhysicalMemorySpace space, address base_addr, MEMFLAGS flag) {
+  static void set_view_region_type(const PhysicalMemorySpace& space, address base_addr, MEMFLAGS flag) {
     RegionStorage& range_array = reserved_regions->at(space.id);
     for (int i = 0; i < range_array.length(); i++) {
       TrackedRange* r = range_array.adr_at(i);
@@ -577,8 +576,8 @@ public:
     // TODO: We should assert that one must be found.
   }
 
-  static void commit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size,  const NativeCallStack& stack) {
-    GrowableArrayCHeap<TrackedRange, MEMFLAGS::mtNMT>& crngs = committed_regions->at(space.id);
+  static void commit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size,  const NativeCallStack& stack) {
+    RegionStorage& crngs = committed_regions->at(space.id);
     // Small optimization: Is the next commit adjacent to the last one? Then we don't need to push.
     // Metaspace does a lot of commits and hits this branch a lot.
     if (crngs.length() > 0) {
@@ -590,11 +589,10 @@ public:
       }
     }
     int idx = push_stack(stack);
-    // Points at itself
-    committed_regions->at(space.id).push(TrackedRange{(address)offset, size, offset, idx});
+    crngs.push(TrackedRange{(address)offset, size, offset, idx});
   }
 
-  static void uncommit_memory_into_space(const PhysicalMemorySpace space, size_t offset, size_t size) {
+  static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size) {
     Range range_to_remove{(address)offset, size};
     RegionStorage& commits = committed_regions->at(space.id);
     for (int i = 0; i < commits.length(); i++) {
