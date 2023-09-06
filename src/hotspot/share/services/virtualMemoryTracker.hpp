@@ -729,6 +729,45 @@ public:
     output->print_cr("Printed CR:s %d, Total CR:s %d", printed_committed_regions, comm_regs.length());
   }
 
+  // Report all memory maps except the first one. The major difference being that this
+  // can have offsets, which the first one doesn't have.
+  static void report(outputStream* output) {
+    const auto print_committed_memory = [&](TrackedOffsetRange& rgn, RegionStorage& comm_regs) {
+      for (int i = 0; i < comm_regs.length(); i++) {
+        TrackedOffsetRange& crange = comm_regs.at(i);
+        if (overlaps(Range{(address)rgn.physical_address, rgn.size}, Range{crange.start, crange.size})) {
+          output->print_cr("Print the CR here");
+        }
+        // TODO: We don't need to loop over everything here and can break early, but that's an optimization for another day.
+      }
+    };
+    for (Id space_id = virt_mem.id+1; space_id < PhysicalMemorySpace::unique_id; space_id++) {
+      RegionStorage& res_regs = reserved_regions->at(space_id);
+      RegionStorage& com_regs = committed_regions->at(space_id);
+      sort_regions(res_regs);
+      sort_regions(com_regs);
+      for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
+        TrackedOffsetRange rgn = res_regs.at(res_reg_idx);
+        int res_cursor = res_reg_idx+1; // off-by-1
+        while (res_cursor < res_regs.length()) {
+          TrackedOffsetRange& pot_overlap = res_regs.at(res_cursor);
+          TrackedOffsetRange out[2]; int len;
+          bool has_overlap = overlap_of(rgn, {pot_overlap.start, pot_overlap.size}, out, &len);
+          if (has_overlap) {
+            // Inspect the overlapping regions and figure that out...
+            // Really overlap_of has all of this information already :-(
+            // Then print each and continue until there is no overlap
+          } else {
+            output->print_cr("Print rgn here!");
+            for (int i = 0; i < com_regs.length(); i++) {
+              // Fin
+            }
+            break;
+          }
+        }
+      }
+    }
+  }
 };
 
 // Main class called from MemTracker to track virtual memory allocations, commits and releases.
