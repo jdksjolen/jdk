@@ -167,7 +167,7 @@ class MemDetailReporter : public MemSummaryReporter {
   virtual void report() {
     MemSummaryReporter::report();
     auto begin = std::chrono::steady_clock::now();
-    NewVirtualMemoryTracker::report(output());
+    NewVirtualMemoryTracker::report_virtual_memory_map(output());
     auto end = std::chrono::steady_clock::now();
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(end - begin);
     output()->print_cr("!!!! ==== ELAPSED TIME: %ld !!!! =", elapsed.count());

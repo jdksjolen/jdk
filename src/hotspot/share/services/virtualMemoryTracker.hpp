@@ -662,71 +662,73 @@ public:
     1. Incorporate SnapshotThreadStackWalker into the code!! That's where our missing committed regions are
     2. 'Double buffer' the merging of the CRs so that no dynamic allocation is done at report time.
   */
-  static void report(outputStream* output = tty) {
+
+  // Report like the old virtual memory reporter does it.
+  static void report_virtual_memory_map(outputStream* output = tty) {
+    const uint32_t space_id = virt_mem.id;
     auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
       const char* scale = "KB";
       output->print("[" PTR_FORMAT " - " PTR_FORMAT "] %s " SIZE_FORMAT "%s", p2i(base),
                     p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024), scale); // TODO: hardcoded scale
     };
-    for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
-      output->print_cr("Virtual memory map of space %d:", space_id);
-      sort_regions(committed_regions->at(space_id));
-      RegionStorage comm_regs = merge_committed(committed_regions->at(space_id));
-      int printed_committed_regions = 0;
-      // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
-      int cursor = 0;
-      RegionStorage& res_regs = reserved_regions->at(space_id);
-      sort_regions(res_regs);
-      for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-        TrackedOffsetRange& rng = res_regs.at(res_reg_idx);
-        NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
-        output->print_cr(" "); // Imitating
-        print_virtual_memory_region("reserved", rng.start, rng.size);
-        output->print(" for %s", NMTUtil::flag_to_name(rng.flag));
-        if (stack.is_empty()) {
-          output->print_cr(" ");
-        } else {
-          output->print_cr(" from");
-          stack.print_on(output, 4);
-        }
-        // Track whether we've started overlapping
-        // Any committed region that isn't matched while found_one_overlap is false has no overlapping reserved region.
-        while (cursor < comm_regs.length()) {
-          TrackedOffsetRange& comrng = comm_regs.at(cursor);
-          if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
-            NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
-            output->print("\n\t");
-            print_virtual_memory_region("committed", comrng.start, comrng.size);
-            if (stack.is_empty()) {
-              output->print_cr(" ");
-            } else {
-              output->print_cr(" from");
-              stack.print_on(output, 12);
-            }
-            printed_committed_regions++;
-          } else if (comrng.end() < (address)rng.physical_address) {
-            output->print_cr("MISSING CR");
-            NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
-            output->print("\n\t");
-            print_virtual_memory_region("committed", comrng.start, comrng.size);
-            if (stack.is_empty()) {
-              output->print_cr(" ");
-            } else {
-              output->print_cr(" from");
-              stack.print_on(output, 12);
-            }
-            // This committed region has no reserved region
-          } else {
-            // We've stopped seeing overlaps for this range, so we can now break
-            break;
-          }
-          cursor++;
-        }
-        output->set_indentation(0);
+    output->print_cr("Virtual memory map:");
+    sort_regions(committed_regions->at(space_id));
+    RegionStorage comm_regs = merge_committed(committed_regions->at(space_id));
+    int printed_committed_regions = 0;
+    // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
+    int cursor = 0;
+    RegionStorage& res_regs = reserved_regions->at(space_id);
+    sort_regions(res_regs);
+    for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
+      TrackedOffsetRange& rng = res_regs.at(res_reg_idx);
+      NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
+      output->print_cr(" "); // Imitating
+      print_virtual_memory_region("reserved", rng.start, rng.size);
+      output->print(" for %s", NMTUtil::flag_to_name(rng.flag));
+      if (stack.is_empty()) {
+        output->print_cr(" ");
+      } else {
+        output->print_cr(" from");
+        stack.print_on(output, 4);
       }
-      output->print_cr("Printed CR:s %d, Total CR:s %d", printed_committed_regions, comm_regs.length());
+      // Track whether we've started overlapping
+      // Any committed region that isn't matched while found_one_overlap is false has no overlapping reserved region.
+      while (cursor < comm_regs.length()) {
+        TrackedOffsetRange& comrng = comm_regs.at(cursor);
+        if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
+          NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
+          output->print("\n\t");
+          print_virtual_memory_region("committed", comrng.start, comrng.size);
+          if (stack.is_empty()) {
+            output->print_cr(" ");
+          } else {
+            output->print_cr(" from");
+            stack.print_on(output, 12);
+          }
+          printed_committed_regions++;
+        } else if (comrng.end() < (address)rng.physical_address) {
+          output->print_cr("MISSING CR");
+          NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
+          output->print("\n\t");
+          print_virtual_memory_region("committed", comrng.start, comrng.size);
+          if (stack.is_empty()) {
+            output->print_cr(" ");
+          } else {
+            output->print_cr(" from");
+            stack.print_on(output, 12);
+          }
+          // This committed region has no reserved region
+        } else {
+          // We've stopped seeing overlaps for this range, so we can now break
+          break;
+        }
+        cursor++;
+      }
+      output->set_indentation(0);
     }
+    output->print_cr("Printed CR:s %d, Total CR:s %d", printed_committed_regions, comm_regs.length());
   }
+
 };
 
 // Main class called from MemTracker to track virtual memory allocations, commits and releases.
