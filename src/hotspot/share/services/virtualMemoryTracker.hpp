@@ -363,17 +363,22 @@ class ReservedMemoryRegion : public VirtualMemoryRegion {
 
 int compare_reserved_region_base(const ReservedMemoryRegion& r1, const ReservedMemoryRegion& r2);
 
-/*
-  Some ideas of potential things that can improve the situation:
-  1. We currently only compress committed regions.
-     This is not as trivial for the reserved regions, you need to check that both the physical_address and address are adjacent
-     to each other and also test the flag.
- */
 class VirtualMemoryWalker : public StackObj {
  public:
    virtual bool do_allocation_site(const ReservedMemoryRegion* rgn) { return false; }
 };
 
+/*
+  Some ideas of potential things that can improve the situation:
+  1. We currently only compress committed regions.
+     This is not as trivial for the reserved regions, you need to check that both the physical_address and address are adjacent
+     to each other and also test the flag.
+  2. Insertion sort is online, stable, and fast on almost sorted input.
+     It might be worth doing it explicitly?
+  3. There is a special but slower online algorithm for reporting offset ranges. It's probably worth it to optimize the common case here.
+  4. Switch offset to address.
+  5. Optimize memory usage for the committed memory down to 24 bytes.
+ */
 class NewVirtualMemoryTracker {
    using Id = uint32_t;
 public:
@@ -386,6 +391,7 @@ public:
     }
    };
 
+  // Some memory range
   struct Range {
     address start;
     size_t size;
@@ -395,18 +401,21 @@ public:
       return start + size;
     }
   };
+  // Add tracking information
   struct TrackedRange : public Range {
-    size_t physical_address; // What address into the PhysicalMemorySpace does start point to?
     int stack_idx; // From whence did this happen?
-    MEMFLAGS flag; // What flag does it have?
-    TrackedRange(address start = 0, size_t size = 0, size_t physical_address = 0, int stack_idx = -1, MEMFLAGS flag = mtNone)
-    :  Range(start, size),
-       physical_address(physical_address),
-       stack_idx(stack_idx),
-       flag(flag) {
-    }
-    TrackedRange(const TrackedRange& rng) = default;
-    TrackedRange& operator=(const TrackedRange& rng) {
+    MEMFLAGS flag; // What flag does it have? -- Might be mtNone
+    TrackedRange(address start, size_t size, int stack_idx, MEMFLAGS flag) :
+      Range(start, size), stack_idx(stack_idx), flag(flag) {}
+  };
+  // Give it the possibility of being offset
+  struct TrackedOffsetRange : public TrackedRange {
+    size_t physical_address;
+    TrackedOffsetRange(address start = 0, size_t size = 0, size_t physical_address = 0, int stack_idx = -1, MEMFLAGS flag = mtNone)
+      :  TrackedRange(start, size, stack_idx, flag),
+         physical_address(physical_address) {}
+    TrackedOffsetRange(const TrackedOffsetRange& rng) = default;
+    TrackedOffsetRange& operator=(const TrackedOffsetRange& rng) {
       this->start = rng.start;
       this->size = rng.size;
       this->physical_address = rng.physical_address;
@@ -414,13 +423,13 @@ public:
       this->flag = rng.flag;
       return *this;
     }
-    TrackedRange(TrackedRange&& rng)
-      : Range(rng.start, rng.size), physical_address(rng.physical_address), stack_idx(rng.stack_idx), flag(rng.flag) {}
+    TrackedOffsetRange(TrackedOffsetRange&& rng)
+      : TrackedRange(rng.start, rng.size, rng.stack_idx, rng.flag), physical_address(rng.physical_address) {}
 
     size_t physical_end() {
       return physical_address + size;
     }
-   };
+  };
 
 private:
 
@@ -428,7 +437,7 @@ private:
   // Returns true if an overlap was found and will fill the out array with at most 2 elements.
   // The integer pointed to by len will be  set to the number of resulting TrackedRanges.
   // The physical address is managed appropriately for the out array.
-  static bool overlap_of(TrackedRange to_split, Range to_remove, TrackedRange* out, int* len) {
+  static bool overlap_of(TrackedOffsetRange to_split, Range to_remove, TrackedOffsetRange* out, int* len) {
     const auto a = to_split.start; const auto b = to_split.end();
     const auto c = to_remove.start; const auto d = to_remove.end();
     /*
@@ -453,13 +462,13 @@ private:
       address left_start = a;
       size_t left_size = static_cast<size_t>(c - a);
       size_t left_offset = to_split.physical_address;
-      out[0] = TrackedRange{left_start, left_size , to_split.physical_address, to_split.stack_idx, to_split.flag};
+      out[0] = TrackedOffsetRange{left_start, left_size , to_split.physical_address, to_split.stack_idx, to_split.flag};
       address right_start = d;
       size_t right_size = static_cast<size_t>((a + to_split.size) - right_start);
       size_t right_offset =
           to_split.physical_address +
           (right_start - left_start); // How far along have we traversed into our offset?
-      out[1] = TrackedRange{right_start, right_size, right_offset, to_split.stack_idx, to_split.flag};
+      out[1] = TrackedOffsetRange{right_start, right_size, right_offset, to_split.stack_idx, to_split.flag};
       return true;
     }
     // Overlap from the left -- We end up with one region on the right
@@ -470,11 +479,11 @@ private:
      */
     if (c <= a && d > a && d < b) {
       *len = 1;
-      out[0] = TrackedRange{d, static_cast<size_t>(b - d),
+      out[0] = TrackedOffsetRange{d, static_cast<size_t>(b - d),
                             to_split.physical_address + (d - a), to_split.stack_idx, to_split.flag};
       return true;
     }
-    // overlap from the right
+    // Overlap from the right
     /*
       a   b       a  c
       | | |  | => |  |
@@ -482,7 +491,7 @@ private:
      */
     if (a < c && c < b && b <= d) {
       *len = 1;
-      out[0] = TrackedRange{a, static_cast<size_t>(c - a), to_split.physical_address, to_split.stack_idx, to_split.flag};
+      out[0] = TrackedOffsetRange{a, static_cast<size_t>(c - a), to_split.physical_address, to_split.stack_idx, to_split.flag};
       return true;
     }
     // No overlap at all
@@ -490,7 +499,8 @@ private:
     return false;
    }
 
-  using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
+  // TODO: Optimize for regular reserved/committed memory just like we have it in current VMT
+  using RegionStorage = GrowableArrayCHeap<TrackedOffsetRange, mtNMT>;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* reserved_regions;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
 
@@ -500,7 +510,7 @@ private:
     int len = all_the_stacks->length();
     int idx = stack.calculate_hash() % static_stack_size;
     if (len < idx) {
-      all_the_stacks->at_put(idx, stack);
+      all_the_stacks->at_put_grow(idx, stack);
       return idx;
     }
     // Exists and already there? No need for double storage
@@ -532,14 +542,14 @@ public:
   static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size, size_t offset,
                                   MEMFLAGS flag, const NativeCallStack& stack) {
     int idx = push_stack(stack);
-    reserved_regions->at(space.id).push(TrackedRange{base_addr, size, offset, idx, flag});
+    reserved_regions->at(space.id).push(TrackedOffsetRange{base_addr, size, offset, idx, flag});
   }
 
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
     RegionStorage& range_array = reserved_regions->at(space.id);
     for (int i = 0; i < range_array.length(); i++) {
-      TrackedRange out[2];
+      TrackedOffsetRange out[2];
       int len;
       bool has_overlap = overlap_of(range_array.at(i), range_to_remove, out, &len);
       if (has_overlap) {
@@ -560,11 +570,11 @@ public:
   static void set_view_region_type(const PhysicalMemorySpace& space, address base_addr, MEMFLAGS flag) {
     RegionStorage& range_array = reserved_regions->at(space.id);
     for (int i = 0; i < range_array.length(); i++) {
-      TrackedRange* r = range_array.adr_at(i);
+      TrackedOffsetRange* r = range_array.adr_at(i);
       // Must be mtNone
       if (r->start == base_addr && r->flag == mtNone) {
         // Found it. Make a copy and push to correct flag
-        TrackedRange copy{*r};
+        TrackedOffsetRange copy{*r};
         copy.flag = flag;
         range_array.push(copy);
         // Delete old one.
@@ -581,22 +591,23 @@ public:
     // Small optimization: Is the next commit adjacent to the last one? Then we don't need to push.
     // Metaspace does a lot of commits and hits this branch a lot.
     if (crngs.length() > 0) {
-      TrackedRange& crng = crngs.at(crngs.length() - 1);
+      TrackedOffsetRange& crng = crngs.at(crngs.length() - 1);
       if (crng.end() >= (address)offset &&
           all_the_stacks->at(crng.stack_idx).equals(stack)) {
         crng.size = (offset + size) - (size_t)crng.start;
         return;
       }
     }
+    // TODO: Are we about to resize the array? Then we can probably get away with doing a sort+merge, and checking if the resize is still necessary.
     int idx = push_stack(stack);
-    crngs.push(TrackedRange{(address)offset, size, offset, idx});
+    crngs.push(TrackedOffsetRange{(address)offset, size, offset, idx});
   }
 
   static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size) {
     Range range_to_remove{(address)offset, size};
     RegionStorage& commits = committed_regions->at(space.id);
     for (int i = 0; i < commits.length(); i++) {
-      TrackedRange out[2];
+      TrackedOffsetRange out[2];
       int len;
       bool has_overlap = overlap_of(commits.at(i), range_to_remove, out, &len);
       if (has_overlap) {
@@ -625,8 +636,8 @@ private:
     int j = 0;
     merged_ranges.push(ranges.at(j));
     for (int i = 1; i < rlen; i++) {
-      TrackedRange& merging_range = merged_ranges.at(j);
-      TrackedRange& potential_range = ranges.at(i);
+      TrackedOffsetRange& merging_range = merged_ranges.at(j);
+      TrackedOffsetRange& potential_range = ranges.at(i);
       if (merging_range.end() >= potential_range.start // There's overlap, known because of pre-condition
           && all_the_stacks->at(merging_range.stack_idx).equals(all_the_stacks->at(potential_range.stack_idx))) {
         // Merge it
@@ -637,6 +648,12 @@ private:
       }
     }
     return merged_ranges;
+  }
+
+  static void sort_regions(RegionStorage& storage) {
+    storage.sort([](TrackedOffsetRange* a, TrackedOffsetRange* b) -> int {
+      return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
+    });
   }
 public:
 
@@ -653,19 +670,15 @@ public:
     };
     for (uint32_t space_id = 0; space_id < static_cast<uint32_t>(reserved_regions->length()); space_id++) {
       output->print_cr("Virtual memory map of space %d:", space_id);
-      committed_regions->at(space_id).sort([](TrackedRange* a, TrackedRange* b) -> int {
-        return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
-      });
+      sort_regions(committed_regions->at(space_id));
       RegionStorage comm_regs = merge_committed(committed_regions->at(space_id));
       int printed_committed_regions = 0;
       // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
       int cursor = 0;
       RegionStorage& res_regs = reserved_regions->at(space_id);
-      res_regs.sort([](TrackedRange* a, TrackedRange* b) -> int {
-        return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
-      });
+      sort_regions(res_regs);
       for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-        TrackedRange& rng = res_regs.at(res_reg_idx);
+        TrackedOffsetRange& rng = res_regs.at(res_reg_idx);
         NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
         output->print_cr(" "); // Imitating
         print_virtual_memory_region("reserved", rng.start, rng.size);
@@ -679,7 +692,7 @@ public:
         // Track whether we've started overlapping
         // Any committed region that isn't matched while found_one_overlap is false has no overlapping reserved region.
         while (cursor < comm_regs.length()) {
-          TrackedRange& comrng = comm_regs.at(cursor);
+          TrackedOffsetRange& comrng = comm_regs.at(cursor);
           if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
             NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
             output->print("\n\t");
