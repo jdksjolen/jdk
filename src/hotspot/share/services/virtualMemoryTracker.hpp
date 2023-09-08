@@ -437,7 +437,14 @@ private:
   // Returns true if an overlap was found and will fill the out array with at most 2 elements.
   // The integer pointed to by len will be  set to the number of resulting TrackedRanges.
   // The physical address is managed appropriately for the out array.
-  static bool overlap_of(TrackedOffsetRange to_split, Range to_remove, TrackedOffsetRange* out, int* len) {
+  enum class OverlappingResult {
+    NoOverlap,
+    EntirelyEnclosed,
+    SplitInMiddle,
+    ShortenedFromLeft,
+    ShortenedFromRight,
+  };
+  static OverlappingResult overlap_of(TrackedOffsetRange to_split, Range to_remove, TrackedOffsetRange* out, int* len) {
     const auto a = to_split.start; const auto b = to_split.end();
     const auto c = to_remove.start; const auto d = to_remove.end();
     /*
@@ -449,7 +456,7 @@ private:
      */
     if (a >= c && b <= d) {
       *len = 0;
-      return true;
+      return OverlappingResult::EntirelyEnclosed;
     }
     // to_remove enclosed entirely by to_split -- we end up with two ranges and a hole in the middle
     /*
@@ -469,7 +476,7 @@ private:
           to_split.physical_address +
           (right_start - left_start); // How far along have we traversed into our offset?
       out[1] = TrackedOffsetRange{right_start, right_size, right_offset, to_split.stack_idx, to_split.flag};
-      return true;
+      return OverlappingResult::SplitInMiddle;
     }
     // Overlap from the left -- We end up with one region on the right
     /*
@@ -481,7 +488,7 @@ private:
       *len = 1;
       out[0] = TrackedOffsetRange{d, static_cast<size_t>(b - d),
                             to_split.physical_address + (d - a), to_split.stack_idx, to_split.flag};
-      return true;
+      return OverlappingResult::ShortenedFromLeft;
     }
     // Overlap from the right
     /*
@@ -492,11 +499,11 @@ private:
     if (a < c && c < b && b <= d) {
       *len = 1;
       out[0] = TrackedOffsetRange{a, static_cast<size_t>(c - a), to_split.physical_address, to_split.stack_idx, to_split.flag};
-      return true;
+      return OverlappingResult::ShortenedFromRight;
     }
     // No overlap at all
     *len = 0;
-    return false;
+    return OverlappingResult::NoOverlap;
    }
 
   // TODO: Optimize for regular reserved/committed memory just like we have it in current VMT
@@ -551,7 +558,7 @@ public:
     for (int i = 0; i < range_array.length(); i++) {
       TrackedOffsetRange out[2];
       int len;
-      bool has_overlap = overlap_of(range_array.at(i), range_to_remove, out, &len);
+      bool has_overlap = OverlappingResult::NoOverlap != overlap_of(range_array.at(i), range_to_remove, out, &len);
       if (has_overlap) {
         // Delete old region.
         range_array.delete_at(i);
@@ -609,7 +616,7 @@ public:
     for (int i = 0; i < commits.length(); i++) {
       TrackedOffsetRange out[2];
       int len;
-      bool has_overlap = overlap_of(commits.at(i), range_to_remove, out, &len);
+      bool has_overlap = OverlappingResult::NoOverlap != overlap_of(commits.at(i), range_to_remove, out, &len);
       if (has_overlap) {
         // Delete old region.
         commits.delete_at(i);
@@ -741,6 +748,10 @@ public:
         // TODO: We don't need to loop over everything here and can break early, but that's an optimization for another day.
       }
     };
+    // This is unfortunately broken.
+    // The reason that this is broken is that the time-of-add matters.
+    // So we either need to add a time component to the offset range *or* we need to perform a lot more work
+    // for the regions
     for (Id space_id = virt_mem.id+1; space_id < PhysicalMemorySpace::unique_id; space_id++) {
       RegionStorage& res_regs = reserved_regions->at(space_id);
       RegionStorage& com_regs = committed_regions->at(space_id);
@@ -752,17 +763,15 @@ public:
         while (res_cursor < res_regs.length()) {
           TrackedOffsetRange& pot_overlap = res_regs.at(res_cursor);
           TrackedOffsetRange out[2]; int len;
-          bool has_overlap = overlap_of(rgn, {pot_overlap.start, pot_overlap.size}, out, &len);
-          if (has_overlap) {
-            // Inspect the overlapping regions and figure that out...
-            // Really overlap_of has all of this information already :-(
-            // Then print each and continue until there is no overlap
-          } else {
+          OverlappingResult overlap = overlap_of(rgn, {pot_overlap.start, pot_overlap.size}, out, &len);
+          if (overlap == OverlappingResult::NoOverlap) {
             output->print_cr("Print rgn here!");
             for (int i = 0; i < com_regs.length(); i++) {
               // Fin
             }
             break;
+          } else if (overlap == OverlappingResult::EntirelyEnclosed) {
+            // They are exactly the same -- just print one and skip 
           }
         }
       }
