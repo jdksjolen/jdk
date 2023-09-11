@@ -375,7 +375,6 @@ class VirtualMemoryWalker : public StackObj {
      to each other and also test the flag.
   2. Insertion sort is online, stable, and fast on almost sorted input.
      It might be worth doing it explicitly?
-  3. There is a special but slower online algorithm for reporting offset ranges. It's probably worth it to optimize the common case here.
   4. Switch offset to address.
   5. Optimize memory usage for the committed memory down to 24 bytes.
  */
@@ -404,7 +403,7 @@ public:
   // Add tracking information
   struct TrackedRange : public Range { // Currently unused, but can be used by the old API and all committed memory
     int stack_idx; // From whence did this happen?
-    MEMFLAGS flag; // What flag does it have? -- Might be mtNone
+    MEMFLAGS flag; // What flag does it have? Guaranteed to be mtNone for committed range.
     TrackedRange(address start, size_t size, int stack_idx, MEMFLAGS flag) :
       Range(start, size), stack_idx(stack_idx), flag(flag) {}
   };
@@ -413,7 +412,9 @@ public:
     size_t physical_address;
     TrackedOffsetRange(address start = 0, size_t size = 0, size_t physical_address = 0, int stack_idx = -1, MEMFLAGS flag = mtNone)
       :  TrackedRange(start, size, stack_idx, flag),
-         physical_address(physical_address) {}
+      physical_address(physical_address) {}
+    explicit TrackedOffsetRange(TrackedRange& rng)
+    : TrackedOffsetRange(rng.start, rng.size, (size_t)rng.start, rng.stack_idx, rng.flag) {}
     TrackedOffsetRange(const TrackedOffsetRange& rng) = default;
     TrackedOffsetRange& operator=(const TrackedOffsetRange& rng) {
       this->start = rng.start;
@@ -507,8 +508,9 @@ private:
    }
 
   // TODO: Optimize for regular reserved/committed memory just like we have it in current VMT
-  using RegionStorage = GrowableArrayCHeap<TrackedOffsetRange, mtNMT>;
-  static GrowableArrayCHeap<RegionStorage, mtNMT>* reserved_regions;
+  using OffsetRegionStorage = GrowableArrayCHeap<TrackedOffsetRange, mtNMT>;
+  using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
+  static GrowableArrayCHeap<OffsetRegionStorage, mtNMT>* reserved_regions;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
 
   static constexpr const int static_stack_size = 256;
@@ -537,15 +539,15 @@ private:
   // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
   // 1. Their NativeCallStacks are the same
   // 2. Their starts align correctly
-  static RegionStorage merge_committed(RegionStorage& ranges) {
+  static RegionStorage merge_committed(OffsetRegionStorage& ranges) {
     RegionStorage merged_ranges;
     auto rlen = ranges.length();
     if (rlen == 0) return merged_ranges;
     int j = 0;
     merged_ranges.push(ranges.at(j));
     for (int i = 1; i < rlen; i++) {
-      TrackedOffsetRange& merging_range = merged_ranges.at(j);
-      TrackedOffsetRange& potential_range = ranges.at(i);
+      TrackedRange& merging_range = merged_ranges.at(j);
+      TrackedRange& potential_range = ranges.at(i);
       if (merging_range.end() >=
               potential_range.start // There's overlap, known because of pre-condition
           && all_the_stacks->at(merging_range.stack_idx)
@@ -560,17 +562,23 @@ private:
     return merged_ranges;
   }
 
-  static void sort_regions(RegionStorage& storage) {
+  static void sort_regions(OffsetRegionStorage& storage) {
     storage.sort([](TrackedOffsetRange* a, TrackedOffsetRange* b) -> int {
-      return (a->physical_address > b->physical_address) -
-             (a->physical_address < b->physical_address);
+      return (a->start > b->start) -
+             (a->start < b->start);
+    });
+  }
+  static void sort_regions(RegionStorage& storage) {
+    storage.sort([](TrackedRange* a, TrackedRange* b) -> int {
+      return (a->start > b->start) -
+             (a->start < b->start);
     });
   }
 
 public:
   static PhysicalMemorySpace virt_mem;
   static void init() {
-    reserved_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
+    reserved_regions = new GrowableArrayCHeap<OffsetRegionStorage, mtNMT>{5};
     committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
     all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{static_stack_size};
     virt_mem = register_space();
@@ -578,8 +586,8 @@ public:
 
    static PhysicalMemorySpace register_space() {
      const  PhysicalMemorySpace next_space = PhysicalMemorySpace{PhysicalMemorySpace::next_unique()};
-     reserved_regions->at_ref_grow(next_space.id, [](RegionStorage* p) -> void {
-      ::new (p) RegionStorage{128};
+     reserved_regions->at_ref_grow(next_space.id, [](OffsetRegionStorage* p) -> void {
+      ::new (p) OffsetRegionStorage{128};
      });
      committed_regions->at_ref_grow(next_space.id, [](RegionStorage* p) -> void {
       ::new (p) RegionStorage{128};
@@ -589,7 +597,7 @@ public:
   static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
                                   size_t offset, MEMFLAGS flag, const NativeCallStack& stack) {
      int stack_idx = push_stack(stack);
-     RegionStorage& rngs = reserved_regions->at(space.id);
+     OffsetRegionStorage& rngs = reserved_regions->at(space.id);
      if (space.id == virt_mem.id) {
        // In this case we know that we're following the old API. That is, the offset and physical address matches 1:1
        // this is basically trivial?
@@ -616,7 +624,7 @@ public:
 
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
-    RegionStorage& range_array = reserved_regions->at(space.id);
+    OffsetRegionStorage& range_array = reserved_regions->at(space.id);
     for (int i = 0; i < range_array.length(); i++) {
       TrackedOffsetRange out[2];
       int len;
@@ -637,7 +645,7 @@ public:
   }
 
   static void set_view_region_type(const PhysicalMemorySpace& space, address base_addr, MEMFLAGS flag) {
-    RegionStorage& range_array = reserved_regions->at(space.id);
+    OffsetRegionStorage& range_array = reserved_regions->at(space.id);
     for (int i = 0; i < range_array.length(); i++) {
       TrackedOffsetRange* r = range_array.adr_at(i);
       // Must be mtNone
@@ -660,7 +668,7 @@ public:
     // Small optimization: Is the next commit adjacent to the last one? Then we don't need to push.
     // Metaspace does a lot of commits and hits this branch a lot.
     if (crngs.length() > 0) {
-      TrackedOffsetRange& crng = crngs.at(crngs.length() - 1);
+      TrackedRange& crng = crngs.at(crngs.length() - 1);
       if (crng.end() >= (address)offset &&
           all_the_stacks->at(crng.stack_idx).equals(stack)) {
         crng.size = (offset + size) - (size_t)crng.start;
@@ -669,7 +677,7 @@ public:
     }
     // TODO: Are we about to resize the array? Then we can probably get away with doing a sort+merge, and checking if the resize is still necessary.
     int idx = push_stack(stack);
-    crngs.push(TrackedOffsetRange{(address)offset, size, offset, idx});
+    crngs.push(TrackedRange{(address)offset, size, idx, mtNone});
   }
 
   static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size) {
@@ -678,7 +686,7 @@ public:
     for (int i = 0; i < commits.length(); i++) {
       TrackedOffsetRange out[2];
       int len;
-      bool has_overlap = OverlappingResult::NoOverlap != overlap_of(commits.at(i), range_to_remove, out, &len);
+      bool has_overlap = OverlappingResult::NoOverlap != overlap_of(TrackedOffsetRange{commits.at(i)}, range_to_remove, out, &len);
       if (has_overlap) {
         // Delete old region.
         commits.delete_at(i);
@@ -711,7 +719,7 @@ public:
     int printed_committed_regions = 0;
     // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
     int cursor = 0;
-    RegionStorage& res_regs = reserved_regions->at(space_id);
+    OffsetRegionStorage& res_regs = reserved_regions->at(space_id);
     sort_regions(res_regs);
     for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
       TrackedOffsetRange& rng = res_regs.at(res_reg_idx);
@@ -728,7 +736,7 @@ public:
       // Track whether we've started overlapping
       // Any committed region that isn't matched while found_one_overlap is false has no overlapping reserved region.
       while (cursor < comm_regs.length()) {
-        TrackedOffsetRange& comrng = comm_regs.at(cursor);
+        TrackedRange& comrng = comm_regs.at(cursor);
         if (overlaps(Range{(address)rng.physical_address, rng.size}, Range{comrng.start, comrng.size})) {
           NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
           output->print("\n\t");
@@ -768,14 +776,14 @@ public:
   static void report(outputStream* output) {
     const auto print_committed_memory = [&](TrackedOffsetRange& rgn, RegionStorage& com_rngs) {
       for (int i = 0; i < com_rngs.length(); i++) {
-        TrackedOffsetRange& crange = com_rngs.at(i);
+        TrackedRange& crange = com_rngs.at(i);
         if (overlaps(Range{(address)rgn.physical_address, rgn.size}, Range{crange.start, crange.size})) {
           output->print_cr("Print the CR here");
         }
       }
     };
     for (Id space_id = virt_mem.id+1; space_id < PhysicalMemorySpace::unique_id; space_id++) {
-      RegionStorage& res_rngs = reserved_regions->at(space_id);
+      OffsetRegionStorage& res_rngs = reserved_regions->at(space_id);
       RegionStorage& com_rngs = committed_regions->at(space_id);
       sort_regions(res_rngs);
       sort_regions(com_rngs);

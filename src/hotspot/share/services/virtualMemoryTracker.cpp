@@ -34,7 +34,7 @@
 
 uint32_t NewVirtualMemoryTracker::PhysicalMemorySpace::unique_id = 0;
 NewVirtualMemoryTracker::PhysicalMemorySpace NewVirtualMemoryTracker::virt_mem{};
-GrowableArrayCHeap<NewVirtualMemoryTracker::RegionStorage, mtNMT>* NewVirtualMemoryTracker::reserved_regions = nullptr;
+GrowableArrayCHeap<NewVirtualMemoryTracker::OffsetRegionStorage, mtNMT>* NewVirtualMemoryTracker::reserved_regions = nullptr;
 GrowableArrayCHeap<NewVirtualMemoryTracker::RegionStorage, mtNMT>* NewVirtualMemoryTracker::committed_regions = nullptr;
 GrowableArrayCHeap<NativeCallStack, mtNMT>* NewVirtualMemoryTracker::all_the_stacks = nullptr;
 
