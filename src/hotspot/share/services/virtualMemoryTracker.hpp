@@ -766,41 +766,22 @@ public:
   // Report all memory maps except the first one. The major difference being that this
   // can have offsets, which the first one doesn't have.
   static void report(outputStream* output) {
-    const auto print_committed_memory = [&](TrackedOffsetRange& rgn, RegionStorage& comm_regs) {
-      for (int i = 0; i < comm_regs.length(); i++) {
-        TrackedOffsetRange& crange = comm_regs.at(i);
+    const auto print_committed_memory = [&](TrackedOffsetRange& rgn, RegionStorage& com_rngs) {
+      for (int i = 0; i < com_rngs.length(); i++) {
+        TrackedOffsetRange& crange = com_rngs.at(i);
         if (overlaps(Range{(address)rgn.physical_address, rgn.size}, Range{crange.start, crange.size})) {
           output->print_cr("Print the CR here");
         }
-        // TODO: We don't need to loop over everything here and can break early, but that's an optimization for another day.
       }
     };
-    // This is unfortunately broken.
-    // The reason that this is broken is that the time-of-add matters.
-    // So we either need to add a time component to the offset range *or* we need to perform a lot more work
-    // for the regions
     for (Id space_id = virt_mem.id+1; space_id < PhysicalMemorySpace::unique_id; space_id++) {
-      RegionStorage& res_regs = reserved_regions->at(space_id);
-      RegionStorage& com_regs = committed_regions->at(space_id);
-      sort_regions(res_regs);
-      sort_regions(com_regs);
-      for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-        TrackedOffsetRange rgn = res_regs.at(res_reg_idx);
-        int res_cursor = res_reg_idx+1; // off-by-1
-        while (res_cursor < res_regs.length()) {
-          TrackedOffsetRange& pot_overlap = res_regs.at(res_cursor);
-          TrackedOffsetRange out[2]; int len;
-          OverlappingResult overlap = overlap_of(rgn, {pot_overlap.start, pot_overlap.size}, out, &len);
-          if (overlap == OverlappingResult::NoOverlap) {
-            output->print_cr("Print rgn here!");
-            for (int i = 0; i < com_regs.length(); i++) {
-              // Fin
-            }
-            break;
-          } else if (overlap == OverlappingResult::EntirelyEnclosed) {
-            // They are exactly the same -- just print one and skip 
-          }
-        }
+      RegionStorage& res_rngs = reserved_regions->at(space_id);
+      RegionStorage& com_rngs = committed_regions->at(space_id);
+      sort_regions(res_rngs);
+      sort_regions(com_rngs);
+      for (int res_rng_idx = 0; res_rng_idx < res_rngs.length(); res_rng_idx++) {
+        TrackedOffsetRange& res = res_rngs.at(res_rng_idx);
+        print_committed_memory(res, com_rngs);
       }
     }
   }
