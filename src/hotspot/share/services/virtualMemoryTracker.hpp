@@ -539,7 +539,7 @@ private:
   // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
   // 1. Their NativeCallStacks are the same
   // 2. Their starts align correctly
-  static RegionStorage merge_committed(OffsetRegionStorage& ranges) {
+  static RegionStorage merge_committed(RegionStorage& ranges) {
     RegionStorage merged_ranges;
     auto rlen = ranges.length();
     if (rlen == 0) return merged_ranges;
