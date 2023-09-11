@@ -402,7 +402,7 @@ public:
     }
   };
   // Add tracking information
-  struct TrackedRange : public Range {
+  struct TrackedRange : public Range { // Currently unused, but can be used by the old API and all committed memory
     int stack_idx; // From whence did this happen?
     MEMFLAGS flag; // What flag does it have? -- Might be mtNone
     TrackedRange(address start, size_t size, int stack_idx, MEMFLAGS flag) :
@@ -527,6 +527,46 @@ private:
     all_the_stacks->push(stack);
     return len;
   }
+
+  // Utilities
+  static bool overlaps(Range a, Range b) {
+    return MAX2(b.start, a.start) < MIN2(b.end(), a.end());
+  }
+  // Pre-condition: ranges is sorted in a left-aligned fashion
+  // That is: (a,b) comes before (c,d) if a <= c
+  // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
+  // 1. Their NativeCallStacks are the same
+  // 2. Their starts align correctly
+  static RegionStorage merge_committed(RegionStorage& ranges) {
+    RegionStorage merged_ranges;
+    auto rlen = ranges.length();
+    if (rlen == 0) return merged_ranges;
+    int j = 0;
+    merged_ranges.push(ranges.at(j));
+    for (int i = 1; i < rlen; i++) {
+      TrackedOffsetRange& merging_range = merged_ranges.at(j);
+      TrackedOffsetRange& potential_range = ranges.at(i);
+      if (merging_range.end() >=
+              potential_range.start // There's overlap, known because of pre-condition
+          && all_the_stacks->at(merging_range.stack_idx)
+                 .equals(all_the_stacks->at(potential_range.stack_idx))) {
+        // Merge it
+        merging_range.size = potential_range.end() - merging_range.start;
+      } else {
+        j++;
+        merged_ranges.push(potential_range);
+      }
+    }
+    return merged_ranges;
+  }
+
+  static void sort_regions(RegionStorage& storage) {
+    storage.sort([](TrackedOffsetRange* a, TrackedOffsetRange* b) -> int {
+      return (a->physical_address > b->physical_address) -
+             (a->physical_address < b->physical_address);
+    });
+  }
+
 public:
   static PhysicalMemorySpace virt_mem;
   static void init() {
@@ -546,10 +586,32 @@ public:
      });
      return next_space;
   }
-  static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size, size_t offset,
-                                  MEMFLAGS flag, const NativeCallStack& stack) {
-    int idx = push_stack(stack);
-    reserved_regions->at(space.id).push(TrackedOffsetRange{base_addr, size, offset, idx, flag});
+  static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
+                                  size_t offset, MEMFLAGS flag, const NativeCallStack& stack) {
+     int stack_idx = push_stack(stack);
+     RegionStorage& rngs = reserved_regions->at(space.id);
+     if (space.id == virt_mem.id) {
+       // In this case we know that we're following the old API. That is, the offset and physical address matches 1:1
+       // this is basically trivial?
+      rngs.push(TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
+      return;
+     }
+     // More complicated case -- we need to find overlapping regions and split on them.
+     for (int i = 0; i < rngs.length(); i++) {
+      TrackedOffsetRange& rng = rngs.at(i);
+      TrackedOffsetRange out[2];
+      int len;
+      OverlappingResult res = overlap_of(rng, Range{base_addr, size}, out, &len);
+      if (res == OverlappingResult::NoOverlap) {
+        // Do nothing
+      } else if (res == OverlappingResult::EntirelyEnclosed) {
+        // We replace it.
+        rngs.at_put(i, TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
+        for (int j = 0; j < len; j++) {
+          rngs.push(out[j]);
+        }
+      }
+     }
   }
 
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
@@ -627,41 +689,6 @@ public:
     }
   }
 
-private:
-  static bool overlaps(Range a, Range b) {
-    return MAX2(b.start, a.start) < MIN2(b.end(), a.end());
-  }
-  // Pre-condition: ranges is sorted in a left-aligned fashion
-  // That is: (a,b) comes before (c,d) if a <= c
-  // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
-  // 1. Their NativeCallStacks are the same
-  // 2. Their starts align correctly
-  static RegionStorage merge_committed(RegionStorage& ranges) {
-    RegionStorage merged_ranges;
-    auto rlen = ranges.length();
-    if (rlen == 0) return merged_ranges;
-    int j = 0;
-    merged_ranges.push(ranges.at(j));
-    for (int i = 1; i < rlen; i++) {
-      TrackedOffsetRange& merging_range = merged_ranges.at(j);
-      TrackedOffsetRange& potential_range = ranges.at(i);
-      if (merging_range.end() >= potential_range.start // There's overlap, known because of pre-condition
-          && all_the_stacks->at(merging_range.stack_idx).equals(all_the_stacks->at(potential_range.stack_idx))) {
-        // Merge it
-        merging_range.size = potential_range.end() - merging_range.start;
-      } else {
-        j++;
-        merged_ranges.push(potential_range);
-      }
-    }
-    return merged_ranges;
-  }
-
-  static void sort_regions(RegionStorage& storage) {
-    storage.sort([](TrackedOffsetRange* a, TrackedOffsetRange* b) -> int {
-      return (a->physical_address > b->physical_address) - (a->physical_address < b->physical_address);
-    });
-  }
 public:
 
   /*
