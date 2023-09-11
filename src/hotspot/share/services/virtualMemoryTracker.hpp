@@ -404,7 +404,7 @@ public:
   struct TrackedRange : public Range { // Currently unused, but can be used by the old API and all committed memory
     int stack_idx; // From whence did this happen?
     MEMFLAGS flag; // What flag does it have? Guaranteed to be mtNone for committed range.
-    TrackedRange(address start, size_t size, int stack_idx, MEMFLAGS flag) :
+    TrackedRange(address start = 0, size_t size = 0, int stack_idx = -1, MEMFLAGS flag = mtNone) :
       Range(start, size), stack_idx(stack_idx), flag(flag) {}
   };
   // Give it the possibility of being offset
