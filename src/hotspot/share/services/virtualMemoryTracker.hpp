@@ -375,7 +375,7 @@ class VirtualMemoryWalker : public StackObj {
      to each other and also test the flag.
   2. Insertion sort is online, stable, and fast on almost sorted input.
      It might be worth doing it explicitly?
-  4. Switch offset to address.
+  3. Use specific storage for virt_mem reserved regions, as these can be stored in TrackedRange.
  */
 class NewVirtualMemoryTracker {
    using Id = uint32_t;
@@ -408,12 +408,12 @@ public:
   };
   // Give it the possibility of being offset
   struct TrackedOffsetRange : public TrackedRange {
-    size_t physical_address;
-    TrackedOffsetRange(address start = 0, size_t size = 0, size_t physical_address = 0, int stack_idx = -1, MEMFLAGS flag = mtNone)
+    address physical_address;
+    TrackedOffsetRange(address start = 0, size_t size = 0, address physical_address = 0, int stack_idx = -1, MEMFLAGS flag = mtNone)
       :  TrackedRange(start, size, stack_idx, flag),
       physical_address(physical_address) {}
     explicit TrackedOffsetRange(TrackedRange& rng)
-    : TrackedOffsetRange(rng.start, rng.size, (size_t)rng.start, rng.stack_idx, rng.flag) {}
+    : TrackedOffsetRange(rng.start, rng.size, rng.start, rng.stack_idx, rng.flag) {}
     TrackedOffsetRange(const TrackedOffsetRange& rng) = default;
     TrackedOffsetRange& operator=(const TrackedOffsetRange& rng) {
       this->start = rng.start;
@@ -426,7 +426,7 @@ public:
     TrackedOffsetRange(TrackedOffsetRange&& rng)
       : TrackedRange(rng.start, rng.size, rng.stack_idx, rng.flag), physical_address(rng.physical_address) {}
 
-    size_t physical_end() {
+    address physical_end() {
       return physical_address + size;
     }
   };
@@ -475,15 +475,15 @@ public:
 
   static PhysicalMemorySpace register_space();
   static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
-                                  size_t offset, MEMFLAGS flag, const NativeCallStack& stack);
+                                  address offset, MEMFLAGS flag, const NativeCallStack& stack);
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr,
                                      size_t size);
   static void remove_all_views_into_space(const PhysicalMemorySpace& space);
   static void set_view_region_type(const PhysicalMemorySpace& space, address base_addr,
                                    MEMFLAGS flag);
-  static void commit_memory_into_space(const PhysicalMemorySpace& space, size_t offset, size_t size,
+  static void commit_memory_into_space(const PhysicalMemorySpace& space, address offset, size_t size,
                                        const NativeCallStack& stack);
-  static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset,
+  static void uncommit_memory_into_space(const PhysicalMemorySpace& space, address offset,
                                          size_t size);
 
   static void add_reserved_region(address base_addr, size_t size, const NativeCallStack& stack,
@@ -498,10 +498,10 @@ public:
   }
 
   static void add_committed_region(address base_addr, size_t size, const NativeCallStack& stack) {
-    commit_memory_into_space(virt_mem, (size_t)base_addr, size, stack);
+    commit_memory_into_space(virt_mem, base_addr, size, stack);
   }
   static void remove_uncommitted_region(address base_addr, size_t size) {
-    uncommit_memory_into_space(virt_mem, (size_t)base_addr, size);
+    uncommit_memory_into_space(virt_mem, base_addr, size);
   }
 public:
   /*

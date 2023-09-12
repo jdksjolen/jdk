@@ -742,7 +742,7 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
         if (stack_bottom + stack_size < committed_start + committed_size) {
           committed_size = stack_bottom + stack_size - committed_start;
         }
-        commit_memory_into_space(virt_mem, (size_t)committed_start, committed_size, ncs);
+        commit_memory_into_space(virt_mem, committed_start, committed_size, ncs);
       }
     }
   }
@@ -838,8 +838,8 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
 }
 
 void NewVirtualMemoryTracker::uncommit_memory_into_space(const PhysicalMemorySpace& space,
-                                                         size_t offset, size_t size) {
-  Range range_to_remove{(address)offset, size};
+                                                         address offset, size_t size) {
+  Range range_to_remove{offset, size};
   RegionStorage& commits = committed_regions->at(space.id);
   for (int i = 0; i < commits.length(); i++) {
     TrackedOffsetRange out[2];
@@ -857,7 +857,7 @@ void NewVirtualMemoryTracker::uncommit_memory_into_space(const PhysicalMemorySpa
 }
 
 void NewVirtualMemoryTracker::commit_memory_into_space(const PhysicalMemorySpace& space,
-                                                       size_t offset, size_t size,
+                                                       address offset, size_t size,
                                                        const NativeCallStack& stack) {
   RegionStorage& crngs = committed_regions->at(space.id);
   // Small optimization: Is the next commit adjacent to the last one? Then we don't need to push.
@@ -865,7 +865,7 @@ void NewVirtualMemoryTracker::commit_memory_into_space(const PhysicalMemorySpace
   if (crngs.length() > 0) {
     TrackedRange& crng = crngs.at(crngs.length() - 1);
     if (crng.end() >= (address)offset && all_the_stacks->at(crng.stack_idx).equals(stack)) {
-      crng.size = (offset + size) - (size_t)crng.start;
+      crng.size = (offset + size) - crng.start;
       return;
     }
   }
@@ -919,7 +919,7 @@ void NewVirtualMemoryTracker::remove_view_into_space(const PhysicalMemorySpace& 
 }
 
 void NewVirtualMemoryTracker::add_view_into_space(const PhysicalMemorySpace& space,
-                                                  address base_addr, size_t size, size_t offset,
+                                                  address base_addr, size_t size, address offset,
                                                   MEMFLAGS flag, const NativeCallStack& stack) {
   assert(space.id != virt_mem.id, "use reserved_region");
   int stack_idx = push_stack(stack);
@@ -1042,12 +1042,12 @@ NewVirtualMemoryTracker::overlap_of(TrackedOffsetRange to_split, Range to_remove
     *len = 2;
     address left_start = a;
     size_t left_size = static_cast<size_t>(c - a);
-    size_t left_offset = to_split.physical_address;
+    address left_offset = to_split.physical_address;
     out[0] = TrackedOffsetRange{left_start, left_size, to_split.physical_address,
                                 to_split.stack_idx, to_split.flag};
     address right_start = d;
     size_t right_size = static_cast<size_t>((a + to_split.size) - right_start);
-    size_t right_offset =
+    address right_offset =
         to_split.physical_address +
         (right_start - left_start); // How far along have we traversed into our offset?
     out[1] = TrackedOffsetRange{right_start, right_size, right_offset, to_split.stack_idx,
