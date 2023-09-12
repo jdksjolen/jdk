@@ -52,6 +52,7 @@ void ThreadStackTracker::new_thread_stack(void* base, size_t size, const NativeC
   if (track_as_vm()) {
     ThreadCritical tc;
     VirtualMemoryTracker::add_reserved_region((address)base, size, stack, mtThreadStack);
+    NewVirtualMemoryTracker::add_reserved_region((address)base, size, stack, mtThreadStack);
     _thread_count ++;
   } else {
     // Use a slot in mallocMemorySummary for thread stack bookkeeping
