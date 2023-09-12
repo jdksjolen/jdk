@@ -865,14 +865,14 @@ void NewVirtualMemoryTracker::commit_memory_into_space(const PhysicalMemorySpace
   // Metaspace does a lot of commits and hits this branch a lot.
   if (crngs.length() > 0) {
     TrackedRange& crng = crngs.at(crngs.length() - 1);
-    if (crng.end() >= (address)offset && all_the_stacks->at(crng.stack_idx).equals(stack)) {
+    if (crng.end() >= offset && all_the_stacks->at(crng.stack_idx).equals(stack)) {
       crng.size = (offset + size) - crng.start;
       return;
     }
   }
   // TODO: Are we about to resize the array? Then we can probably get away with doing a sort+merge, and checking if the resize is still necessary.
   int idx = push_stack(stack);
-  crngs.push(TrackedRange{(address)offset, size, idx, mtNone});
+  crngs.push(TrackedRange{offset, size, idx, mtNone});
 }
 
 void NewVirtualMemoryTracker::set_view_region_type(const PhysicalMemorySpace& space,
