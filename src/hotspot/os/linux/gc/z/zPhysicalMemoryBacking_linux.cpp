@@ -660,7 +660,7 @@ size_t ZPhysicalMemoryBacking::commit_default(zoffset offset, size_t length) con
   // Try to commit the whole region
   if (commit_inner(offset, length)) {
     // Success
-    MemTracker::commit_memory_into_space(this->_space, (size_t)offset, length, CALLER_PC);
+    MemTracker::commit_memory_into_space(this->_space, (address)offset, length, CALLER_PC);
     return length;
   }
 
@@ -672,7 +672,7 @@ size_t ZPhysicalMemoryBacking::commit_default(zoffset offset, size_t length) con
     length = align_down((end - start) / 2, ZGranuleSize);
     if (length < ZGranuleSize) {
       // Done, don't commit more
-      MemTracker::commit_memory_into_space(this->_space, (size_t)offset, start - offset, CALLER_PC);
+      MemTracker::commit_memory_into_space(this->_space, (address)offset, start - offset, CALLER_PC);
       return start - offset;
     }
 
@@ -705,7 +705,7 @@ size_t ZPhysicalMemoryBacking::uncommit(zoffset offset, size_t length) const {
     log_error(gc)("Failed to uncommit memory (%s)", err.to_string());
     return 0;
   }
-  MemTracker::uncommit_memory_into_space(this->_space, (size_t)offset, length);
+  MemTracker::uncommit_memory_into_space(this->_space, (address)offset, length);
   return length;
 }
 
@@ -715,7 +715,7 @@ void ZPhysicalMemoryBacking::map(zaddress_unsafe addr, size_t size, zoffset offs
     ZErrno err;
     fatal("Failed to map memory (%s)", err.to_string());
   }
-  MemTracker::add_view_into_space(this->_space, (address)addr, size, (size_t)offset, mtGC, CALLER_PC);
+  MemTracker::add_view_into_space(this->_space, (address)addr, size, (address)offset, mtGC, CALLER_PC);
 }
 
 void ZPhysicalMemoryBacking::unmap(zaddress_unsafe addr, size_t size) const {
