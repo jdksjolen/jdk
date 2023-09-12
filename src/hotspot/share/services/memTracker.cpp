@@ -100,7 +100,7 @@ void Tracker::record(address addr, size_t size) {
   switch(_type) {
     case uncommit:
       VirtualMemoryTracker::remove_uncommitted_region(addr, size);
-      NewVirtualMemoryTracker::uncommit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (size_t)addr, size);
+      NewVirtualMemoryTracker::uncommit_memory_into_space(NewVirtualMemoryTracker::virt_mem, addr, size);
       break;
     case release:
       VirtualMemoryTracker::remove_released_region(addr, size);

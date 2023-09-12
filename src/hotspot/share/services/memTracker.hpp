@@ -145,7 +145,7 @@ class MemTracker : AllStatic {
     if (addr != nullptr) {
       ThreadCritical tc;
       VirtualMemoryTracker::add_reserved_region((address)addr, size, stack, flag);
-      NewVirtualMemoryTracker::add_view_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, (size_t)addr, flag, stack);
+      NewVirtualMemoryTracker::add_view_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, (address)addr, flag, stack);
     }
   }
 
@@ -157,8 +157,8 @@ class MemTracker : AllStatic {
       ThreadCritical tc;
       VirtualMemoryTracker::add_reserved_region((address)addr, size, stack, flag);
       VirtualMemoryTracker::add_committed_region((address)addr, size, stack);
-      NewVirtualMemoryTracker::add_view_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, (size_t)addr, flag, stack);
-      NewVirtualMemoryTracker::commit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (size_t)addr, size, stack);
+      NewVirtualMemoryTracker::add_view_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, (address)addr, flag, stack);
+      NewVirtualMemoryTracker::commit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, stack);
     }
   }
 
@@ -169,7 +169,7 @@ class MemTracker : AllStatic {
     if (addr != nullptr) {
       ThreadCritical tc;
       VirtualMemoryTracker::add_committed_region((address)addr, size, stack);
-      NewVirtualMemoryTracker::commit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (size_t)addr, size, stack);
+      NewVirtualMemoryTracker::commit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, stack);
     }
   }
 
@@ -180,7 +180,7 @@ class MemTracker : AllStatic {
     ThreadCritical tc;
     return NVM::register_space();
   }
-  static inline void add_view_into_space(const NVM::PhysicalMemorySpace space, address base_addr, size_t size, size_t offset,
+  static inline void add_view_into_space(const NVM::PhysicalMemorySpace space, address base_addr, size_t size, address offset,
                                          MEMFLAGS flag, const NativeCallStack& stack) {
     assert_post_init();
     if (!enabled()) return;
@@ -199,13 +199,13 @@ class MemTracker : AllStatic {
     }
   }
   static inline void commit_memory_into_space(const NVM::PhysicalMemorySpace space,
-                                              size_t offset, size_t size, const NativeCallStack& stack) {
+                                              address offset, size_t size, const NativeCallStack& stack) {
     assert_post_init();
     if (!enabled()) return;
     ThreadCritical tc;
     NVM::commit_memory_into_space(space, offset, size, stack);
   }
-  static inline void uncommit_memory_into_space(const NVM::PhysicalMemorySpace space, size_t offset, size_t size) {
+  static inline void uncommit_memory_into_space(const NVM::PhysicalMemorySpace space, address offset, size_t size) {
     assert_post_init();
     if (!enabled()) return;
     ThreadCritical tc;
