@@ -771,7 +771,7 @@ void NewVirtualMemoryTracker::report(outputStream* output) {
 }
 
 void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
-  const uint32_t space_id = virt_mem.id;
+  const uint32_t vmem_id = virt_mem.id;
   auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
     const char* scale = "KB";
     output->print("[" PTR_FORMAT " - " PTR_FORMAT "] %s " SIZE_FORMAT "%s", p2i(base),
@@ -779,15 +779,15 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
                   scale); // TODO: hardcoded scale
   };
   output->print_cr("Virtual memory map:");
-  sort_regions(committed_regions->at(space_id));
-  RegionStorage comm_regs = merge_committed(committed_regions->at(space_id));
+  sort_regions(committed_regions->at(vmem_id));
+  RegionStorage comm_regs = merge_committed(committed_regions->at(vmem_id));
   int printed_committed_regions = 0;
   // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
   int cursor = 0;
-  OffsetRegionStorage& res_regs = reserved_regions->at(space_id);
-  sort_regions(res_regs);
-  for (int res_reg_idx = 0; res_reg_idx < res_regs.length(); res_reg_idx++) {
-    TrackedOffsetRange& rng = res_regs.at(res_reg_idx);
+  OffsetRegionStorage& res_rngs = reserved_regions->at(vmem_id);
+  sort_regions(res_rngs);
+  for (int res_rng_idx = 0; res_rng_idx < res_rngs.length(); res_rng_idx++) {
+    TrackedOffsetRange& rng = res_rngs.at(res_rng_idx);
     NativeCallStack& stack = all_the_stacks->at(rng.stack_idx);
     output->print_cr(" ");
     print_virtual_memory_region("reserved", rng.start, rng.size);
@@ -802,7 +802,7 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
     // Any committed region that isn't matched while found_one_overlap is false has no overlapping reserved region.
     while (cursor < comm_regs.length()) {
       TrackedRange& comrng = comm_regs.at(cursor);
-      if (overlaps(Range{(address)rng.physical_address, rng.size},
+      if (overlaps(Range{rng.start, rng.size},
                    Range{comrng.start, comrng.size})) {
         NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
         output->print("\n\t");
@@ -814,7 +814,7 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
           stack.print_on(output, 12);
         }
         printed_committed_regions++;
-      } else if (comrng.end() < (address)rng.physical_address) {
+      } else if (comrng.end() < rng.start) {
         output->print_cr("MISSING CR");
         NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
         output->print("\n\t");
