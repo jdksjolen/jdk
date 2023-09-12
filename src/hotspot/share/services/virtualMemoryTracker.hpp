@@ -593,34 +593,35 @@ public:
       ::new (p) RegionStorage{128};
      });
      return next_space;
-  }
-  static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
-                                  size_t offset, MEMFLAGS flag, const NativeCallStack& stack) {
+   }
+   static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
+                                   size_t offset, MEMFLAGS flag, const NativeCallStack& stack) {
      int stack_idx = push_stack(stack);
      OffsetRegionStorage& rngs = reserved_regions->at(space.id);
      if (space.id == virt_mem.id) {
        // In this case we know that we're following the old API. That is, the offset and physical address matches 1:1
-       // this is basically trivial?
-      rngs.push(TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
-      return;
+       // We leave these in, as they may indicate a bug in a running JDK.
+       rngs.push(TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
+       return;
      }
      // More complicated case -- we need to find overlapping regions and split on them.
+     // We have differing semantics here because the offset may differ.
      for (int i = 0; i < rngs.length(); i++) {
-      TrackedOffsetRange& rng = rngs.at(i);
-      TrackedOffsetRange out[2];
-      int len;
-      OverlappingResult res = overlap_of(rng, Range{base_addr, size}, out, &len);
-      if (res == OverlappingResult::NoOverlap) {
-        // Do nothing
-      } else if (res == OverlappingResult::EntirelyEnclosed) {
-        // We replace it.
-        rngs.at_put(i, TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
-        for (int j = 0; j < len; j++) {
-          rngs.push(out[j]);
-        }
-      }
+       TrackedOffsetRange& rng = rngs.at(i);
+       TrackedOffsetRange out[2];
+       int len;
+       OverlappingResult res = overlap_of(rng, Range{base_addr, size}, out, &len);
+       if (res == OverlappingResult::NoOverlap) {
+         // Do nothing
+       } else if (res == OverlappingResult::EntirelyEnclosed) {
+         // We replace it.
+         rngs.at_put(i, TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
+         for (int j = 0; j < len; j++) {
+           rngs.push(out[j]);
+         }
+       }
      }
-  }
+   }
 
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size) {
     Range range_to_remove{base_addr, size};
