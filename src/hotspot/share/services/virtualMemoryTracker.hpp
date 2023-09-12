@@ -376,7 +376,6 @@ class VirtualMemoryWalker : public StackObj {
   2. Insertion sort is online, stable, and fast on almost sorted input.
      It might be worth doing it explicitly?
   4. Switch offset to address.
-  5. Optimize memory usage for the committed memory down to 24 bytes.
  */
 class NewVirtualMemoryTracker {
    using Id = uint32_t;
