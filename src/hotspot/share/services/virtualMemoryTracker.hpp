@@ -487,6 +487,23 @@ public:
   static void uncommit_memory_into_space(const PhysicalMemorySpace& space, size_t offset,
                                          size_t size);
 
+  static void add_reserved_region(address base_addr, size_t size, const NativeCallStack& stack,
+                                  MEMFLAGS flag = mtNone) {
+    int stack_idx = push_stack(stack);
+    OffsetRegionStorage& rngs = reserved_regions->at(virt_mem.id);
+    rngs.push(TrackedOffsetRange{base_addr, size, 0, stack_idx, flag});
+    return;
+  }
+  static void remove_released_region(address base_addr, size_t size) {
+    remove_view_into_space(virt_mem, base_addr, size);
+  }
+
+  static void add_committed_region(address base_addr, size_t size, const NativeCallStack& stack) {
+    commit_memory_into_space(virt_mem, (size_t)base_addr, size, stack);
+  }
+  static void remove_uncommitted_region(address base_addr, size_t size) {
+    uncommit_memory_into_space(virt_mem, (size_t)base_addr, size);
+  }
 public:
   /*
     TODOs:

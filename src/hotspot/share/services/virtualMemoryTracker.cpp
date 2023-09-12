@@ -921,16 +921,10 @@ void NewVirtualMemoryTracker::remove_view_into_space(const PhysicalMemorySpace& 
 void NewVirtualMemoryTracker::add_view_into_space(const PhysicalMemorySpace& space,
                                                   address base_addr, size_t size, size_t offset,
                                                   MEMFLAGS flag, const NativeCallStack& stack) {
+  assert(space.id != virt_mem.id, "use reserved_region");
   int stack_idx = push_stack(stack);
   OffsetRegionStorage& rngs = reserved_regions->at(space.id);
-  if (space.id == virt_mem.id) {
-    // In this case we know that we're following the old API. That is, the offset and physical address matches 1:1
-    // We leave these in, as they may indicate a bug in a running JDK.
-    rngs.push(TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
-    return;
-  }
-  // More complicated case -- we need to find overlapping regions and split on them.
-  // We have differing semantics here because the offset may differ.
+  // We need to find overlapping regions and split on them, because the offsets may differ.
   for (int i = 0; i < rngs.length(); i++) {
     TrackedOffsetRange& rng = rngs.at(i);
     TrackedOffsetRange out[2];
