@@ -866,7 +866,8 @@ void NewVirtualMemoryTracker::commit_memory_into_space(const PhysicalMemorySpace
   if (crngs.length() > 0) {
     TrackedRange& crng = crngs.at(crngs.length() - 1);
     if (crng.end() >= offset && all_the_stacks->at(crng.stack_idx).equals(stack)) {
-      crng.size = (offset + size) - crng.start;
+      address end = offset + size;
+      crng.size = (end - crng.start);
       return;
     }
   }
