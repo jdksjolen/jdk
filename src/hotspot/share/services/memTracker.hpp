@@ -145,7 +145,7 @@ class MemTracker : AllStatic {
     if (addr != nullptr) {
       ThreadCritical tc;
       VirtualMemoryTracker::add_reserved_region((address)addr, size, stack, flag);
-      NewVirtualMemoryTracker::add_view_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, (address)addr, flag, stack);
+      NewVirtualMemoryTracker::add_reserved_region((address)addr, size, stack, flag);
     }
   }
 
@@ -157,8 +157,8 @@ class MemTracker : AllStatic {
       ThreadCritical tc;
       VirtualMemoryTracker::add_reserved_region((address)addr, size, stack, flag);
       VirtualMemoryTracker::add_committed_region((address)addr, size, stack);
-      NewVirtualMemoryTracker::add_view_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, (address)addr, flag, stack);
-      NewVirtualMemoryTracker::commit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, stack);
+      NewVirtualMemoryTracker::add_reserved_region((address)addr, size, stack, flag);
+      NewVirtualMemoryTracker::add_committed_region((address)addr, size, stack);
     }
   }
 
@@ -169,7 +169,7 @@ class MemTracker : AllStatic {
     if (addr != nullptr) {
       ThreadCritical tc;
       VirtualMemoryTracker::add_committed_region((address)addr, size, stack);
-      NewVirtualMemoryTracker::commit_memory_into_space(NewVirtualMemoryTracker::virt_mem, (address)addr, size, stack);
+      NewVirtualMemoryTracker::add_committed_region((address)addr, size, stack);
     }
   }
 
