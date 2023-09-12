@@ -815,7 +815,7 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
         }
         printed_committed_regions++;
       } else if (comrng.end() < rng.start) {
-        output->print_cr("MISSING CR");
+        output->print_cr("======================== MISSING CR START");
         NativeCallStack& stack = all_the_stacks->at(comrng.stack_idx);
         output->print("\n\t");
         print_virtual_memory_region("committed", comrng.start, comrng.size);
@@ -825,6 +825,7 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
           output->print_cr(" from");
           stack.print_on(output, 12);
         }
+        output->print_cr("========================  MISSING CR END");
         // This committed region has no reserved region
       } else {
         // We've stopped seeing overlaps for this range, so we can now break
