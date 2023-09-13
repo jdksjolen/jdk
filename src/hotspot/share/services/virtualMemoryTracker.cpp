@@ -841,6 +841,7 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
       for (int i = 0; i < thread_stacks->length(); i++) {
         Range& tsr = thread_stacks->at(i);
         if (rng.start >= tsr.start && tsr.end() <= rng.end()) {
+          output->print("\n\t");
           print_virtual_memory_region("committed", tsr.start, tsr.size);
         }
       }
