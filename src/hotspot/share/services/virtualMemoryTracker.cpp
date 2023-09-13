@@ -751,6 +751,8 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
 }
 
 void NewVirtualMemoryTracker::report(outputStream* output) {
+  // TODO: This shouldn't have to be called here
+  snapshot_thread_stacks();
   const auto print_committed_memory = [&](TrackedOffsetRange& rgn, RegionStorage& com_rngs) {
     for (int i = 0; i < com_rngs.length(); i++) {
       TrackedRange& crange = com_rngs.at(i);
