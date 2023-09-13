@@ -37,6 +37,7 @@ NewVirtualMemoryTracker::PhysicalMemorySpace NewVirtualMemoryTracker::virt_mem{}
 GrowableArrayCHeap<NewVirtualMemoryTracker::OffsetRegionStorage, mtNMT>* NewVirtualMemoryTracker::reserved_regions = nullptr;
 GrowableArrayCHeap<NewVirtualMemoryTracker::RegionStorage, mtNMT>* NewVirtualMemoryTracker::committed_regions = nullptr;
 GrowableArrayCHeap<NativeCallStack, mtNMT>* NewVirtualMemoryTracker::all_the_stacks = nullptr;
+GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>* NewVirtualMemoryTracker::thread_stacks = nullptr;
 
 
 size_t VirtualMemorySummary::_snapshot[CALC_OBJ_SIZE_IN_TYPE(VirtualMemorySnapshot, size_t)];
@@ -722,6 +723,7 @@ address NewVirtualMemoryTracker::thread_stack_uncommitted_bottom(TrackedRange& r
 // TODO:
 // If the committed regions are sorted then we can do this more efficiently
 void NewVirtualMemoryTracker::snapshot_thread_stacks() {
+  thread_stacks->clear();
   OffsetRegionStorage& reserved_ranges = reserved_regions->at(virt_mem.id);
   RegionStorage& committed_ranges = committed_regions->at(virt_mem.id);
   for (int i = 0; i < reserved_ranges.length(); i++) {
@@ -742,7 +744,7 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
         if (stack_bottom + stack_size < committed_start + committed_size) {
           committed_size = stack_bottom + stack_size - committed_start;
         }
-        commit_memory_into_space(virt_mem, committed_start, committed_size, ncs);
+        thread_stacks->push(Range{committed_start, committed_size});
       }
     }
   }
@@ -771,6 +773,11 @@ void NewVirtualMemoryTracker::report(outputStream* output) {
 }
 
 void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
+  snapshot_thread_stacks();
+  output->print_cr("Thread stack count: %d", thread_stacks->length());
+  for (int i = 0; i < thread_stacks->length(); i++) {
+    output->print_cr("Thread stack: %p %zu", thread_stacks->at(i).start, thread_stacks->at(i).size / 1024);
+  }
   const uint32_t vmem_id = virt_mem.id;
   auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
     const char* scale = "KB";
@@ -967,6 +974,7 @@ void NewVirtualMemoryTracker::init() {
   reserved_regions = new GrowableArrayCHeap<OffsetRegionStorage, mtNMT>{5};
   committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
   all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{static_stack_size};
+  thread_stacks = new GrowableArrayCHeap<Range, mtNMT>{32};
   virt_mem = register_space();
 }
 

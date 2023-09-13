@@ -452,6 +452,7 @@ private:
   using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
   static GrowableArrayCHeap<OffsetRegionStorage, mtNMT>* reserved_regions;
   static GrowableArrayCHeap<RegionStorage, mtNMT>* committed_regions;
+  static GrowableArrayCHeap<Range, mtNMT>* thread_stacks; // Committed thread stacks are handled specially
 
   static constexpr const int static_stack_size = 256;
   static GrowableArrayCHeap<NativeCallStack, mtNMT>* all_the_stacks;
