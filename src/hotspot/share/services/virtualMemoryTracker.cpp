@@ -748,6 +748,7 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
       thread_stacks->push(Range{committed_start, committed_size});
     }
   }
+  // Alright, this is probably not necessary but it's just plain broken!
   sort_regions(*thread_stacks);
   GrowableArrayCHeap<Range, mtNMT> merged_thread_stacks = merge_thread_stacks(*thread_stacks);
   // TODO: Snore, no copying.
