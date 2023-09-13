@@ -467,6 +467,7 @@ private:
   // 2. Their starts align correctly
   static RegionStorage merge_committed(RegionStorage& ranges);
 
+  static void sort_regions(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>& storage);
   static void sort_regions(OffsetRegionStorage& storage);
   static void sort_regions(RegionStorage& storage);
 
@@ -524,7 +525,7 @@ public:
 private:
   static address thread_stack_uncommitted_bottom(TrackedRange& rng,
                                                  RegionStorage& committed_ranges);
-
+  static void merge_thread_stacks(GrowableArrayCHeap<Range, mtNMT>* ranges);
 public:
   static void snapshot_thread_stacks();
 };

@@ -748,6 +748,8 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
       thread_stacks->push(Range{committed_start, committed_size});
     }
   }
+  sort_regions(*thread_stacks);
+  merge_thread_stacks(thread_stacks);
 }
 
 void NewVirtualMemoryTracker::report(outputStream* output) {
@@ -990,6 +992,27 @@ void NewVirtualMemoryTracker::init() {
   virt_mem = register_space();
 }
 
+void NewVirtualMemoryTracker::merge_thread_stacks(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>* ranges) {
+  GrowableArrayCHeap<Range, mtNMT>* merged_ranges = new GrowableArrayCHeap<Range, mtNMT>{32};
+  auto rlen = ranges->length();
+  if (rlen == 0) return;
+  int j = 0;
+  merged_ranges->push(ranges->at(j));
+  for (int i = 1; i < rlen; i++) {
+    Range& merging_range = merged_ranges->at(j);
+    Range& potential_range = ranges->at(i);
+    if (merging_range.end() >= potential_range.start) { // There's overlap, known because of pre-condition
+      // Merge it
+      merging_range.size = potential_range.end() - merging_range.start;
+    } else {
+      j++;
+      merged_ranges->push(potential_range);
+    }
+  }
+  delete ranges;
+  ranges = merged_ranges;
+}
+
 NewVirtualMemoryTracker::RegionStorage NewVirtualMemoryTracker::merge_committed(RegionStorage& ranges) {
   RegionStorage merged_ranges;
   auto rlen = ranges.length();
@@ -1013,6 +1036,11 @@ NewVirtualMemoryTracker::RegionStorage NewVirtualMemoryTracker::merge_committed(
   return merged_ranges;
 }
 
+void NewVirtualMemoryTracker::sort_regions(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>& storage) {
+  storage.sort([](Range* a, Range* b) -> int {
+    return (a->start > b->start) - (a->start < b->start);
+  });
+}
 void NewVirtualMemoryTracker::sort_regions(RegionStorage& storage) {
   storage.sort([](TrackedRange* a, TrackedRange* b) -> int {
     return (a->start > b->start) - (a->start < b->start);
