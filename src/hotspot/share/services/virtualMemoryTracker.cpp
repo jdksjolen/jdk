@@ -773,7 +773,6 @@ void NewVirtualMemoryTracker::report(outputStream* output) {
 }
 
 void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
-  snapshot_thread_stacks();
   output->print_cr("Thread stack count: %d", thread_stacks->length());
   for (int i = 0; i < thread_stacks->length(); i++) {
     output->print_cr("Thread stack: %p %zu", thread_stacks->at(i).start, thread_stacks->at(i).size / 1024);
@@ -839,6 +838,14 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
         break;
       }
       cursor++;
+    }
+    if (rng.flag == MEMFLAGS::mtThreadStack) {
+      for (int i = 0; i < thread_stacks->length(); i++) {
+        Range& tsr = thread_stacks->at(i);
+        if (rng.start >= tsr.start && tsr.end() <= rng.end()) {
+          print_virtual_memory_region("committed", tsr.start, tsr.size);
+        }
+      }
     }
     output->set_indentation(0);
   }

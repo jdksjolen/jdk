@@ -49,6 +49,7 @@ void NMTUsage::walk_thread_stacks() {
   // virtual memory since it will update this information.
   if (ThreadStackTracker::track_as_vm()) {
     VirtualMemoryTracker::snapshot_thread_stacks();
+    NewVirtualMemoryTracker::snapshot_thread_stacks();
   }
 }
 
