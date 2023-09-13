@@ -508,6 +508,9 @@ public:
     TODOs:
     1. Incorporate SnapshotThreadStackWalker into the code!! That's where our missing committed regions are
     2. 'Double buffer' the merging of the CRs so that no dynamic allocation is done at report time.
+    3. VirtualMemorySummary is done online in the old tracker. This is an issue for us, because
+       the committed memory API doesn't take a flag, and we don't want to look that up!
+       But this can be run at report time... What?
   */
 
   // Report like the old virtual memory reporter does it.

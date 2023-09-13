@@ -327,9 +327,9 @@ address ReservedMemoryRegion::thread_stack_uncommitted_bottom() const {
 }
 
 bool VirtualMemoryTracker::initialize(NMT_TrackingLevel level) {
-  NewVirtualMemoryTracker::init();
   assert(_reserved_regions == nullptr, "only call once");
   if (level >= NMT_summary) {
+    NewVirtualMemoryTracker::init();
     VirtualMemorySummary::initialize();
     _reserved_regions = new (std::nothrow, mtNMT)
       SortedLinkedList<ReservedMemoryRegion, compare_reserved_region_base>();
@@ -841,19 +841,27 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
 void NewVirtualMemoryTracker::uncommit_memory_into_space(const PhysicalMemorySpace& space,
                                                          address offset, size_t size) {
   Range range_to_remove{offset, size};
+  TrackedOffsetRange out[2];
+  int len;
+
   RegionStorage& commits = committed_regions->at(space.id);
   for (int i = 0; i < commits.length(); i++) {
-    TrackedOffsetRange out[2];
-    int len;
-    bool has_overlap = OverlappingResult::NoOverlap !=
-                       overlap_of(TrackedOffsetRange{commits.at(i)}, range_to_remove, out, &len);
-    if (has_overlap) {
-      // Delete old region.
-      commits.delete_at(i);
-      for (int j = 0; j < len; j++) {
-        commits.push(out[j]);
-      }
+    TrackedRange& crng = commits.at(i);
+    bool has_overlap = OverlappingResult::NoOverlap == overlap_of(TrackedOffsetRange{crng}, range_to_remove, out, &len);
+    if (!has_overlap) {
+      continue;
     }
+    // Delete old region and keep the new ones.
+    size_t kept_size = 0;
+    commits.delete_at(i);
+    // delete_at replaces the ith elt with the last one, so we need to rewind
+    // otherwise we'll skip the previously last element.
+    i--;
+    for (int j = 0; j < len; j++) {
+      kept_size += out[j].size;
+      commits.push(out[j]);
+    }
+    // We're not breaking, no guarantee that there's exactly 1 region that matches
   }
 }
 
