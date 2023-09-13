@@ -751,8 +751,6 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
 }
 
 void NewVirtualMemoryTracker::report(outputStream* output) {
-  // TODO: This shouldn't have to be called here
-  snapshot_thread_stacks();
   const auto print_committed_memory = [&](TrackedOffsetRange& rgn, RegionStorage& com_rngs) {
     for (int i = 0; i < com_rngs.length(); i++) {
       TrackedRange& crange = com_rngs.at(i);
@@ -775,10 +773,8 @@ void NewVirtualMemoryTracker::report(outputStream* output) {
 }
 
 void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
-  output->print_cr("Thread stack count: %d", thread_stacks->length());
-  for (int i = 0; i < thread_stacks->length(); i++) {
-    output->print_cr("Thread stack: %p %zu", thread_stacks->at(i).start, thread_stacks->at(i).size / 1024);
-  }
+  // TODO: This shouldn't have to be called here
+  snapshot_thread_stacks();
   const uint32_t vmem_id = virt_mem.id;
   auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
     const char* scale = "KB";
