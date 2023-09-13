@@ -393,7 +393,7 @@ public:
   struct Range {
     address start;
     size_t size;
-    Range(address start, size_t size)
+    Range(address start = 0, size_t size = 0)
     : start(start), size(size) {}
     address end() {
       return start + size;
