@@ -744,8 +744,8 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
         if (stack_bottom + stack_size < committed_start + committed_size) {
           committed_size = stack_bottom + stack_size - committed_start;
         }
-        thread_stacks->push(Range{committed_start, committed_size});
       }
+      thread_stacks->push(Range{committed_start, committed_size});
     }
   }
 }
