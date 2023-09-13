@@ -773,8 +773,6 @@ void NewVirtualMemoryTracker::report(outputStream* output) {
 }
 
 void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
-  // TODO: This shouldn't have to be called here
-  snapshot_thread_stacks();
   const uint32_t vmem_id = virt_mem.id;
   auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
     const char* scale = "KB";
@@ -782,6 +780,14 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
                   p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024),
                   scale); // TODO: hardcoded scale
   };
+  // TODO: This shouldn't have to be called here
+  snapshot_thread_stacks();
+  output->print_cr("Number of thread stacks: %d", thread_stacks->length());
+  for (int i = 0; i < thread_stacks->length(); i++) {
+    Range& tsr = thread_stacks->at(i);
+    output->print("\n\t");
+    print_virtual_memory_region("committed", tsr.start, tsr.size);
+  }
   output->print_cr("Virtual memory map:");
   sort_regions(committed_regions->at(vmem_id));
   RegionStorage comm_regs = merge_committed(committed_regions->at(vmem_id));
