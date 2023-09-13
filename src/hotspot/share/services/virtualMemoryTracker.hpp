@@ -525,7 +525,7 @@ public:
 private:
   static address thread_stack_uncommitted_bottom(TrackedRange& rng,
                                                  RegionStorage& committed_ranges);
-  static void merge_thread_stacks(GrowableArrayCHeap<Range, mtNMT>* ranges);
+  static GrowableArrayCHeap<Range, mtNMT> merge_thread_stacks(GrowableArrayCHeap<Range, mtNMT>& ranges);
 public:
   static void snapshot_thread_stacks();
 };
