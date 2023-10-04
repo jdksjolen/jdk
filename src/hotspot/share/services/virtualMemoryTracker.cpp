@@ -53,6 +53,7 @@ void VirtualMemorySummary::snapshot(VirtualMemorySnapshot* s) {
   if (ThreadStackTracker::track_as_vm()) {
     // Snapshot current thread stacks
     VirtualMemoryTracker::snapshot_thread_stacks();
+    NewVirtualMemoryTracker::snapshot_thread_stacks();
   }
   as_snapshot()->copy_to(s);
 }
@@ -748,10 +749,10 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
       thread_stacks->push(Range{committed_start, committed_size});
     }
   }
-  // Alright, this is probably not necessary but it's just plain broken!
+
   sort_regions(*thread_stacks);
   GrowableArrayCHeap<Range, mtNMT> merged_thread_stacks = merge_thread_stacks(*thread_stacks);
-  // TODO: Snore, no copying.
+  // TODO: Can we avoid copying?
   thread_stacks->clear();
   for (int i = 0; i < merged_thread_stacks.length(); i++) {
     thread_stacks->push(merged_thread_stacks.at(i));
@@ -789,16 +790,18 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
                   scale); // TODO: hardcoded scale
   };
   // TODO: This shouldn't have to be called here
-  snapshot_thread_stacks();
+  // snapshot_thread_stacks();
   output->print_cr("Number of thread stacks: %d", thread_stacks->length());
   for (int i = 0; i < thread_stacks->length(); i++) {
     Range& tsr = thread_stacks->at(i);
     output->print("\n\t");
     print_virtual_memory_region("committed", tsr.start, tsr.size);
-  }
+    }
+  output->print_cr("Number of CRs: %d", committed_regions->at(vmem_id).length());
   output->print_cr("Virtual memory map:");
-  sort_regions(committed_regions->at(vmem_id));
-  RegionStorage comm_regs = merge_committed(committed_regions->at(vmem_id));
+  RegionStorage& comm_regs = committed_regions->at(vmem_id);
+  sort_regions(comm_regs);
+  merge_committed(comm_regs);
   int printed_committed_regions = 0;
   // Cursor into comm_regs. Since both are sorted we only have to do one pass over the committed regions
   int cursor = 0;
@@ -854,7 +857,7 @@ void NewVirtualMemoryTracker::report_virtual_memory_map(outputStream* output) {
     if (rng.flag == MEMFLAGS::mtThreadStack) {
       for (int i = 0; i < thread_stacks->length(); i++) {
         Range& tsr = thread_stacks->at(i);
-        if (rng.start >= tsr.start && tsr.end() <= rng.end()) {
+        if (tsr.start >= rng.start && tsr.end() <= rng.end()) {
           output->print("\n\t");
           print_virtual_memory_region("committed", tsr.start, tsr.size);
         }
@@ -872,20 +875,22 @@ void NewVirtualMemoryTracker::uncommit_memory_into_space(const PhysicalMemorySpa
   int len;
 
   RegionStorage& commits = committed_regions->at(space.id);
-  for (int i = 0; i < commits.length(); i++) {
+  int orig_len = commits.length();
+  for (int i = 0; i < orig_len; i++) {
     TrackedRange& crng = commits.at(i);
-    bool has_overlap = OverlappingResult::NoOverlap == overlap_of(TrackedOffsetRange{crng}, range_to_remove, out, &len);
-    if (!has_overlap) {
+    bool no_overlap = OverlappingResult::NoOverlap == overlap_of(TrackedOffsetRange{crng}, range_to_remove, out, &len);
+    if (no_overlap) {
       continue;
     }
-    // Delete old region and keep the new ones.
-    size_t kept_size = 0;
+    // Delete old region
     commits.delete_at(i);
     // delete_at replaces the ith elt with the last one, so we need to rewind
     // otherwise we'll skip the previously last element.
     i--;
+    // We have 1 fewer element to look at
+    orig_len--;
+    // And push on the new ones.
     for (int j = 0; j < len; j++) {
-      kept_size += out[j].size;
       commits.push(out[j]);
     }
     // We're not breaking, no guarantee that there's exactly 1 region that matches
@@ -1018,14 +1023,16 @@ GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT> NewVirtualMemoryTracke
   return merged_ranges;
 }
 
-NewVirtualMemoryTracker::RegionStorage NewVirtualMemoryTracker::merge_committed(RegionStorage& ranges) {
-  RegionStorage merged_ranges;
+void NewVirtualMemoryTracker::merge_committed(RegionStorage& ranges) {
+  // We displace into the array at rlen+j instead of
+  // creating a new array and swapping it out at the end.
+  // This is because of a limitation with GrowableArray
   auto rlen = ranges.length();
-  if (rlen == 0) return merged_ranges;
+  if (rlen == 0) return;
   int j = 0;
-  merged_ranges.push(ranges.at(j));
+  ranges.push(ranges.at(j));
   for (int i = 1; i < rlen; i++) {
-    TrackedRange& merging_range = merged_ranges.at(j);
+    TrackedRange& merging_range = ranges.at(rlen+j);
     TrackedRange& potential_range = ranges.at(i);
     if (merging_range.end() >=
             potential_range.start // There's overlap, known because of pre-condition
@@ -1035,10 +1042,13 @@ NewVirtualMemoryTracker::RegionStorage NewVirtualMemoryTracker::merge_committed(
       merging_range.size = potential_range.end() - merging_range.start;
     } else {
       j++;
-      merged_ranges.push(potential_range);
+      ranges.push(potential_range);
     }
   }
-  return merged_ranges;
+  // Remove all the old elements, only keeping the merged ones.
+  ranges.remove_till(rlen);
+  ranges.shrink_to_fit();
+  return;
 }
 
 void NewVirtualMemoryTracker::sort_regions(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>& storage) {
