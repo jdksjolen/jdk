@@ -174,11 +174,11 @@ class MemTracker : AllStatic {
   }
 
   using NVM = NewVirtualMemoryTracker;
-  static inline NVM::PhysicalMemorySpace register_space() {
+  static inline NVM::PhysicalMemorySpace register_space(const char* descriptive_name) {
     assert_post_init();
     // if (!enabled()) return;
     ThreadCritical tc;
-    return NVM::register_space();
+    return NVM::register_space(descriptive_name);
   }
   static inline void add_view_into_space(const NVM::PhysicalMemorySpace space, address base_addr, size_t size, address offset,
                                          MEMFLAGS flag, const NativeCallStack& stack) {

@@ -475,7 +475,7 @@ public:
   static PhysicalMemorySpace virt_mem;
   static void init();
 
-  static PhysicalMemorySpace register_space();
+  static PhysicalMemorySpace register_space(const char* descriptive_name);
   static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
                                   address offset, MEMFLAGS flag, const NativeCallStack& stack);
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr,

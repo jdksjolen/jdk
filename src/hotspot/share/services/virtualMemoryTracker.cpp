@@ -993,8 +993,8 @@ void NewVirtualMemoryTracker::add_view_into_space(const PhysicalMemorySpace& spa
   }
 }
 
-NewVirtualMemoryTracker::PhysicalMemorySpace NewVirtualMemoryTracker::register_space() {
-  const PhysicalMemorySpace next_space = PhysicalMemorySpace{PhysicalMemorySpace::next_unique()};
+NewVirtualMemoryTracker::PhysicalMemorySpace NewVirtualMemoryTracker::register_space(const char* descriptive_name) {
+  const PhysicalMemorySpace next_space = PhysicalMemorySpace{PhysicalMemorySpace::next_unique(), descriptive_name};
   reserved_regions->at_ref_grow(next_space.id, [](OffsetRegionStorage* p) -> void {
     ::new (p) OffsetRegionStorage{128};
   });
@@ -1009,7 +1009,7 @@ void NewVirtualMemoryTracker::init() {
   committed_regions = new GrowableArrayCHeap<RegionStorage, mtNMT>{5};
   all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{static_stack_size};
   thread_stacks = new GrowableArrayCHeap<Range, mtNMT>{32};
-  virt_mem = register_space();
+  virt_mem = register_space("Virtual memory map");
 }
 
 GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT> NewVirtualMemoryTracker::merge_thread_stacks(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>& ranges) {
