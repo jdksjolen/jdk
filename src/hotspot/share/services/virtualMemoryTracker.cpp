@@ -760,23 +760,27 @@ void NewVirtualMemoryTracker::snapshot_thread_stacks() {
 }
 
 void NewVirtualMemoryTracker::report(outputStream* output) {
-  const auto print_committed_memory = [&](TrackedOffsetRange& rgn, RegionStorage& com_rngs) {
-    for (int i = 0; i < com_rngs.length(); i++) {
-      TrackedRange& crange = com_rngs.at(i);
-      if (overlaps(Range{(address)rgn.physical_address, rgn.size},
-                   Range{crange.start, crange.size})) {
-        output->print_cr("Print the CR here");
-      }
-    }
+  auto print_virtual_memory_region = [&](const char* type, address base, size_t size) -> void {
+    const char* scale = "KB";
+    output->print("[" PTR_FORMAT " - " PTR_FORMAT "] %s " SIZE_FORMAT "%s", p2i(base),
+                  p2i(base + size), type, NMTUtil::amount_in_scale(size, 1024),
+                  scale); // TODO: hardcoded scale
+  };
+  const auto print_committed_memory = [&](TrackedRange& rng) {
+    output->print_cr("Committed region: [%p, %p)", rng.start, rng.end());
   };
   for (Id space_id = virt_mem.id + 1; space_id < PhysicalMemorySpace::unique_id; space_id++) {
     OffsetRegionStorage& res_rngs = reserved_regions->at(space_id);
     RegionStorage& com_rngs = committed_regions->at(space_id);
-    sort_regions(res_rngs);
-    sort_regions(com_rngs);
+    output->print_cr("%s:", "ZGC Heap Mapping"); // TODO: Make PhysicalMemorySpace accessible from here
+    output->print_cr("ResRegs: %d, ComRegs: %d", res_rngs.length(), com_rngs.length());
     for (int res_rng_idx = 0; res_rng_idx < res_rngs.length(); res_rng_idx++) {
       TrackedOffsetRange& res = res_rngs.at(res_rng_idx);
-      print_committed_memory(res, com_rngs);
+      output->print_cr("Reserved region: [%p, %p) => [%p, %p)", res.start, res.end(), res.physical_address, res.physical_end());
+      }
+    for (int com_rng_idx = 0; com_rng_idx < com_rngs.length(); com_rng_idx++) {
+      TrackedRange& rng = com_rngs.at(com_rng_idx);
+      output->print_cr("Committed region: [%p, %p)", rng.start, rng.end());
     }
   }
 }
