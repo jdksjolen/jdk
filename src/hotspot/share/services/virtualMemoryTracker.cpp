@@ -969,10 +969,13 @@ void NewVirtualMemoryTracker::remove_view_into_space(const PhysicalMemorySpace& 
   }
 }
 
+// TODO: Maybe sorting the regions makes this easier to understand?
 void NewVirtualMemoryTracker::add_view_into_space(const PhysicalMemorySpace& space,
                                                   address base_addr, size_t size, address offset,
                                                   MEMFLAGS flag, const NativeCallStack& stack) {
   assert(space.id != virt_mem.id, "use reserved_region");
+  // This method is a bit tricky because we need to care about preserving the offsets of any already existing view
+  // that overlaps with the view being added.
   int stack_idx = push_stack(stack);
   OffsetRegionStorage& rngs = reserved_regions->at(space.id);
   // We need to find overlapping regions and split on them, because the offsets may differ.
@@ -983,14 +986,27 @@ void NewVirtualMemoryTracker::add_view_into_space(const PhysicalMemorySpace& spa
     OverlappingResult res = overlap_of(rng, Range{base_addr, size}, out, &len);
     if (res == OverlappingResult::NoOverlap) {
       // Do nothing
-    } else if (res == OverlappingResult::EntirelyEnclosed) {
+    } else if (res == OverlappingResult::EntirelyEnclosed
+               || res == OverlappingResult::SplitInMiddle) {
       // We replace it.
       rngs.at_put(i, TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
-      for (int j = 0; j < len; j++) {
-        rngs.push(out[j]);
+      // And put the out with the physical offsets of the original
+      for (int i = 0; i < len; i++) {
+        rngs.push(out[i]);
       }
+      // There can be no more, so we're done
+      return;
+    } else if (res == OverlappingResult::ShortenedFromLeft || res == OverlappingResult::ShortenedFromRight) {
+      assert(len == 1, "must be");
+      // We replace the old one with the shortened one
+      rngs.at_put(i, out[0]);
+      // But we can't quit, just gotta continue iterating
     }
   }
+  // If we reach this then either there has only been ShortenedFromRight/ShortenedFromLeft
+  // or no overlap. Then we must add the original region
+  rngs.push(TrackedOffsetRange{base_addr, size, offset, stack_idx, flag});
+  // And now we're done.
 }
 
 NewVirtualMemoryTracker::PhysicalMemorySpace NewVirtualMemoryTracker::register_space(const char* descriptive_name) {

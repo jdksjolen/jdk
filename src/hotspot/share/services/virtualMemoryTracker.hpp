@@ -493,10 +493,12 @@ public:
     int stack_idx = push_stack(stack);
     OffsetRegionStorage& rngs = reserved_regions->at(virt_mem.id);
     rngs.push(TrackedOffsetRange{base_addr, size, 0, stack_idx, flag});
+    sort_regions(rngs);
     return;
   }
   static void remove_released_region(address base_addr, size_t size) {
     remove_view_into_space(virt_mem, base_addr, size);
+    sort_regions(reserved_regions->at(virt_mem.id));
   }
 
   static void add_committed_region(address base_addr, size_t size, const NativeCallStack& stack) {
