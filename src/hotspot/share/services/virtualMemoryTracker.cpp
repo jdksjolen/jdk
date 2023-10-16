@@ -1085,8 +1085,8 @@ void NewVirtualMemoryTracker::merge_reserved(OffsetRegionStorage& ranges) {
   int j = 0;
   ranges.push(ranges.at(j));
   for (int i = 1; i < rlen; i++) {
-    OffsetTrackedRange& merging_range = ranges.at(rlen+j);
-    OffsetTrackedRange& potential_range = ranges.at(i);
+    TrackedOffsetRange& merging_range = ranges.at(rlen+j);
+    TrackedOffsetRange& potential_range = ranges.at(i);
     if (merging_range.end() >=
             potential_range.start // There's overlap, known because of pre-condition
         && all_the_stacks->at(merging_range.stack_idx)
