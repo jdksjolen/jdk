@@ -35,4 +35,23 @@ TEST_VM(NMTPerf, PerfTest) {
       addr += size;
     }
   });
+
+  tty->print_cr("Adding 10000 reserved non-adjacent regions");
+    time_it("New", []() {
+    address addr = 0x0;
+    size_t size = 1024;
+    for (int i = 0; i < 10000; i++) {
+      NewVirtualMemoryTracker::add_reserved_region(addr, size, CALLER_PC);
+      addr += size + 1;
+    }
+  });
+  time_it("Old",[](){
+    address addr = 0x0;
+    size_t size = 1024;
+    for (int i = 0; i < 10000; i++) {
+      VirtualMemoryTracker::add_reserved_region(addr, size, CALLER_PC);
+      addr += size + 1;
+    }
+  });
+
 }
