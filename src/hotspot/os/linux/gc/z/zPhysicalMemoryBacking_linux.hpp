@@ -25,13 +25,11 @@
 #define OS_LINUX_GC_Z_ZPHYSICALMEMORYBACKING_LINUX_HPP
 
 #include "gc/z/zAddress.hpp"
-#include "services/virtualMemoryTracker.hpp"
 
 class ZErrno;
 
 class ZPhysicalMemoryBacking {
 private:
-  NewVirtualMemoryTracker::PhysicalMemorySpace _space;
   int      _fd;
   size_t   _size;
   uint64_t _filesystem;

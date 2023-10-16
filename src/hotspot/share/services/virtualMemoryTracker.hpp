@@ -475,7 +475,7 @@ public:
   static PhysicalMemorySpace virt_mem;
   static void init();
 
-  static PhysicalMemorySpace register_space();
+  static PhysicalMemorySpace register_space(const char* descriptive_name);
   static void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
                                   address offset, MEMFLAGS flag, const NativeCallStack& stack);
   static void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr,
@@ -493,10 +493,12 @@ public:
     int stack_idx = push_stack(stack);
     OffsetRegionStorage& rngs = reserved_regions->at(virt_mem.id);
     rngs.push(TrackedOffsetRange{base_addr, size, 0, stack_idx, flag});
+    sort_regions(rngs);
     return;
   }
   static void remove_released_region(address base_addr, size_t size) {
     remove_view_into_space(virt_mem, base_addr, size);
+    sort_regions(reserved_regions->at(virt_mem.id));
   }
 
   static void add_committed_region(address base_addr, size_t size, const NativeCallStack& stack) {
