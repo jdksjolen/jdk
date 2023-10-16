@@ -1076,6 +1076,33 @@ void NewVirtualMemoryTracker::merge_committed(RegionStorage& ranges) {
   ranges.remove_till(rlen);
   return;
 }
+void NewVirtualMemoryTracker::merge_reserved(OffsetRegionStorage& ranges) {
+  // We displace into the array at rlen+j instead of
+  // creating a new array and swapping it out at the end.
+  // This is because of a limitation with GrowableArray
+  int rlen = ranges.length();
+  if (rlen <= 1) return;
+  int j = 0;
+  ranges.push(ranges.at(j));
+  for (int i = 1; i < rlen; i++) {
+    OffsetTrackedRange& merging_range = ranges.at(rlen+j);
+    OffsetTrackedRange& potential_range = ranges.at(i);
+    if (merging_range.end() >=
+            potential_range.start // There's overlap, known because of pre-condition
+        && all_the_stacks->at(merging_range.stack_idx)
+               .equals(all_the_stacks->at(potential_range.stack_idx))) {
+      // Merge it
+      merging_range.size = potential_range.end() - merging_range.start;
+    } else {
+      j++;
+      ranges.push(potential_range);
+    }
+  }
+  // Remove all the old elements, only keeping the merged ones.
+  ranges.remove_till(rlen);
+  return;
+}
+
 
 void NewVirtualMemoryTracker::sort_regions(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>& storage) {
   storage.sort([](Range* a, Range* b) -> int {

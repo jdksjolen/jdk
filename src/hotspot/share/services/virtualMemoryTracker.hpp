@@ -467,6 +467,8 @@ private:
   // 1. Their NativeCallStacks are the same
   // 2. Their starts align correctly
   static void merge_committed(RegionStorage& ranges);
+  // Only viable for old-style API
+  static void merge_reserved(OffsetRegionStorage& ranges);
 
   static void sort_regions(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>& storage);
   static void sort_regions(OffsetRegionStorage& storage);
@@ -504,8 +506,10 @@ public:
     int stack_idx = push_stack(stack);
     rngs.push(TrackedOffsetRange{base_addr, size, 0, stack_idx, flag});
     sort_regions(rngs);
+    merge_reserved(rngs);
     return;
   }
+
   static void remove_released_region(address base_addr, size_t size) {
     remove_view_into_space(virt_mem, base_addr, size);
     sort_regions(reserved_regions->at(virt_mem.id));
