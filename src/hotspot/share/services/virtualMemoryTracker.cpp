@@ -1028,6 +1028,10 @@ void NewVirtualMemoryTracker::init() {
   all_the_stacks = new GrowableArrayCHeap<NativeCallStack, mtNMT>{static_stack_size};
   thread_stacks = new GrowableArrayCHeap<Range, mtNMT>{32};
   virt_mem = register_space("Virtual memory map");
+  GrowableArrayCHeap<int, mtGC> xs(/* initial_capacity =*/2);
+  xs.push(1);
+  xs.push(2);
+  xs.push(xs.at(0));
 }
 
 GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT> NewVirtualMemoryTracker::merge_thread_stacks(GrowableArrayCHeap<NewVirtualMemoryTracker::Range, mtNMT>& ranges) {
