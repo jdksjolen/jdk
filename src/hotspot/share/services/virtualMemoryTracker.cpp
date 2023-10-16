@@ -1060,7 +1060,9 @@ void NewVirtualMemoryTracker::merge_committed(RegionStorage& ranges) {
   ranges.push(ranges.at(j));
   for (int i = 1; i < rlen; i++) {
     TrackedRange& merging_range = ranges.at(rlen+j);
-    TrackedRange& potential_range = ranges.at(i);
+    // Take an explicit copy, this is necessary because
+    // the push might invalidate the reference and then SIGSEGV.
+    const TrackedRange potential_range = ranges.at(i);
     if (merging_range.end() >=
             potential_range.start // There's overlap, known because of pre-condition
         && all_the_stacks->at(merging_range.stack_idx)
@@ -1086,7 +1088,9 @@ void NewVirtualMemoryTracker::merge_reserved(OffsetRegionStorage& ranges) {
   ranges.push(ranges.at(j));
   for (int i = 1; i < rlen; i++) {
     TrackedOffsetRange& merging_range = ranges.at(rlen+j);
-    TrackedOffsetRange& potential_range = ranges.at(i);
+    // Take an explicit copy, this is necessary because
+    // the push might invalidate the reference and then SIGSEGV.
+    const TrackedOffsetRange potential_range = ranges.at(i);
     if (merging_range.end() >=
             potential_range.start // There's overlap, known because of pre-condition
         && all_the_stacks->at(merging_range.stack_idx)
