@@ -911,8 +911,8 @@ void NewVirtualMemoryTracker::commit_memory_into_space(const PhysicalMemorySpace
   // Metaspace does a lot of commits and hits this branch a lot.
   if (crngs.length() > 0) {
     TrackedRange& crng = crngs.at(crngs.length() - 1);
-    if (overlaps(rng, Range{base_addr, size})
-        || adjacent(rng, Range{base_addr, size})
+    if (overlaps(crng, Range{offset, size})
+        || adjacent(crng, Range{offset, size})
         && all_the_stacks->at(crng.stack_idx).equals(stack)) {
       crng.start = MIN2(offset, crng.start);
       crng.size = MAX2(offset+size, crng.end()) - crng.start;
