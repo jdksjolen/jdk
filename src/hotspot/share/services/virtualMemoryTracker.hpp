@@ -460,6 +460,7 @@ private:
 
   // Utilities
   static bool overlaps(Range a, Range b);
+  static bool adjacent(Range a, Range b);
   // Pre-condition: ranges is sorted in a left-aligned fashion
   // That is: (a,b) comes before (c,d) if a <= c
   // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
@@ -493,7 +494,7 @@ public:
     OffsetRegionStorage& rngs = reserved_regions->at(virt_mem.id);
     if (rngs.length() > 0) {
       TrackedRange& rng = rngs.at(rngs.length() - 1);
-      if (overlaps(rng, Range{base_addr, size})  &&
+      if (overlaps(rng, Range{base_addr, size}) || adjacent(rng, Range{base_addr, size})  &&
           all_the_stacks->at(rng.stack_idx).equals(stack)) {
         rng.start = MIN2(base_addr, rng.start);
         rng.size = MAX2(base_addr + size, rng.end()) - rng.start;
