@@ -9,17 +9,17 @@
 
 
 TEST_VM(NMTPerf, PerfTest) {
-  auto time_it = [](auto it) {
+  auto time_it = [](const char* prefix, auto it) {
     auto start = std::chrono::high_resolution_clock::now();
     it();
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = (end - start);
     auto us = std::chrono::duration_cast<std::chrono::microseconds>(duration);
-    tty->print_cr("Elapsed time: %ld us", us.count());
+    tty->print_cr("[%s] Elapsed time: %ld us", prefix, us.count());
   };
 
   tty->print_cr("Adding 10000 reserved adjacent regions");
-  time_it([]() {
+  time_it("New", []() {
     address addr = 0x0;
     size_t size = 1024;
     for (int i = 0; i < 10000; i++) {
@@ -27,7 +27,7 @@ TEST_VM(NMTPerf, PerfTest) {
       addr += size;
     }
   });
-  time_it([](){
+  time_it("Old",[](){
     address addr = 0x0;
     size_t size = 1024;
     for (int i = 0; i < 10000; i++) {
