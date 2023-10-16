@@ -395,7 +395,7 @@ public:
     size_t size;
     Range(address start = 0, size_t size = 0)
     : start(start), size(size) {}
-    address end() {
+    address end() const {
       return start + size;
     }
   };
@@ -426,7 +426,7 @@ public:
     TrackedOffsetRange(TrackedOffsetRange&& rng)
       : TrackedRange(rng.start, rng.size, rng.stack_idx, rng.flag), physical_address(rng.physical_address) {}
 
-    address physical_end() {
+    address physical_end() const {
       return physical_address + size;
     }
   };
