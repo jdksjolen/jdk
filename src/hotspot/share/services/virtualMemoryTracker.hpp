@@ -497,6 +497,7 @@ public:
           all_the_stacks->at(rng.stack_idx).equals(stack)) {
         rng.start = MIN2(base_addr, rng.start);
         rng.size = MAX2(base_addr + size, rng.end()) - rng.start;
+        return;
       }
     }
     int stack_idx = push_stack(stack);
