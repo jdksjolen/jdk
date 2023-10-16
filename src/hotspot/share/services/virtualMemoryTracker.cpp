@@ -907,11 +907,11 @@ void NewVirtualMemoryTracker::commit_memory_into_space(const PhysicalMemorySpace
                                                        address offset, size_t size,
                                                        const NativeCallStack& stack) {
   RegionStorage& crngs = committed_regions->at(space.id);
-  // Small optimization: Is the next commit adjacent to the last one? Then we don't need to push.
+  // Small optimization: Is the next commit overlapping with the last one? Then we don't need to push.
   // Metaspace does a lot of commits and hits this branch a lot.
   if (crngs.length() > 0) {
     TrackedRange& crng = crngs.at(crngs.length() - 1);
-    if (crng.end() >= offset && all_the_stacks->at(crng.stack_idx).equals(stack)) {
+    if (overlaps(crng, Range{offset, size}) && all_the_stacks->at(crng.stack_idx).equals(stack)) {
       crng.start = MIN2(offset, crng.start);
       crng.size = MAX2(offset+size, crng.end()) - crng.start;
       return;
