@@ -490,8 +490,16 @@ public:
 
   static void add_reserved_region(address base_addr, size_t size, const NativeCallStack& stack,
                                   MEMFLAGS flag = mtNone) {
-    int stack_idx = push_stack(stack);
     OffsetRegionStorage& rngs = reserved_regions->at(virt_mem.id);
+    if (rngs.length() > 0) {
+      TrackedRange& rng = rngs.at(rngs.length() - 1);
+      if (overlaps(rng, Range{base_addr, size})  &&
+          all_the_stacks->at(rng.stack_idx).equals(stack)) {
+        rng.start = MIN2(base_addr, rng.start);
+        rng.size = MAX2(base_addr + size, rng.end()) - rng.start;
+      }
+    }
+    int stack_idx = push_stack(stack);
     rngs.push(TrackedOffsetRange{base_addr, size, 0, stack_idx, flag});
     sort_regions(rngs);
     return;
