@@ -402,7 +402,15 @@ public:
 
   void push(const E& elem) { append(elem); }
 
-  E at_grow(int i, const E& fill = E()) {
+  E at_grow(int i) {
+    assert(0 <= i, "negative index %d", i);
+    if (i >= this->_len) {
+      if (i >= this->_capacity) grow(i);
+      this->_len = i+1;
+    }
+    return this->_data[i];
+  }
+  E at_grow(int i, const E& fill) {
     assert(0 <= i, "negative index %d", i);
     if (i >= this->_len) {
       if (i >= this->_capacity) grow(i);
@@ -413,7 +421,15 @@ public:
     return this->_data[i];
   }
 
-  void at_put_grow(int i, const E& elem, const E& fill = E()) {
+  void at_put_grow(int i, const E& elem) {
+    assert(0 <= i, "negative index %d", i);
+    if (i >= this->_len) {
+      if (i >= this->_capacity) grow(i);
+      this->_len = i + 1;
+    }
+    this->_data[i] = elem;
+  }
+  void at_put_grow(int i, const E& elem, const E& fill) {
     assert(0 <= i, "negative index %d", i);
     if (i >= this->_len) {
       if (i >= this->_capacity) grow(i);
