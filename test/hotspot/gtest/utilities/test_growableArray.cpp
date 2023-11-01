@@ -559,6 +559,32 @@ TEST_VM_ASSERT_MSG(GrowableArrayAssertingTest, assignment_with_embedded_cheap,
 
 #endif
 
+struct Leaker {
+  int* arr;
+  Leaker() {
+    arr = (int*)os::malloc(sizeof(int)*8, mtTest);
+  };
+  ~Leaker() {
+    os::free(arr);
+  }
+};
+TEST_VM(GrowableArrayCHeap, RemovalLeaks) {
+  int* arr = nullptr;
+  {
+    GrowableArrayCHeap<Leaker, mtTest> ga{2};
+    ga.push(Leaker{});
+    ga.push(Leaker{});
+    arr = ga.at(0).arr;
+    for (int i = 0; i < 8; i++) {
+      arr[i] = 1337;
+    }
+    ga.remove_at(0);
+  }
+  for (int i = 0; i < 8; i++) {
+    tty->print_cr("arr[%d] == %d", i, arr[i]);
+  }
+}
+
 TEST(GrowableArrayCHeap, sanity) {
   // Stack/CHeap
   {
