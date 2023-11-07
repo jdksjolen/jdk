@@ -24,7 +24,7 @@ public:
 private:
 
   char* allocate_virtual_address_range(bool useHugePages) {
-    constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS;
+    constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE;
     char* addr = (char*)::mmap(nullptr, size, PROT_READ|PROT_WRITE, flags, -1, 0);
     if (addr == MAP_FAILED) {
       return nullptr;
