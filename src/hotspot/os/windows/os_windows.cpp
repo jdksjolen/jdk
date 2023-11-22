@@ -3118,7 +3118,7 @@ static char* allocate_pages_individually(size_t bytes, char* addr, DWORD flags,
                                 PAGE_READWRITE);
   // If reservation failed, return null
   if (p_buf == nullptr) return nullptr;
-  MemTracker::record_virtual_memory_reserve((address)p_buf, size_of_reserve, CALLER_PC);
+  MemTracker::record_virtual_memory_reserve((address)p_buf, size_of_reserve, CALLER_PC, mt_flag);
   os::release_memory(p_buf, bytes + chunk_size, mt_flag);
 
   // we still need to round up to a page boundary (in case we are using large pages)
