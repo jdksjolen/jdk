@@ -192,6 +192,9 @@ class MemBaseline {
   // Baseline summary information
   void baseline_summary();
 
+  // Baseline information in light mode
+  void baseline_light();
+
   // Baseline allocation sites (detail tracking only)
   bool baseline_allocation_sites();
 

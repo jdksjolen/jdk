@@ -43,7 +43,7 @@ inline ZGranuleMap<T>::ZGranuleMap(size_t max_offset)
 
 template <typename T>
 inline ZGranuleMap<T>::~ZGranuleMap() {
-  MmapArrayAllocator<T>::free(_map, _size);
+  MmapArrayAllocator<T>::free(_map, _size, mtGC);
 }
 
 template <typename T>

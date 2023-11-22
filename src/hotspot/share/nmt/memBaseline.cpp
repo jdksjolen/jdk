@@ -28,6 +28,7 @@
 #include "memory/metaspaceUtils.hpp"
 #include "nmt/memBaseline.hpp"
 #include "nmt/memTracker.hpp"
+#include "nmt/nmtLightTracker.hpp"
 #include "runtime/javaThread.hpp"
 #include "runtime/safepoint.hpp"
 
@@ -151,6 +152,12 @@ void MemBaseline::baseline_summary() {
   _metaspace_stats = MetaspaceUtils::get_combined_statistics();
 }
 
+void MemBaseline::baseline_light() {
+  NMTLightTracker::malloc_snapshot(&_malloc_memory_snapshot);
+  NMTLightTracker::virtual_memory_snapshot(&_virtual_memory_snapshot);
+  _metaspace_stats = MetaspaceUtils::get_combined_statistics();
+}
+
 bool MemBaseline::baseline_allocation_sites() {
   // Malloc allocation sites
   MallocAllocationSiteWalker malloc_walker;
@@ -191,7 +198,11 @@ void MemBaseline::baseline(bool summaryOnly) {
   _instance_class_count = ClassLoaderDataGraph::num_instance_classes();
   _array_class_count = ClassLoaderDataGraph::num_array_classes();
   _thread_count = ThreadStackTracker::thread_count();
-  baseline_summary();
+  if (MemTracker::is_light_mode()) {
+    baseline_light();
+  } else {
+    baseline_summary();
+  }
 
   _baseline_type = Summary_baselined;
 

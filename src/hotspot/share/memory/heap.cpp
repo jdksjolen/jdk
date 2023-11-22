@@ -35,7 +35,10 @@
 // Implementation of Heap
 
 CodeHeap::CodeHeap(const char* name, const CodeBlobType code_blob_type)
-  : _code_blob_type(code_blob_type) {
+  :
+  _memory(mtCode),
+  _segmap(mtCode),
+  _code_blob_type(code_blob_type) {
   _name                         = name;
   _number_of_committed_segments = 0;
   _number_of_reserved_segments  = 0;
@@ -227,12 +230,12 @@ bool CodeHeap::reserve(ReservedSpace rs, size_t committed_size, size_t segment_s
   const size_t committed_segments_size = align_to_page_size(_number_of_committed_segments);
 
   // reserve space for _segmap
-  ReservedSpace seg_rs(reserved_segments_size);
+  ReservedSpace seg_rs(reserved_segments_size, mtCode);
   if (!_segmap.initialize(seg_rs, committed_segments_size)) {
     return false;
   }
 
-  MemTracker::record_virtual_memory_type((address)_segmap.low_boundary(), mtCode);
+  MemTracker::record_virtual_memory_type((address)_segmap.low_boundary(), seg_rs.size(), mtCode);
 
   assert(_segmap.committed_size() >= (size_t) _number_of_committed_segments, "could not commit  enough space for segment map");
   assert(_segmap.reserved_size()  >= (size_t) _number_of_reserved_segments , "could not reserve enough space for segment map");

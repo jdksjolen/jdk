@@ -195,9 +195,9 @@ class os: AllStatic {
   // low enough to leave most of the valuable low-4gb address space open.
   static constexpr size_t _vm_min_address_default = 16 * M;
 
-  static char*  pd_reserve_memory(size_t bytes, bool executable);
+  static char*  pd_reserve_memory(size_t bytes, MEMFLAGS mt_flag, bool executable);
 
-  static char*  pd_attempt_reserve_memory_at(char* addr, size_t bytes, bool executable);
+  static char*  pd_attempt_reserve_memory_at(char* addr, size_t bytes, MEMFLAGS mt_flag, bool executable);
 
   static bool   pd_commit_memory(char* addr, size_t bytes, bool executable);
   static bool   pd_commit_memory(char* addr, size_t size, size_t alignment_hint,
@@ -212,7 +212,7 @@ class os: AllStatic {
   static bool   pd_uncommit_memory(char* addr, size_t bytes, bool executable);
   static bool   pd_release_memory(char* addr, size_t bytes);
 
-  static char*  pd_attempt_map_memory_to_file_at(char* addr, size_t bytes, int file_desc);
+  static char*  pd_attempt_map_memory_to_file_at(char* addr, size_t bytes, int file_desc, MEMFLAGS mt_flag);
 
   static char*  pd_map_memory(int fd, const char* file_name, size_t file_offset,
                            char *addr, size_t bytes, bool read_only = false,
@@ -431,31 +431,31 @@ class os: AllStatic {
   inline static size_t cds_core_region_alignment();
 
   // Reserves virtual memory.
-  static char*  reserve_memory(size_t bytes, bool executable = false, MEMFLAGS flags = mtNone);
+  static char*  reserve_memory(size_t bytes, MEMFLAGS flag, bool executable = false);
 
   // Reserves virtual memory that starts at an address that is aligned to 'alignment'.
-  static char*  reserve_memory_aligned(size_t size, size_t alignment, bool executable = false);
+  static char*  reserve_memory_aligned(size_t size, size_t alignment, MEMFLAGS flag, bool executable = false);
 
   // Attempts to reserve the virtual memory at [addr, addr + bytes).
   // Does not overwrite existing mappings.
-  static char*  attempt_reserve_memory_at(char* addr, size_t bytes, bool executable = false);
+  static char*  attempt_reserve_memory_at(char* addr, size_t bytes, MEMFLAGS mt_flag, bool executable = false);
 
   // Given an address range [min, max), attempts to reserve memory within this area, with the given alignment.
   // If randomize is true, the location will be randomized.
-  static char* attempt_reserve_memory_between(char* min, char* max, size_t bytes, size_t alignment, bool randomize);
+  static char* attempt_reserve_memory_between(char* min, char* max, size_t bytes, size_t alignment, bool randomize, MEMFLAGS mt_flag);
 
-  static bool   commit_memory(char* addr, size_t bytes, bool executable);
+  static bool   commit_memory(char* addr, size_t bytes, MEMFLAGS flag, bool executable);
   static bool   commit_memory(char* addr, size_t size, size_t alignment_hint,
-                              bool executable);
+                              MEMFLAGS flag, bool executable);
   // Same as commit_memory() that either succeeds or calls
   // vm_exit_out_of_memory() with the specified mesg.
   static void   commit_memory_or_exit(char* addr, size_t bytes,
-                                      bool executable, const char* mesg);
+                                      MEMFLAGS flag, bool executable, const char* mesg);
   static void   commit_memory_or_exit(char* addr, size_t size,
                                       size_t alignment_hint,
-                                      bool executable, const char* mesg);
-  static bool   uncommit_memory(char* addr, size_t bytes, bool executable = false);
-  static bool   release_memory(char* addr, size_t bytes);
+                                      MEMFLAGS flag, bool executable, const char* mesg);
+  static bool   uncommit_memory(char* addr, size_t bytes, MEMFLAGS flag, bool executable = false);
+  static bool   release_memory(char* addr, size_t bytes, MEMFLAGS flag);
 
   // Does the platform support trimming the native heap?
   static bool can_trim_native_heap();
@@ -490,12 +490,12 @@ class os: AllStatic {
   static int create_file_for_heap(const char* dir);
   // Map memory to the file referred by fd. This function is slightly different from map_memory()
   // and is added to be used for implementation of -XX:AllocateHeapAt
-  static char* map_memory_to_file(size_t size, int fd);
-  static char* map_memory_to_file_aligned(size_t size, size_t alignment, int fd);
-  static char* map_memory_to_file(char* base, size_t size, int fd);
-  static char* attempt_map_memory_to_file_at(char* base, size_t size, int fd);
+  static char* map_memory_to_file(size_t size, int fd, MEMFLAGS flag);
+  static char* map_memory_to_file_aligned(size_t size, size_t alignment, int fd, MEMFLAGS mt_flag);
+  static char* map_memory_to_file(char* base, size_t size, int fd, MEMFLAGS flag);
+  static char* attempt_map_memory_to_file_at(char* base, size_t size, int fd, MEMFLAGS );
   // Replace existing reserved memory with file mapping
-  static char* replace_existing_mapping_with_file_mapping(char* base, size_t size, int fd);
+  static char* replace_existing_mapping_with_file_mapping(char* base, size_t size, int fd, MEMFLAGS flag);
 
   static char*  map_memory(int fd, const char* file_name, size_t file_offset,
                            char *addr, size_t bytes, bool read_only = false,
@@ -503,7 +503,7 @@ class os: AllStatic {
   static char*  remap_memory(int fd, const char* file_name, size_t file_offset,
                              char *addr, size_t bytes, bool read_only,
                              bool allow_exec);
-  static bool   unmap_memory(char *addr, size_t bytes);
+  static bool   unmap_memory(char *addr, size_t bytes, MEMFLAGS flag);
   static void   free_memory(char *addr, size_t bytes, size_t alignment_hint);
   static void   realign_memory(char *addr, size_t bytes, size_t alignment_hint);
 
@@ -529,7 +529,7 @@ class os: AllStatic {
   // reserve, commit and pin the entire memory region
   static char*  reserve_memory_special(size_t size, size_t alignment, size_t page_size,
                                        char* addr, bool executable);
-  static bool   release_memory_special(char* addr, size_t bytes);
+  static bool   release_memory_special(char* addr, size_t bytes, MEMFLAGS flag);
   static void   large_page_init();
   static size_t large_page_size();
   static bool   can_commit_large_page_memory();

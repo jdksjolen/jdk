@@ -51,7 +51,7 @@ struct ARMB_constants {
 
 static void release_if_needed(char* p, size_t s) {
   if (p != nullptr) {
-    os::release_memory(p, s);
+    os::release_memory(p, s, mtTest);
   }
 }
 
@@ -59,7 +59,7 @@ static void release_if_needed(char* p, size_t s) {
                  << " bytes: " << bytes << " alignment: " << alignment << " randomized: " << randomized
 
 static char* call_attempt_reserve_memory_between(char* min, char* max, size_t bytes, size_t alignment, bool randomized) {
-  char* const  addr = os::attempt_reserve_memory_between(min, max, bytes, alignment, randomized);
+  char* const  addr = os::attempt_reserve_memory_between(min, max, bytes, alignment, randomized, mtTest);
   if (addr != nullptr) {
     EXPECT_TRUE(is_aligned(addr, alignment)) << ERRINFO;
     EXPECT_TRUE(is_aligned(addr, os::vm_allocation_granularity())) << ERRINFO;
@@ -151,16 +151,16 @@ public:
       // the hole.
       const uintptr_t candidate = nth_bit(i);
       if ((candidate + _len) <= ARMB_constants::absolute_max) {
-        _base = os::attempt_reserve_memory_at((char*)candidate, _len);
+        _base = os::attempt_reserve_memory_at((char*)candidate, _len, mtTest);
       }
     }
     if (_base == nullptr) {
       return false;
     }
     // Release total mapping, remap the individual non-holy parts
-    os::release_memory(_base, _len);
-    _p1 = os::attempt_reserve_memory_at(_base + _p1_offset, _p1_size);
-    _p2 = os::attempt_reserve_memory_at(_base + _p2_offset, _p2_size);
+    os::release_memory(_base, _len, mtTest);
+    _p1 = os::attempt_reserve_memory_at(_base + _p1_offset, _p1_size, mtTest);
+    _p2 = os::attempt_reserve_memory_at(_base + _p2_offset, _p2_size, mtTest);
     if (_p1 == nullptr || _p2 == nullptr) {
       return false;
     }

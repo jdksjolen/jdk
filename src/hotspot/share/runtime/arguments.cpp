@@ -3954,7 +3954,7 @@ jint Arguments::parse(const JavaVMInitArgs* initial_cmd_args) {
   const NMT_TrackingLevel lvl = NMTUtil::parse_tracking_level(NativeMemoryTracking);
   if (lvl == NMT_unknown) {
     jio_fprintf(defaultStream::error_stream(),
-                "Syntax error, expecting -XX:NativeMemoryTracking=[off|summary|detail]\n");
+                "Syntax error, expecting -XX:NativeMemoryTracking=[off|light|summary|detail]\n");
     return JNI_ERR;
   }
   if (PrintNMTStatistics && lvl == NMT_off) {

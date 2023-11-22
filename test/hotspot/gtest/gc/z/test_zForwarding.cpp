@@ -56,7 +56,7 @@ public:
     const size_t increment = MAX2(align_up(unused / 100, ZGranuleSize), ZGranuleSize);
 
     for (uintptr_t start = 0; start + ZGranuleSize <= ZAddressOffsetMax; start += increment) {
-      char* const reserved = os::attempt_reserve_memory_at((char*)ZAddressHeapBase + start, ZGranuleSize, false /* executable */);
+      char* const reserved = os::attempt_reserve_memory_at((char*)ZAddressHeapBase + start, ZGranuleSize, mtTest, false /* executable */);
       if (reserved != nullptr) {
         // Success
         return reserved;
@@ -100,7 +100,7 @@ public:
 
     _reserved = reserved;
 
-    os::commit_memory((char*)_reserved, ZGranuleSize, false /* executable */);
+    os::commit_memory((char*)_reserved, ZGranuleSize, mtTest, false /* executable */);
 
     _page_offset = uintptr_t(_reserved) - ZAddressHeapBase;
   }
@@ -111,8 +111,8 @@ public:
     ZGeneration::_old = _old_old;
     ZGeneration::_young = _old_young;
     if (_reserved != nullptr) {
-      os::uncommit_memory((char*)_reserved, ZGranuleSize, false /* executable */);
-      os::release_memory((char*)_reserved, ZGranuleSize);
+      os::uncommit_memory((char*)_reserved, ZGranuleSize, mtTest, false /* executable */);
+      os::release_memory((char*)_reserved, ZGranuleSize, mtTest);
     }
   }
 

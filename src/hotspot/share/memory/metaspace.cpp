@@ -587,12 +587,12 @@ ReservedSpace Metaspace::reserve_address_space_for_compressed_classes(size_t siz
     constexpr uintptr_t unscaled_max = ((uintptr_t)UINT_MAX + 1);
     log_debug(metaspace, map)("Trying below " SIZE_FORMAT_X " for unscaled narrow Klass encoding", unscaled_max);
     result = os::attempt_reserve_memory_between(nullptr, (char*)unscaled_max,
-                                                size, Metaspace::reserve_alignment(), randomize);
+                                                size, Metaspace::reserve_alignment(), randomize, mtMetaspace);
     if (result == nullptr) {
       constexpr uintptr_t zerobased_max = unscaled_max << LogKlassAlignmentInBytes;
       log_debug(metaspace, map)("Trying below " SIZE_FORMAT_X " for zero-based narrow Klass encoding", zerobased_max);
       result = os::attempt_reserve_memory_between((char*)unscaled_max, (char*)zerobased_max,
-                                                  size, Metaspace::reserve_alignment(), randomize);
+                                                  size, Metaspace::reserve_alignment(), randomize, mtMetaspace);
     }
   } // end: low-address reservation
 
@@ -619,14 +619,14 @@ ReservedSpace Metaspace::reserve_address_space_for_compressed_classes(size_t siz
 
     log_debug(metaspace, map)("Trying between " UINT64_FORMAT_X " and " UINT64_FORMAT_X
                               " with " SIZE_FORMAT_X " alignment", min, max, alignment);
-    result = os::attempt_reserve_memory_between((char*)min, (char*)max, size, alignment, randomize);
+    result = os::attempt_reserve_memory_between((char*)min, (char*)max, size, alignment, randomize, _mt_flag);
   }
 #endif // defined(AARCH64) || defined(PPC64) || defined(S390)
 
   if (result == nullptr) {
     // Fallback: reserve anywhere and hope the resulting block is usable.
     log_debug(metaspace, map)("Trying anywhere...");
-    result = os::reserve_memory_aligned(size, Metaspace::reserve_alignment(), false);
+    result = os::reserve_memory_aligned(size, Metaspace::reserve_alignment(), mtMetaspace, false);
   }
 
   // Wrap resulting range in ReservedSpace
@@ -774,7 +774,7 @@ void Metaspace::global_initialize() {
                     CompressedClassSpaceBaseAddress, Metaspace::reserve_alignment()));
       }
       rs = ReservedSpace(size, Metaspace::reserve_alignment(),
-                         os::vm_page_size() /* large */, (char*)base);
+                         os::vm_page_size() /* large */, mtMetaspace, (char*)base);
       if (rs.is_reserved()) {
         log_info(metaspace)("Successfully forced class space address to " PTR_FORMAT, p2i(base));
       } else {
@@ -803,7 +803,7 @@ void Metaspace::global_initialize() {
     }
 
     // Mark class space as such
-    MemTracker::record_virtual_memory_type((address)rs.base(), mtClass);
+    MemTracker::record_virtual_memory_type((address)rs.base(), rs.size(), mtClass);
 
     // Initialize space
     Metaspace::initialize_class_space(rs);

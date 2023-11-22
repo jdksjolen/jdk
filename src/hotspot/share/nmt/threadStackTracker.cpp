@@ -47,8 +47,12 @@ int ThreadStackTracker::compare_thread_stack_base(const SimpleThreadStackSite& s
 }
 
 void ThreadStackTracker::new_thread_stack(void* base, size_t size, const NativeCallStack& stack) {
-  assert(MemTracker::tracking_level() >= NMT_summary, "Must be");
+  assert(MemTracker::enabled(), "Must be");
   assert(base != nullptr, "Should have been filtered");
+  if (MemTracker::is_light_mode()) {
+    Atomic::inc(&_thread_count);
+    return;
+  }
   ThreadCritical tc;
   if (track_as_vm()) {
     VirtualMemoryTracker::add_reserved_region((address)base, size, stack, mtThreadStack);
@@ -65,8 +69,12 @@ void ThreadStackTracker::new_thread_stack(void* base, size_t size, const NativeC
 }
 
 void ThreadStackTracker::delete_thread_stack(void* base, size_t size) {
-  assert(MemTracker::tracking_level() >= NMT_summary, "Must be");
+  assert(MemTracker::enabled(), "Must be");
   assert(base != nullptr, "Should have been filtered");
+  if (MemTracker::is_light_mode()) {
+    Atomic::dec(&_thread_count);
+    return;
+  }
   ThreadCritical tc;
   if(track_as_vm()) {
     VirtualMemoryTracker::remove_released_region((address)base, size);

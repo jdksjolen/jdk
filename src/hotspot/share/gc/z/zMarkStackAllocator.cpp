@@ -41,7 +41,7 @@ ZMarkStackSpace::ZMarkStackSpace()
 
   // Reserve address space
   const size_t size = ZMarkStackSpaceLimit;
-  const uintptr_t addr = (uintptr_t)os::reserve_memory(size, !ExecMem, mtGC);
+  const uintptr_t addr = (uintptr_t)os::reserve_memory(size, mtGC, !ExecMem);
   if (addr == 0) {
     log_error_pd(gc, marking)("Failed to reserve address space for mark stacks");
     return;
@@ -87,7 +87,7 @@ size_t ZMarkStackSpace::expand_space() {
                          old_size / M, new_size / M);
 
   // Expand
-  os::commit_memory_or_exit((char*)_end, expand_size, false /* executable */, "Mark stack space");
+  os::commit_memory_or_exit((char*)_end, expand_size, mtGC, false /* executable */, "Mark stack space");
 
   return expand_size;
 }
@@ -104,7 +104,7 @@ size_t ZMarkStackSpace::shrink_space() {
                            old_size / M, new_size / M);
 
     const uintptr_t shrink_start = _end - shrink_size;
-    os::uncommit_memory((char*)shrink_start, shrink_size, false /* executable */);
+    os::uncommit_memory((char*)shrink_start, shrink_size, mtGC, false /* executable */);
   }
 
   return shrink_size;

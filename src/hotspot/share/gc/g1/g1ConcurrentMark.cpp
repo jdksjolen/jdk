@@ -115,7 +115,7 @@ bool G1CMMarkStack::resize(size_t new_capacity) {
   }
   // Release old mapping.
   if (_base != nullptr) {
-    MmapArrayAllocator<TaskQueueEntryChunk>::free(_base, _chunk_capacity);
+    MmapArrayAllocator<TaskQueueEntryChunk>::free(_base, _chunk_capacity, mtGC);
   }
 
   _base = new_base;
@@ -168,7 +168,7 @@ void G1CMMarkStack::expand() {
 
 G1CMMarkStack::~G1CMMarkStack() {
   if (_base != nullptr) {
-    MmapArrayAllocator<TaskQueueEntryChunk>::free(_base, _chunk_capacity);
+    MmapArrayAllocator<TaskQueueEntryChunk>::free(_base, _chunk_capacity, mtGC);
   }
 }
 

@@ -65,6 +65,7 @@
 enum NMT_TrackingLevel {
   NMT_unknown,
   NMT_off,
+  NMT_light,
   NMT_summary,
   NMT_detail
 };

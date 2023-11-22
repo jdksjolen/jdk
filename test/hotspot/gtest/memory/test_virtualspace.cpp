@@ -36,9 +36,9 @@ namespace {
     MemoryReleaser(ReservedSpace* rs) : _rs(rs) { }
     ~MemoryReleaser() {
       if (_rs->special()) {
-        EXPECT_TRUE(os::release_memory_special(_rs->base(), _rs->size()));
+        EXPECT_TRUE(os::release_memory_special(_rs->base(), _rs->size(), mtTest));
       } else {
-        EXPECT_TRUE(os::release_memory(_rs->base(), _rs->size()));
+        EXPECT_TRUE(os::release_memory(_rs->base(), _rs->size(), mtTest));
       }
     }
   };
@@ -64,7 +64,7 @@ namespace {
   static void test_reserved_size(size_t size) {
     ASSERT_PRED2(is_size_aligned, size, os::vm_allocation_granularity());
 
-    ReservedSpace rs(size);
+    ReservedSpace rs(size, mtTest);
     MemoryReleaser releaser(&rs);
 
     EXPECT_TRUE(rs.base() != NULL) << "rs.special: " << rs.special();
@@ -78,7 +78,7 @@ namespace {
   static void test_reserved_size_alignment(size_t size, size_t alignment) {
     ASSERT_PRED2(is_size_aligned, size, alignment) << "Incorrect input parameters";
     size_t page_size = UseLargePages ? os::large_page_size() : os::vm_page_size();
-    ReservedSpace rs(size, alignment, page_size, (char *) NULL);
+    ReservedSpace rs(size, alignment, page_size, mtTest, (char *) NULL);
 
     ASSERT_TRUE(rs.base() != NULL) << "rs.special = " << rs.special();
     ASSERT_EQ(size, rs.size()) << "rs.special = " << rs.special();
@@ -106,7 +106,7 @@ namespace {
     bool large = maybe_large && UseLargePages && size >= os::large_page_size();
     size_t page_size = large ? os::large_page_size() : os::vm_page_size();
 
-    ReservedSpace rs(size, alignment, page_size);
+    ReservedSpace rs(size, alignment, page_size, mtTest);
     MemoryReleaser releaser(&rs);
 
     EXPECT_TRUE(rs.base() != NULL) << "rs.special: " << rs.special();
@@ -215,12 +215,13 @@ namespace {
       default:
       case Default:
       case Reserve:
-        return ReservedSpace(reserve_size_aligned);
+        return ReservedSpace(reserve_size_aligned, mtTest);
       case Disable:
       case Commit:
         return ReservedSpace(reserve_size_aligned,
                              os::vm_allocation_granularity(),
-                             os::vm_page_size());
+                             os::vm_page_size(),
+                             mtTest);
     }
   }
 
@@ -247,7 +248,7 @@ namespace {
 
     ASSERT_TRUE(reserved.is_reserved());
 
-    VirtualSpace vs;
+    VirtualSpace vs(mtTest);
     ASSERT_TRUE(initialize_virtual_space(vs, reserved, mode)) << "Failed to initialize VirtualSpace";
     vs.expand_by(commit_size, false);
 
@@ -299,11 +300,11 @@ TEST_VM(VirtualSpace, actual_committed_space_one_large_page) {
 
   size_t large_page_size = os::large_page_size();
 
-  ReservedSpace reserved(large_page_size, large_page_size, large_page_size);
+  ReservedSpace reserved(large_page_size, large_page_size, large_page_size, mtTest);
   ReservedSpaceReleaser releaser(&reserved);
   ASSERT_TRUE(reserved.is_reserved());
 
-  VirtualSpace vs;
+  VirtualSpace vs(mtTest);
   ASSERT_TRUE(vs.initialize(reserved, 0)) << "Failed to initialize VirtualSpace";
   vs.expand_by(large_page_size, false);
 
@@ -357,9 +358,9 @@ class TestReservedSpace : AllStatic {
 
   static void release_memory_for_test(ReservedSpace rs) {
     if (rs.special()) {
-      EXPECT_TRUE(os::release_memory_special(rs.base(), rs.size()));
+      EXPECT_TRUE(os::release_memory_special(rs.base(), rs.size(), mtTest));
     } else {
-      EXPECT_TRUE(os::release_memory(rs.base(), rs.size()));
+      EXPECT_TRUE(os::release_memory(rs.base(), rs.size(), mtTest));
     }
   }
 
@@ -369,6 +370,7 @@ class TestReservedSpace : AllStatic {
     ReservedSpace rs(size,          // size
                      alignment,     // alignment
                      page_size, // page size
+                     mtTest,
                      (char *)NULL); // requested_address
 
     EXPECT_TRUE(rs.base() != NULL);
@@ -387,7 +389,7 @@ class TestReservedSpace : AllStatic {
   static void test_reserved_space2(size_t size) {
     ASSERT_TRUE(is_aligned(size, os::vm_allocation_granularity())) << "Must be at least AG aligned";
 
-    ReservedSpace rs(size);
+    ReservedSpace rs(size, mtTest);
 
     EXPECT_TRUE(rs.base() != NULL);
     EXPECT_EQ(rs.size(), size) <<  "rs.size: " << rs.size();
@@ -412,7 +414,7 @@ class TestReservedSpace : AllStatic {
     bool large = maybe_large && UseLargePages && size >= os::large_page_size();
     size_t page_size = large ? os::large_page_size() : os::vm_page_size();
 
-    ReservedSpace rs(size, alignment, page_size);
+    ReservedSpace rs(size, alignment, page_size, mtTest);
 
     EXPECT_TRUE(rs.base() != NULL);
     EXPECT_EQ(rs.size(), size) <<  "rs.size: " << rs.size();
@@ -516,12 +518,13 @@ class TestVirtualSpace : AllStatic {
     default:
     case Default:
     case Reserve:
-      return ReservedSpace(reserve_size_aligned);
+      return ReservedSpace(reserve_size_aligned, mtTest);
     case Disable:
     case Commit:
       return ReservedSpace(reserve_size_aligned,
                            os::vm_allocation_granularity(),
-                           os::vm_page_size());
+                           os::vm_page_size(),
+                           mtTest);
     }
   }
 
@@ -548,7 +551,7 @@ class TestVirtualSpace : AllStatic {
 
     EXPECT_TRUE(reserved.is_reserved());
 
-    VirtualSpace vs;
+    VirtualSpace vs(mtTest);
     bool initialized = initialize_virtual_space(vs, reserved, mode);
     EXPECT_TRUE(initialized) << "Failed to initialize VirtualSpace";
 
@@ -576,11 +579,11 @@ class TestVirtualSpace : AllStatic {
 
     size_t large_page_size = os::large_page_size();
 
-    ReservedSpace reserved(large_page_size, large_page_size, large_page_size);
+    ReservedSpace reserved(large_page_size, large_page_size, large_page_size, mtTest);
 
     EXPECT_TRUE(reserved.is_reserved());
 
-    VirtualSpace vs;
+    VirtualSpace vs(mtTest);
     bool initialized = vs.initialize(reserved, 0);
     EXPECT_TRUE(initialized) << "Failed to initialize VirtualSpace";
 

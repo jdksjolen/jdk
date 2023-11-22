@@ -1919,7 +1919,7 @@ char *os::scan_pages(char *start, char* end, page_info* page_expected, page_info
 }
 
 // Reserves and attaches a shared memory segment.
-char* os::pd_reserve_memory(size_t bytes, bool exec) {
+char* os::pd_reserve_memory(size_t bytes, MEMFLAGS mt_flag, bool exec) {
   // Always round to os::vm_page_size(), which may be larger than 4K.
   bytes = align_up(bytes, os::vm_page_size());
 
@@ -2117,7 +2117,7 @@ bool os::can_execute_large_page_memory() {
   return false;
 }
 
-char* os::pd_attempt_map_memory_to_file_at(char* requested_addr, size_t bytes, int file_desc) {
+char* os::pd_attempt_map_memory_to_file_at(char* requested_addr, size_t bytes, int file_desc, MEMFLAGS mt_flag) {
   assert(file_desc >= 0, "file_desc is not valid");
   char* result = nullptr;
 
@@ -2126,7 +2126,7 @@ char* os::pd_attempt_map_memory_to_file_at(char* requested_addr, size_t bytes, i
   result = reserve_mmaped_memory(bytes, requested_addr);
 
   if (result != nullptr) {
-    if (replace_existing_mapping_with_file_mapping(result, bytes, file_desc) == nullptr) {
+    if (replace_existing_mapping_with_file_mapping(result, bytes, file_desc, mt_flag) == nullptr) {
       vm_exit_during_initialization(err_msg("Error in mapping Java heap at the given filesystem directory"));
     }
   }
@@ -2135,7 +2135,7 @@ char* os::pd_attempt_map_memory_to_file_at(char* requested_addr, size_t bytes, i
 
 // Reserve memory at an arbitrary address, only if that area is
 // available (and not reserved for something else).
-char* os::pd_attempt_reserve_memory_at(char* requested_addr, size_t bytes, bool exec) {
+char* os::pd_attempt_reserve_memory_at(char* requested_addr, size_t bytes, MEMFLAGS mt_flag, bool exec) {
   char* addr = nullptr;
 
   // Always round to os::vm_page_size(), which may be larger than 4K.

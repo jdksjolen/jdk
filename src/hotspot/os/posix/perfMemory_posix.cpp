@@ -65,18 +65,18 @@ static char* backing_store_file_name = nullptr;  // name of the backing store
 static char* create_standard_memory(size_t size) {
 
   // allocate an aligned chuck of memory
-  char* mapAddress = os::reserve_memory(size);
+  char* mapAddress = os::reserve_memory(size, mtInternal);
 
   if (mapAddress == nullptr) {
     return nullptr;
   }
 
   // commit memory
-  if (!os::commit_memory(mapAddress, size, !ExecMem)) {
+  if (!os::commit_memory(mapAddress, size, mtInternal, !ExecMem)) {
     if (PrintMiscellaneous && Verbose) {
       warning("Could not commit PerfData memory\n");
     }
-    os::release_memory(mapAddress, size);
+    os::release_memory(mapAddress, size, mtInternal);
     return nullptr;
   }
 
@@ -1086,11 +1086,18 @@ static char* mmap_create_shared(size_t size) {
 static void unmap_shared(char* addr, size_t bytes) {
   int res;
   if (MemTracker::enabled()) {
-    // Note: Tracker contains a ThreadCritical.
-    Tracker tkr(Tracker::release);
-    res = ::munmap(addr, bytes);
-    if (res == 0) {
-      tkr.record((address)addr, bytes);
+    if (MemTracker::is_light_mode()) {
+      res = ::munmap(addr, bytes);
+      if (res == 0) {
+        NMTLightTracker::record_virtual_memory_release(bytes, mtInternal);
+      }
+    } else {
+      // Note: Tracker contains a ThreadCritical.
+      Tracker tkr(Tracker::release);
+      res = ::munmap(addr, bytes);
+      if (res == 0) {
+        tkr.record((address)addr, bytes);
+      }
     }
   } else {
     res = ::munmap(addr, bytes);

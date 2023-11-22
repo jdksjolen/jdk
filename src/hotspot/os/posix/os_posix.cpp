@@ -305,7 +305,7 @@ static int util_posix_fallocate(int fd, off_t offset, off_t len) {
 }
 
 // Map the given address range to the provided file descriptor.
-char* os::map_memory_to_file(char* base, size_t size, int fd) {
+char* os::map_memory_to_file(char* base, size_t size, int fd, MEMFLAGS mt_flag) {
   assert(fd != -1, "File descriptor is not valid");
 
   // allocate space for the file
@@ -327,7 +327,7 @@ char* os::map_memory_to_file(char* base, size_t size, int fd) {
     return nullptr;
   }
   if (base != nullptr && addr != base) {
-    if (!os::release_memory(addr, size)) {
+    if (!os::release_memory(addr, size, mt_flag)) {
       warning("Could not release memory on unsuccessful file mapping");
     }
     return nullptr;
@@ -335,11 +335,11 @@ char* os::map_memory_to_file(char* base, size_t size, int fd) {
   return addr;
 }
 
-char* os::replace_existing_mapping_with_file_mapping(char* base, size_t size, int fd) {
+char* os::replace_existing_mapping_with_file_mapping(char* base, size_t size, int fd, MEMFLAGS mt_flag) {
   assert(fd != -1, "File descriptor is not valid");
   assert(base != nullptr, "Base cannot be null");
 
-  return map_memory_to_file(base, size, fd);
+  return map_memory_to_file(base, size, fd, mt_flag);
 }
 
 static size_t calculate_aligned_extra_size(size_t size, size_t alignment) {
@@ -353,7 +353,7 @@ static size_t calculate_aligned_extra_size(size_t size, size_t alignment) {
 }
 
 // After a bigger chunk was mapped, unmaps start and end parts to get the requested alignment.
-static char* chop_extra_memory(size_t size, size_t alignment, char* extra_base, size_t extra_size) {
+static char* chop_extra_memory(size_t size, size_t alignment, char* extra_base, size_t extra_size, MEMFLAGS mt_flag) {
   // Do manual alignment
   char* aligned_base = align_up(extra_base, alignment);
 
@@ -368,11 +368,11 @@ static char* chop_extra_memory(size_t size, size_t alignment, char* extra_base, 
   size_t end_offset = (extra_base + extra_size) - (aligned_base + size);
 
   if (begin_offset > 0) {
-      os::release_memory(extra_base, begin_offset);
+      os::release_memory(extra_base, begin_offset, mt_flag);
   }
 
   if (end_offset > 0) {
-      os::release_memory(extra_base + begin_offset + size, end_offset);
+      os::release_memory(extra_base + begin_offset + size, end_offset, mt_flag);
   }
 
   return aligned_base;
@@ -381,16 +381,16 @@ static char* chop_extra_memory(size_t size, size_t alignment, char* extra_base, 
 // Multiple threads can race in this code, and can remap over each other with MAP_FIXED,
 // so on posix, unmap the section at the start and at the end of the chunk that we mapped
 // rather than unmapping and remapping the whole chunk to get requested alignment.
-char* os::reserve_memory_aligned(size_t size, size_t alignment, bool exec) {
+char* os::reserve_memory_aligned(size_t size, size_t alignment, MEMFLAGS mt_flag, bool exec) {
   size_t extra_size = calculate_aligned_extra_size(size, alignment);
-  char* extra_base = os::reserve_memory(extra_size, exec);
+  char* extra_base = os::reserve_memory(extra_size, mt_flag, exec);
   if (extra_base == nullptr) {
     return nullptr;
   }
-  return chop_extra_memory(size, alignment, extra_base, extra_size);
+  return chop_extra_memory(size, alignment, extra_base, extra_size, mt_flag);
 }
 
-char* os::map_memory_to_file_aligned(size_t size, size_t alignment, int file_desc) {
+char* os::map_memory_to_file_aligned(size_t size, size_t alignment, int file_desc, MEMFLAGS mt_flag) {
   size_t extra_size = calculate_aligned_extra_size(size, alignment);
   // For file mapping, we do not call os:map_memory_to_file(size,fd) since:
   // - we later chop away parts of the mapping using os::release_memory and that could fail if the
@@ -402,12 +402,12 @@ char* os::map_memory_to_file_aligned(size_t size, size_t alignment, int file_des
   if (extra_base == nullptr) {
     return nullptr;
   }
-  char* aligned_base = chop_extra_memory(size, alignment, extra_base, extra_size);
+  char* aligned_base = chop_extra_memory(size, alignment, extra_base, extra_size, mt_flag);
   // After we have an aligned address, we can replace anonymous mapping with file mapping
-  if (replace_existing_mapping_with_file_mapping(aligned_base, size, file_desc) == nullptr) {
+  if (replace_existing_mapping_with_file_mapping(aligned_base, size, file_desc, mt_flag) == nullptr) {
     vm_exit_during_initialization(err_msg("Error in mapping Java heap at the given filesystem directory"));
   }
-  MemTracker::record_virtual_memory_commit((address)aligned_base, size, CALLER_PC);
+  MemTracker::record_virtual_memory_commit((address)aligned_base, size, CALLER_PC, mt_flag);
   return aligned_base;
 }
 

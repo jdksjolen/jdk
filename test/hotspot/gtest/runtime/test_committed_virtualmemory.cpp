@@ -95,8 +95,8 @@ public:
   static void test_committed_region_impl(size_t num_pages, size_t touch_pages, int* page_num) {
     const size_t page_sz = os::vm_page_size();
     const size_t size = num_pages * page_sz;
-    char* base = os::reserve_memory(size, !ExecMem, mtThreadStack);
-    bool result = os::commit_memory(base, size, !ExecMem);
+    char* base = os::reserve_memory(size, mtThreadStack, !ExecMem);
+    bool result = os::commit_memory(base, size, mtThreadStack, !ExecMem);
     size_t index;
     ASSERT_NE(base, (char*)NULL);
     for (index = 0; index < touch_pages; index ++) {
@@ -163,9 +163,9 @@ public:
     const size_t page_sz = os::vm_page_size();
     const size_t num_pages = 4;
     const size_t size = num_pages * page_sz;
-    char* base = os::reserve_memory(size, !ExecMem, mtTest);
+    char* base = os::reserve_memory(size, mtTest, !ExecMem);
     ASSERT_NE(base, (char*)NULL);
-    result = os::commit_memory(base, size, !ExecMem);
+    result = os::commit_memory(base, size, mtTest, !ExecMem);
 
     ASSERT_TRUE(result);
     // touch all pages
@@ -197,7 +197,7 @@ public:
     ASSERT_EQ(2 * page_sz, committed_size);
     ASSERT_EQ(committed_start, (address)(base + page_sz));
 
-    os::release_memory(base, size);
+    os::release_memory(base, size, mtTest);
   }
 };
 

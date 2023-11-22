@@ -37,28 +37,29 @@ import jdk.test.lib.process.OutputAnalyzer;
 
 public class NMTJavaHeapTest {
     public static void main(String args[]) throws Exception {
-        ProcessBuilder pb = ProcessTools.createTestJavaProcessBuilder(
-              "-XX:+UnlockDiagnosticVMOptions",
-              "-XX:+PrintNMTStatistics",
-              "-XX:NativeMemoryTracking=summary",
-              "-version");
+      for (String nmt_mode: new String[] {"summary", "light"}) {
+          ProcessBuilder pb = ProcessTools.createTestJavaProcessBuilder(
+                "-XX:+UnlockDiagnosticVMOptions",
+                "-XX:+PrintNMTStatistics",
+                "-XX:NativeMemoryTracking=" + nmt_mode,
+                "-version");
+          OutputAnalyzer output = new OutputAnalyzer(pb.start());
 
-        OutputAnalyzer output = new OutputAnalyzer(pb.start());
+          // Java Heap (reserved=786432KB, committed=49152KB)
+          String pattern = ".*Java Heap \\(reserved=.*, committed=(.*)\\).*";
+          String committed = output.firstMatch(pattern, 1);
+          Asserts.assertNotNull(committed, "Couldn't find pattern '" + pattern
+                  + "': in output '" + output.getOutput() + "'");
 
-        // Java Heap (reserved=786432KB, committed=49152KB)
-        String pattern = ".*Java Heap \\(reserved=.*, committed=(.*)\\).*";
-        String committed = output.firstMatch(pattern, 1);
-        Asserts.assertNotNull(committed, "Couldn't find pattern '" + pattern
-                + "': in output '" + output.getOutput() + "'");
+          long committedBytes = committedStringToBytes(committed);
 
-        long committedBytes = committedStringToBytes(committed);
+          // Must be more than zero
+          Asserts.assertGT(committedBytes, 0L);
 
-        // Must be more than zero
-        Asserts.assertGT(committedBytes, 0L);
-
-        // Compare against the max heap size
-        long maxBytes = Runtime.getRuntime().maxMemory();
-        Asserts.assertLTE(committedBytes, maxBytes);
+          // Compare against the max heap size
+          long maxBytes = Runtime.getRuntime().maxMemory();
+          Asserts.assertLTE(committedBytes, maxBytes);
+        }
     }
 
     private static long K = 1024;

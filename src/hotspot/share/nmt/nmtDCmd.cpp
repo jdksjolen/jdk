@@ -33,6 +33,10 @@
 
 NMTDCmd::NMTDCmd(outputStream* output,
   bool heap): DCmdWithParser(output, heap),
+  _light("light", "request runtime to report current memory summary, " \
+           "which includes total reserved and committed memory, along " \
+           "with memory usage summary by each subsystem.",
+           "BOOLEAN", false, "false"),
   _summary("summary", "request runtime to report current memory summary, " \
            "which includes total reserved and committed memory, along " \
            "with memory usage summary by each subsystem.",
@@ -42,6 +46,9 @@ NMTDCmd::NMTDCmd(outputStream* output,
            "BOOLEAN", false, "false"),
   _baseline("baseline", "request runtime to baseline current memory usage, " \
             "so it can be compared against in later time.",
+            "BOOLEAN", false, "false"),
+  _light_diff("light.diff", "request runtime to report memory summary " \
+            "comparison against previous baseline.",
             "BOOLEAN", false, "false"),
   _summary_diff("summary.diff", "request runtime to report memory summary " \
             "comparison against previous baseline.",
@@ -54,9 +61,11 @@ NMTDCmd::NMTDCmd(outputStream* output,
             "BOOLEAN", false, "false"),
   _scale("scale", "Memory usage in which scale, KB, MB or GB",
        "STRING", false, "KB") {
+  _dcmdparser.add_dcmd_option(&_light);
   _dcmdparser.add_dcmd_option(&_summary);
   _dcmdparser.add_dcmd_option(&_detail);
   _dcmdparser.add_dcmd_option(&_baseline);
+  _dcmdparser.add_dcmd_option(&_light_diff);
   _dcmdparser.add_dcmd_option(&_summary_diff);
   _dcmdparser.add_dcmd_option(&_detail_diff);
   _dcmdparser.add_dcmd_option(&_statistics);
@@ -85,16 +94,18 @@ void NMTDCmd::execute(DCmdSource source, TRAPS) {
   }
 
   int nopt = 0;
+  if (_light.is_set() && _light.value()) { ++nopt; }
   if (_summary.is_set() && _summary.value()) { ++nopt; }
   if (_detail.is_set() && _detail.value()) { ++nopt; }
   if (_baseline.is_set() && _baseline.value()) { ++nopt; }
+  if (_light_diff.is_set() && _light_diff.value()) { ++nopt; }
   if (_summary_diff.is_set() && _summary_diff.value()) { ++nopt; }
   if (_detail_diff.is_set() && _detail_diff.value()) { ++nopt; }
   if (_statistics.is_set() && _statistics.value()) { ++nopt; }
 
   if (nopt > 1) {
       output()->print_cr("At most one of the following option can be specified: " \
-        "summary, detail, metadata, baseline, summary.diff, detail.diff");
+        "light, summary, detail, metadata, baseline, light.diff, summary.diff, detail.diff");
       return;
   } else if (nopt == 0) {
     if (_summary.is_set()) {
@@ -108,7 +119,7 @@ void NMTDCmd::execute(DCmdSource source, TRAPS) {
   // Serialize NMT query
   MutexLocker locker(THREAD, MemTracker::query_lock());
 
-  if (_summary.value()) {
+  if (_summary.value() || _light.value()) {
     report(true, scale_unit);
   } else if (_detail.value()) {
     if (!check_detail_tracking_level(output())) {
@@ -119,7 +130,7 @@ void NMTDCmd::execute(DCmdSource source, TRAPS) {
     MemBaseline& baseline = MemTracker::get_baseline();
     baseline.baseline(MemTracker::tracking_level() != NMT_detail);
     output()->print_cr("Baseline taken");
-  } else if (_summary_diff.value()) {
+  } else if (_summary_diff.value() || _light_diff.value()) {
     MemBaseline& baseline = MemTracker::get_baseline();
     if (baseline.baseline_type() >= MemBaseline::Summary_baselined) {
       report_diff(true, scale_unit);

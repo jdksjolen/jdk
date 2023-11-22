@@ -55,18 +55,18 @@ typedef BOOL (WINAPI *SetSecurityDescriptorControlFnPtr)(
 static char* create_standard_memory(size_t size) {
 
   // allocate an aligned chuck of memory
-  char* mapAddress = os::reserve_memory(size);
+  char* mapAddress = os::reserve_memory(size, mtIternal);
 
   if (mapAddress == nullptr) {
     return nullptr;
   }
 
   // commit memory
-  if (!os::commit_memory(mapAddress, size, !ExecMem)) {
+  if (!os::commit_memory(mapAddress, size, mtInternal, !ExecMem)) {
     if (PrintMiscellaneous && Verbose) {
       warning("Could not commit PerfData memory\n");
     }
-    os::release_memory(mapAddress, size);
+    os::release_memory(mapAddress, size, mtInternal);
     return nullptr;
   }
 
@@ -1802,10 +1802,15 @@ void PerfMemory::detach(char* addr, size_t bytes) {
   }
 
   if (MemTracker::enabled()) {
-    // it does not go through os api, the operation has to record from here
-    Tracker tkr(Tracker::release);
-    remove_file_mapping(addr);
-    tkr.record((address)addr, bytes);
+    if (MemTracker::is_light_mode()) {
+      remove_file_mapping(addr);
+      NMTLightTracker::record_virtual_memory_release(bytes, mtInternal);
+    } else {
+      // it does not go through os api, the operation has to record from here
+      Tracker tkr(Tracker::release);
+      remove_file_mapping(addr);
+      tkr.record((address)addr, bytes);
+    }
   } else {
     remove_file_mapping(addr);
   }

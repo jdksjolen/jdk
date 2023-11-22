@@ -1747,7 +1747,7 @@ bool FileMapInfo::read_region(int i, char* base, size_t size, bool do_commit) {
     log_info(cds)("Commit %s region #%d at base " INTPTR_FORMAT " top " INTPTR_FORMAT " (%s)%s",
                   is_static() ? "static " : "dynamic", i, p2i(base), p2i(base + size),
                   shared_region_name[i], r->allow_exec() ? " exec" : "");
-    if (!os::commit_memory(base, size, r->allow_exec())) {
+    if (!os::commit_memory(base, size, mtClassShared, r->allow_exec())) {
       log_error(cds)("Failed to commit %s region #%d (%s)", is_static() ? "static " : "dynamic",
                      i, shared_region_name[i]);
       return false;
@@ -1844,7 +1844,7 @@ char* FileMapInfo::map_bitmap_region() {
   r->set_mapped_base(bitmap_base);
   if (VerifySharedSpaces && !r->check_region_crc()) {
     log_error(cds)("relocation bitmap CRC error");
-    if (!os::unmap_memory(bitmap_base, r->used_aligned())) {
+    if (!os::unmap_memory(bitmap_base, r->used_aligned(), mtClassShared)) {
       fatal("os::unmap_memory of relocation bitmap failed");
     }
     return nullptr;
@@ -2221,7 +2221,7 @@ void FileMapInfo::unmap_region(int i) {
     if (size > 0 && r->mapped_from_file()) {
       log_info(cds)("Unmapping region #%d at base " INTPTR_FORMAT " (%s)", i, p2i(mapped_base),
                     shared_region_name[i]);
-      if (!os::unmap_memory(mapped_base, size)) {
+      if (!os::unmap_memory(mapped_base, size, mtClassShared)) {
         fatal("os::unmap_memory failed");
       }
     }

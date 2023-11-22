@@ -55,7 +55,8 @@ public:
 
   EpsilonHeap() :
           _memory_manager("Epsilon Heap"),
-          _space(nullptr) {};
+          _space(nullptr),
+          _virtual_space(mtGC) {};
 
   Name kind() const override {
     return CollectedHeap::Epsilon;

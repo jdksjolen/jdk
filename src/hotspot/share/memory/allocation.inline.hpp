@@ -58,15 +58,15 @@ template <class E>
 E* MmapArrayAllocator<E>::allocate_or_null(size_t length, MEMFLAGS flags) {
   size_t size = size_for(length);
 
-  char* addr = os::reserve_memory(size, !ExecMem, flags);
+  char* addr = os::reserve_memory(size, flags, !ExecMem);
   if (addr == nullptr) {
     return nullptr;
   }
 
-  if (os::commit_memory(addr, size, !ExecMem)) {
+  if (os::commit_memory(addr, size, flags, !ExecMem)) {
     return (E*)addr;
   } else {
-    os::release_memory(addr, size);
+    os::release_memory(addr, size, flags);
     return nullptr;
   }
 }
@@ -75,19 +75,19 @@ template <class E>
 E* MmapArrayAllocator<E>::allocate(size_t length, MEMFLAGS flags) {
   size_t size = size_for(length);
 
-  char* addr = os::reserve_memory(size, !ExecMem, flags);
+  char* addr = os::reserve_memory(size, flags, !ExecMem);
   if (addr == nullptr) {
     vm_exit_out_of_memory(size, OOM_MMAP_ERROR, "Allocator (reserve)");
   }
 
-  os::commit_memory_or_exit(addr, size, !ExecMem, "Allocator (commit)");
+  os::commit_memory_or_exit(addr, size, flags, !ExecMem, "Allocator (commit)");
 
   return (E*)addr;
 }
 
 template <class E>
-void MmapArrayAllocator<E>::free(E* addr, size_t length) {
-  bool result = os::release_memory((char*)addr, size_for(length));
+void MmapArrayAllocator<E>::free(E* addr, size_t length, MEMFLAGS flag) {
+  bool result = os::release_memory((char*)addr, size_for(length), flag);
   assert(result, "Failed to release memory");
 }
 

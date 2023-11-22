@@ -59,7 +59,7 @@ namespace {
     HugeTlbfsMemory(char* const ptr, size_t size) : _ptr(ptr), _size(size) { }
     ~HugeTlbfsMemory() {
       if (_ptr != NULL) {
-        os::release_memory_special(_ptr, _size);
+        os::release_memory_special(_ptr, _size, mtTest);
       }
     }
   };
@@ -227,7 +227,7 @@ class TestReserveMemorySpecial : AllStatic {
     char* addr = os::reserve_memory_special(size, alignment, page_size, NULL, false);
     if (addr != NULL) {
       small_page_write(addr, size);
-      os::release_memory_special(addr, size);
+      os::release_memory_special(addr, size, mtTest);
     }
   }
 
@@ -285,7 +285,7 @@ class TestReserveMemorySpecial : AllStatic {
         if (p != NULL) {
           EXPECT_TRUE(is_aligned(p, alignment));
           small_page_write(p, size);
-          os::release_memory_special(p, size);
+          os::release_memory_special(p, size, mtTest);
         }
       }
     }
@@ -300,7 +300,7 @@ class TestReserveMemorySpecial : AllStatic {
         if (p != NULL) {
           EXPECT_EQ(p, req_addr);
           small_page_write(p, size);
-          os::release_memory_special(p, size);
+          os::release_memory_special(p, size, mtTest);
         }
       }
     }

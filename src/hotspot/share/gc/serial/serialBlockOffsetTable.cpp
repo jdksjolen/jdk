@@ -35,14 +35,15 @@
 
 SerialBlockOffsetSharedArray::SerialBlockOffsetSharedArray(MemRegion reserved,
                                                            size_t init_word_size):
-  _reserved(reserved) {
+  _reserved(reserved),
+  _vs(mtGC) {
   size_t size = compute_size(reserved.word_size());
-  ReservedSpace rs(size);
+  ReservedSpace rs(size, mtGC);
   if (!rs.is_reserved()) {
     vm_exit_during_initialization("Could not reserve enough space for heap offset array");
   }
 
-  MemTracker::record_virtual_memory_type((address)rs.base(), mtGC);
+  MemTracker::record_virtual_memory_type((address)rs.base(), rs.size(), mtGC);
 
   if (!_vs.initialize(rs, 0)) {
     vm_exit_during_initialization("Could not reserve enough space for heap offset array");

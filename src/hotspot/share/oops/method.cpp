@@ -49,7 +49,7 @@
 #include "memory/oopFactory.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
-#include "nmt/memTracker.hpp"
+//#include "nmt/memTracker.hpp"
 #include "oops/constMethod.hpp"
 #include "oops/constantPool.hpp"
 #include "oops/klass.inline.hpp"

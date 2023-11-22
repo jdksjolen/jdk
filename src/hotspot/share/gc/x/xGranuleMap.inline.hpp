@@ -42,7 +42,7 @@ inline XGranuleMap<T>::XGranuleMap(size_t max_offset) :
 
 template <typename T>
 inline XGranuleMap<T>::~XGranuleMap() {
-  MmapArrayAllocator<T>::free(_map, _size);
+  MmapArrayAllocator<T>::free(_map, _size, mtGC);
 }
 
 template <typename T>

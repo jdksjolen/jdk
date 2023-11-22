@@ -626,7 +626,7 @@ class MmapArrayAllocator : public AllStatic {
  public:
   static E* allocate_or_null(size_t length, MEMFLAGS flags);
   static E* allocate(size_t length, MEMFLAGS flags);
-  static void free(E* addr, size_t length);
+  static void free(E* addr, size_t length, MEMFLAGS flag);
 };
 
 // Uses malloc:ed memory for all allocations.

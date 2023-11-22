@@ -42,7 +42,8 @@
 #include "utilities/events.hpp"
 
 Generation::Generation(ReservedSpace rs, size_t initial_size) :
-  _gc_manager(nullptr) {
+  _gc_manager(nullptr),
+  _virtual_space(mtGC) {
   if (!_virtual_space.initialize(rs, initial_size)) {
     vm_exit_during_initialization("Could not reserve enough space for "
                     "object heap");

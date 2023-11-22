@@ -42,6 +42,7 @@ struct malloclimit;
  * The counters are updated atomically.
  */
 class MemoryCounter {
+  friend class NMTLightTracker;
  private:
   volatile size_t   _count;
   volatile size_t   _size;
@@ -98,6 +99,7 @@ class MemoryCounter {
  * call and arena's backing memory.
  */
 class MallocMemory {
+  friend class NMTLightTracker;
  private:
   MemoryCounter _malloc;
   MemoryCounter _arena;
@@ -134,6 +136,8 @@ class MallocMemory {
 
   const MemoryCounter* malloc_counter() const { return &_malloc; }
   const MemoryCounter* arena_counter()  const { return &_arena;  }
+  MemoryCounter* malloc_counter_lv() { return &_malloc; }
+  MemoryCounter* arena_counter_lv()  { return &_arena;  }
 };
 
 class MallocMemorySummary;
@@ -142,6 +146,7 @@ class MallocMemorySummary;
 // usage by types and memory used by tracking itself.
 class MallocMemorySnapshot : public ResourceObj {
   friend class MallocMemorySummary;
+  friend class NMTLightTracker;
 
  private:
   MallocMemory      _malloc[mt_number_of_types];

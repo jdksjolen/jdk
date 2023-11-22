@@ -58,7 +58,7 @@ void MemTracker::initialize() {
 
   NMT_TrackingLevel level = NMTUtil::parse_tracking_level(NativeMemoryTracking);
   // Should have been validated before in arguments.cpp
-  assert(level == NMT_off || level == NMT_summary || level == NMT_detail,
+  assert(level == NMT_off || level == NMT_light || level == NMT_summary || level == NMT_detail,
          "Invalid setting for NativeMemoryTracking (%s)", NativeMemoryTracking);
 
   // Memory type is encoded into tracking header as a byte field,
@@ -128,7 +128,7 @@ void MemTracker::final_report(outputStream* output) {
   // the final report again. In addition, it should be guarded from
   // recursive calls in case NMT reporting itself crashes.
   if (enabled() && Atomic::cmpxchg(&g_final_report_did_run, false, true) == false) {
-    report(tracking_level() == NMT_summary, output, 1);
+    report(tracking_level() == NMT_summary || tracking_level() == NMT_light, output, 1);
   }
 }
 

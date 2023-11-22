@@ -252,7 +252,7 @@ HashtableTextDump::HashtableTextDump(const char* filename) : _fd(-1) {
 }
 
 HashtableTextDump::~HashtableTextDump() {
-  os::unmap_memory((char*)_base, _size);
+  os::unmap_memory((char*)_base, _size, mtClass);
   if (_fd >= 0) {
     ::close(_fd);
   }

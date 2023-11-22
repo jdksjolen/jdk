@@ -54,7 +54,7 @@ TEST_VM(NMT, malloc_failure2) {
 static void check_failing_realloc(size_t failing_request_size) {
 
   // We test this with both NMT enabled and disabled.
-  bool nmt_enabled = MemTracker::enabled();
+  bool nmt_enabled = MemTracker::is_summary_or_detail();
   const size_t first_size = 0x100;
 
   void* p = os::malloc(first_size, mtTest);
@@ -104,7 +104,7 @@ static void* do_realloc(void* p, size_t old_size, size_t new_size, uint8_t old_c
   if (old_size < new_size) {
     EXPECT_RANGE_IS_MARKED_WITH(p2, old_size, old_content);
 #ifdef ASSERT
-    if (MemTracker::enabled()) {
+    if (MemTracker::is_summary_or_detail()) {
       EXPECT_RANGE_IS_MARKED_WITH((char*)p2 + old_size, new_size - old_size, uninitBlockPad);
     }
 #endif
@@ -120,7 +120,7 @@ static void* do_realloc(void* p, size_t old_size, size_t new_size, uint8_t old_c
 // left intact.
 TEST_VM(NMT, random_reallocs) {
 
-  bool nmt_enabled = MemTracker::enabled();
+  bool nmt_enabled = MemTracker::is_summary_or_detail();
   size_t size = 256;
   uint8_t content = 'A';
 

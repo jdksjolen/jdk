@@ -66,5 +66,17 @@ public class PrintNMTStatistics {
     output_summary.shouldNotContain("Virtual memory map:");
     output_summary.shouldNotContain("Details:");
     output_summary.shouldHaveExitValue(0);
+
+    ProcessBuilder pb_light = ProcessTools.createTestJavaProcessBuilder(
+      "-XX:+UnlockDiagnosticVMOptions",
+      "-XX:+PrintNMTStatistics",
+      "-XX:NativeMemoryTracking=light",
+      "-version");
+
+    OutputAnalyzer output_light = new OutputAnalyzer(pb_light.start());
+    output_light.shouldContain("Java Heap (reserved=");
+    output_light.shouldNotContain("Virtual memory map:");
+    output_light.shouldNotContain("Details:");
+    output_light.shouldHaveExitValue(0);
     }
 }

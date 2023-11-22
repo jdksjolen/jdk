@@ -109,14 +109,16 @@ TEST_VM(NMT, DISABLED_location_printing_cheap_dead_7) { test_for_dead_c_heap_blo
 #endif
 
 static void test_for_mmap(size_t sz, ssize_t offset) {
-  char* addr = os::reserve_memory(sz, false, mtTest);
-  if (MemTracker::enabled()) {
+  char* addr = os::reserve_memory(sz, mtTest, false);
+  if (MemTracker::is_summary_or_detail()) {
     test_pointer(addr + offset, true, "in mmap'd memory region");
+  } else if (MemTracker::is_light_mode()){
+    // Todo:?
   } else {
     // NMT disabled: we should see nothing.
     test_pointer(addr + offset, false, "");
   }
-  os::release_memory(addr, os::vm_page_size());
+  os::release_memory(addr, os::vm_page_size(), mtTest);
 }
 
 TEST_VM(NMT, location_printing_mmap_1) { test_for_mmap(os::vm_page_size(), 0);  }

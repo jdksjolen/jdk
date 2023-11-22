@@ -26,8 +26,10 @@ package org.openjdk.bench.vm.runtime;
 import org.openjdk.jmh.annotations.*;
 import org.openjdk.jmh.infra.Blackhole;
 
-import jdk.internal.misc.Unsafe;
 import java.util.concurrent.TimeUnit;
+
+import jdk.internal.misc.Unsafe;
+import jdk.test.whitebox.WhiteBox;
 
 /**
  * The purpose of these microbenchmarks is to get the overhead of NMT in disable/summary/detail mode.
@@ -44,15 +46,18 @@ public abstract class NMTBenchmark {
   Unsafe unsafe;
   long addresses[];
 
-  //@Param({"100000", "1000000"})
-  @Param({"100000"})
-  public int N;
+  // @Param({"100000"})
+  // public int N;
 
-  @Param({"0", "4"})
+  @Param({"16"})
   public int THREADS;
+
+  @Param({"100", "200", "400"})
+  public int REGIONS;
 
   // Each TestThread instance allocates/frees a portion (`start` to `end`) of the `addresses` array.
   // The thread index and a flag for doing allocate or freeing it are sent to the constructor.
+  /*
   private class TestThread extends Thread {
     private int thr_index;
     private int count;
@@ -102,7 +107,13 @@ public abstract class NMTBenchmark {
       }
     }
   }
-
+  */
+  @Benchmark
+  public void virtualMemoryTests() {
+    try { NMTBenchmark_wb.doTest(REGIONS, THREADS); }
+    catch (Throwable t) {}
+  }
+/*
   @Benchmark
   public void mixAallocateFreeMemory(Blackhole bh) throws InterruptedException{
 
@@ -190,9 +201,12 @@ public abstract class NMTBenchmark {
       }
     }
   }
-
+  private static WhiteBox wb;
   @Benchmark
   public void mixAllocateReallocateMemory() throws InterruptedException {
+    wb = WhiteBox.getWhiteBox();
+
+
     Unsafe unsafe = Unsafe.getUnsafe();
     if (unsafe == null) {
       throw new InterruptedException();
@@ -237,16 +251,28 @@ public abstract class NMTBenchmark {
       }
     }
   }
-
+*/
   public static final String ADD_EXPORTS = "--add-exports";
   public static final String MISC_PACKAGE = "java.base/jdk.internal.misc=ALL-UNNAMED"; // used for Unsafe API
+  public static final String WB_BOOTCP = "-Xbootclasspath/a:/home/afshin/scratch/nmt_light/build/linux-x64-debug/images/test/micro/wb.jar";
+  public static final String WB_UNLOCK_OPTION = "-XX:+UnlockDiagnosticVMOptions";
+  public static final String WB_API = "-XX:+WhiteBoxAPI";
 
-  @Fork(value = 2, jvmArgsPrepend = { "-XX:NativeMemoryTracking=off", ADD_EXPORTS, MISC_PACKAGE})
-  public static class NMTOff extends NMTBenchmark { }
 
-  @Fork(value = 2, jvmArgsPrepend = { "-XX:NativeMemoryTracking=summary", ADD_EXPORTS, MISC_PACKAGE})
+
+  // @Fork(value = 2, jvmArgsPrepend = { "-XX:NativeMemoryTracking=off", ADD_EXPORTS, MISC_PACKAGE})
+  @Fork(value = 2, jvmArgsPrepend = { WB_BOOTCP, WB_UNLOCK_OPTION, WB_API,ADD_EXPORTS, MISC_PACKAGE, "-XX:NativeMemoryTracking=off", ADD_EXPORTS, MISC_PACKAGE })
+   public static class NMTOff extends NMTBenchmark { }
+
+  // @Fork(value = 2, jvmArgsPrepend = { "-XX:NativeMemoryTracking=light", ADD_EXPORTS, MISC_PACKAGE})
+  @Fork(value = 2, jvmArgsPrepend = { WB_BOOTCP, WB_UNLOCK_OPTION, WB_API,ADD_EXPORTS, MISC_PACKAGE, "-XX:NativeMemoryTracking=light", ADD_EXPORTS, MISC_PACKAGE })
+  public static class NMTLight extends NMTBenchmark { }
+
+  // @Fork(value = 2, jvmArgsPrepend = { "-XX:NativeMemoryTracking=summary", ADD_EXPORTS, MISC_PACKAGE})
+  @Fork(value = 2, jvmArgsPrepend = { WB_BOOTCP, WB_UNLOCK_OPTION, WB_API,ADD_EXPORTS, MISC_PACKAGE, "-XX:NativeMemoryTracking=summary", ADD_EXPORTS, MISC_PACKAGE })
   public static class NMTSummary extends NMTBenchmark { }
 
-  @Fork(value = 2, jvmArgsPrepend = { "-XX:NativeMemoryTracking=detail", ADD_EXPORTS, MISC_PACKAGE})
-  public static class NMTDetail extends NMTBenchmark { }
+  // @Fork(value = 2, jvmArgsPrepend = { "-XX:NativeMemoryTracking=detail", ADD_EXPORTS, MISC_PACKAGE})
+  // @Fork(value = 2, jvmArgsPrepend = { WB_BOOTCP, WB_UNLOCK_OPTION, WB_API,ADD_EXPORTS, MISC_PACKAGE, "-XX:NativeMemoryTracking=detail", ADD_EXPORTS, MISC_PACKAGE })
+  // public static class NMTDetail extends NMTBenchmark { }
 }

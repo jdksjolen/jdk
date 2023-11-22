@@ -40,7 +40,7 @@ namespace {
     MemoryReleaser(char* ptr, size_t size) : _ptr(ptr), _size(size) { }
     ~MemoryReleaser() {
       if (_ptr != NULL) {
-        os::release_memory_special(_ptr, _size);
+        os::release_memory_special(_ptr, _size, mtTest);
       }
     }
   };

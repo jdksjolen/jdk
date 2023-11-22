@@ -367,10 +367,10 @@ TEST_VM(os, jio_snprintf) {
 static inline bool can_reserve_executable_memory(void) {
   bool executable = true;
   size_t len = 128;
-  char* p = os::reserve_memory(len, executable);
+  char* p = os::reserve_memory(len, mtTest, executable);
   bool exec_supported = (p != NULL);
   if (exec_supported) {
-    os::release_memory(p, len);
+    os::release_memory(p, len, mtTest);
   }
   return exec_supported;
 }
@@ -385,7 +385,7 @@ static inline bool can_reserve_executable_memory(void) {
 static void carefully_release_multiple(address start, int num_stripes, size_t stripe_len) {
   for (int stripe = 0; stripe < num_stripes; stripe++) {
     address q = start + (stripe * stripe_len);
-    EXPECT_TRUE(os::release_memory((char*)q, stripe_len));
+    EXPECT_TRUE(os::release_memory((char*)q, stripe_len, mtTest));
   }
 }
 
@@ -405,10 +405,10 @@ static address reserve_multiple(int num_stripes, size_t stripe_len) {
   for (int tries = 0; tries < 256 && p == NULL; tries ++) {
     size_t total_range_len = num_stripes * stripe_len;
     // Reserve a large contiguous area to get the address space...
-    p = (address)os::reserve_memory(total_range_len);
+    p = (address)os::reserve_memory(total_range_len, mtTest);
     EXPECT_NE(p, (address)NULL);
     // .. release it...
-    EXPECT_TRUE(os::release_memory((char*)p, total_range_len));
+    EXPECT_TRUE(os::release_memory((char*)p, total_range_len, mtTest));
     // ... re-reserve in the same spot multiple areas...
     for (int stripe = 0; stripe < num_stripes; stripe++) {
       address q = p + (stripe * stripe_len);
@@ -419,14 +419,14 @@ static address reserve_multiple(int num_stripes, size_t stripe_len) {
 #else
       const bool executable = stripe % 2 == 0;
 #endif
-      q = (address)os::attempt_reserve_memory_at((char*)q, stripe_len, executable);
+      q = (address)os::attempt_reserve_memory_at((char*)q, stripe_len, mtTest, executable);
       if (q == NULL) {
         // Someone grabbed that area concurrently. Cleanup, then retry.
         tty->print_cr("reserve_multiple: retry (%d)...", stripe);
         carefully_release_multiple(p, stripe, stripe_len);
         p = NULL;
       } else {
-        EXPECT_TRUE(os::commit_memory((char*)q, stripe_len, executable));
+        EXPECT_TRUE(os::commit_memory((char*)q, stripe_len, mtTest, executable));
       }
     }
   }
@@ -439,12 +439,12 @@ static address reserve_multiple(int num_stripes, size_t stripe_len) {
 static address reserve_one_commit_multiple(int num_stripes, size_t stripe_len) {
   assert(is_aligned(stripe_len, os::vm_allocation_granularity()), "Sanity");
   size_t total_range_len = num_stripes * stripe_len;
-  address p = (address)os::reserve_memory(total_range_len);
+  address p = (address)os::reserve_memory(total_range_len, mtTest);
   EXPECT_NE(p, (address)NULL);
   for (int stripe = 0; stripe < num_stripes; stripe++) {
     address q = p + (stripe * stripe_len);
     if (stripe % 2 == 0) {
-      EXPECT_TRUE(os::commit_memory((char*)q, stripe_len, false));
+      EXPECT_TRUE(os::commit_memory((char*)q, stripe_len, mtTest, false));
     }
   }
   return p;
@@ -501,19 +501,19 @@ TEST_VM(os, release_multi_mappings) {
     // On Windows, temporarily switch on UseNUMAInterleaving to allow release_memory to release
     //  multiple mappings in one go (otherwise we assert, which we test too, see death test below).
     WINDOWS_ONLY(NUMASwitcher b(true);)
-    ASSERT_TRUE(os::release_memory((char*)p_middle_stripes, middle_stripe_len));
+    ASSERT_TRUE(os::release_memory((char*)p_middle_stripes, middle_stripe_len, mtTest));
   }
   PRINT_MAPPINGS("B");
 
   // ...re-reserve the middle stripes. This should work unless release silently failed.
-  address p2 = (address)os::attempt_reserve_memory_at((char*)p_middle_stripes, middle_stripe_len);
+  address p2 = (address)os::attempt_reserve_memory_at((char*)p_middle_stripes, middle_stripe_len, mtTest);
   ASSERT_EQ(p2, p_middle_stripes);
   PRINT_MAPPINGS("C");
 
   // Clean up. Release all mappings.
   {
     WINDOWS_ONLY(NUMASwitcher b(true);) // allow release_memory to release multiple regions
-    ASSERT_TRUE(os::release_memory((char*)p, total_range_len));
+    ASSERT_TRUE(os::release_memory((char*)p, total_range_len, mtTest));
   }
 }
 #endif // !AIX
@@ -527,24 +527,24 @@ TEST_VM_ASSERT_MSG(os, release_bad_ranges, ".*bad release") {
 #else
 TEST_VM(os, release_bad_ranges) {
 #endif
-  char* p = os::reserve_memory(4 * M);
+  char* p = os::reserve_memory(4 * M, mtTest);
   ASSERT_NE(p, (char*)NULL);
   // Release part of range
-  ASSERT_FALSE(os::release_memory(p, M));
+  ASSERT_FALSE(os::release_memory(p, M, mtTest));
   // Release part of range
-  ASSERT_FALSE(os::release_memory(p + M, M));
+  ASSERT_FALSE(os::release_memory(p + M, M, mtTest));
   // Release more than the range (explicitly switch off NUMA here
   //  to make os::release_memory() test more strictly and to not
   //  accidentally release neighbors)
   {
     NUMASwitcher b(false);
-    ASSERT_FALSE(os::release_memory(p, M * 5));
-    ASSERT_FALSE(os::release_memory(p - M, M * 5));
-    ASSERT_FALSE(os::release_memory(p - M, M * 6));
+    ASSERT_FALSE(os::release_memory(p, M * 5, mtTest));
+    ASSERT_FALSE(os::release_memory(p - M, M * 5, mtTest));
+    ASSERT_FALSE(os::release_memory(p - M, M * 6, mtTest));
   }
 
-  ASSERT_TRUE(os::release_memory(p, 4 * M)); // Release for real
-  ASSERT_FALSE(os::release_memory(p, 4 * M)); // Again, should fail
+  ASSERT_TRUE(os::release_memory(p, 4 * M, mtTest)); // Release for real
+  ASSERT_FALSE(os::release_memory(p, 4 * M, mtTest)); // Again, should fail
 }
 #endif // _WIN32
 
@@ -561,15 +561,15 @@ TEST_VM(os, release_one_mapping_multi_commits) {
   PRINT_MAPPINGS("A");
 
   // .. release it...
-  ASSERT_TRUE(os::release_memory((char*)p, total_range_len));
+  ASSERT_TRUE(os::release_memory((char*)p, total_range_len, mtTest));
   PRINT_MAPPINGS("B");
 
   // re-reserve it. This should work unless release failed.
-  address p2 = (address)os::attempt_reserve_memory_at((char*)p, total_range_len);
+  address p2 = (address)os::attempt_reserve_memory_at((char*)p, total_range_len, mtTest);
   ASSERT_EQ(p2, p);
   PRINT_MAPPINGS("C");
 
-  ASSERT_TRUE(os::release_memory((char*)p, total_range_len));
+  ASSERT_TRUE(os::release_memory((char*)p, total_range_len, mtTest));
   PRINT_MAPPINGS("D");
 }
 
@@ -600,15 +600,15 @@ TEST_VM(os, show_mappings_small_range) {
 TEST_VM(os, show_mappings_full_range) {
   // Reserve a small range and fill it with a marker string, should show up
   // on implementations displaying range snippets
-  char* p = os::reserve_memory(1 * M, false, mtInternal);
+  char* p = os::reserve_memory(1 * M, mtInternal, false);
   if (p != nullptr) {
-    if (os::commit_memory(p, 1 * M, false)) {
+    if (os::commit_memory(p, 1 * M, mtInternal, false)) {
       strcpy(p, "ABCDEFGHIJKLMNOPQRSTUVWXYZ");
     }
   }
   test_show_mappings(nullptr, 0);
   if (p != nullptr) {
-    os::release_memory(p, 1 * M);
+    os::release_memory(p, 1 * M, mtTest);
   }
 }
 
@@ -624,7 +624,7 @@ TEST_VM(os, find_mapping_simple) {
 
   // A simple allocation
   {
-    address p = (address)os::reserve_memory(total_range_len);
+    address p = (address)os::reserve_memory(total_range_len, mtTest);
     ASSERT_NE(p, (address)NULL);
     PRINT_MAPPINGS("A");
     for (size_t offset = 0; offset < total_range_len; offset += 4711) {
@@ -641,7 +641,7 @@ TEST_VM(os, find_mapping_simple) {
     if (os::win32::find_mapping(p + total_range_len, &mapping_info)) {
       ASSERT_NE(mapping_info.base, p);
     }
-    ASSERT_TRUE(os::release_memory((char*)p, total_range_len));
+    ASSERT_TRUE(os::release_memory((char*)p, total_range_len, mtTest));
     PRINT_MAPPINGS("B");
     ASSERT_FALSE(os::win32::find_mapping(p, &mapping_info));
   }
@@ -670,7 +670,7 @@ TEST_VM(os, find_mapping_2) {
   if (os::win32::find_mapping(p + total_range_len, &mapping_info)) {
     ASSERT_NE(mapping_info.base, p);
   }
-  ASSERT_TRUE(os::release_memory((char*)p, total_range_len));
+  ASSERT_TRUE(os::release_memory((char*)p, total_range_len, mtTest));
   PRINT_MAPPINGS("B");
   ASSERT_FALSE(os::win32::find_mapping(p, &mapping_info));
 }
@@ -929,21 +929,21 @@ TEST_VM(os, open_O_CLOEXEC) {
 }
 
 TEST_VM(os, reserve_at_wish_address_shall_not_replace_mappings_smallpages) {
-  char* p1 = os::reserve_memory(M, false, mtTest);
+  char* p1 = os::reserve_memory(M, mtTest, false);
   ASSERT_NE(p1, nullptr);
-  char* p2 = os::attempt_reserve_memory_at(p1, M);
+  char* p2 = os::attempt_reserve_memory_at(p1, M, mtTest);
   ASSERT_EQ(p2, nullptr); // should have failed
-  os::release_memory(p1, M);
+  os::release_memory(p1, M, mtTest);
 }
 
 TEST_VM(os, reserve_at_wish_address_shall_not_replace_mappings_largepages) {
   if (UseLargePages && !os::can_commit_large_page_memory()) { // aka special
     const size_t lpsz = os::large_page_size();
-    char* p1 = os::reserve_memory_aligned(lpsz, lpsz, false);
+    char* p1 = os::reserve_memory_aligned(lpsz, lpsz, mtTest, false);
     ASSERT_NE(p1, nullptr);
     char* p2 = os::reserve_memory_special(lpsz, lpsz, lpsz, p1, false);
     ASSERT_EQ(p2, nullptr); // should have failed
-    os::release_memory(p1, M);
+    os::release_memory(p1, M, mtTest);
   } else {
     tty->print_cr("Skipped.");
   }
@@ -953,9 +953,9 @@ TEST_VM(os, reserve_at_wish_address_shall_not_replace_mappings_largepages) {
 // On Aix, we should fail attach attempts not aligned to segment boundaries (256m)
 TEST_VM(os, aix_reserve_at_non_shmlba_aligned_address) {
   if (Use64KPages && Use64KPagesThreshold == 0) {
-    char* p = os::attempt_reserve_memory_at((char*)0x1f00000, M);
+    char* p = os::attempt_reserve_memory_at((char*)0x1f00000, M, mtTest);
     ASSERT_EQ(p, nullptr); // should have failed
-    p = os::attempt_reserve_memory_at((char*)((64 * G) + M), M);
+    p = os::attempt_reserve_memory_at((char*)((64 * G) + M), M, mtTest);
     ASSERT_EQ(p, nullptr); // should have failed
   }
 }

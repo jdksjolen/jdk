@@ -35,16 +35,18 @@
  */
 class NMTDCmd: public DCmdWithParser {
  protected:
+  DCmdArgument<bool>  _light;
   DCmdArgument<bool>  _summary;
   DCmdArgument<bool>  _detail;
   DCmdArgument<bool>  _baseline;
+  DCmdArgument<bool>  _light_diff;
   DCmdArgument<bool>  _summary_diff;
   DCmdArgument<bool>  _detail_diff;
   DCmdArgument<bool>  _statistics;
   DCmdArgument<char*> _scale;
 
  public:
-  static int num_arguments() { return 7; }
+  static int num_arguments() { return 9; }
   NMTDCmd(outputStream* output, bool heap);
   static const char* name() { return "VM.native_memory"; }
   static const char* description() {

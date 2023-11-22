@@ -67,6 +67,7 @@ const char* NMTUtil::tracking_level_to_string(NMT_TrackingLevel lvl) {
   switch(lvl) {
     case NMT_unknown: return "unknown"; break;
     case NMT_off:     return "off"; break;
+    case NMT_light:   return "light"; break;
     case NMT_summary: return "summary"; break;
     case NMT_detail:  return "detail"; break;
     default:          return "invalid"; break;
@@ -76,7 +77,9 @@ const char* NMTUtil::tracking_level_to_string(NMT_TrackingLevel lvl) {
 // Returns the parsed level; NMT_unknown if string is invalid
 NMT_TrackingLevel NMTUtil::parse_tracking_level(const char* s) {
   if (s != nullptr) {
-    if (strcmp(s, "summary") == 0) {
+    if (strcmp(s, "light") == 0) {
+      return NMT_light;
+    } else if (strcmp(s, "summary") == 0) {
       return NMT_summary;
     } else if (strcmp(s, "detail") == 0) {
       return NMT_detail;

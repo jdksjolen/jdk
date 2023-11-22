@@ -1800,16 +1800,16 @@ bool os::create_stack_guard_pages(char* addr, size_t bytes) {
   return os::pd_create_stack_guard_pages(addr, bytes);
 }
 
-char* os::reserve_memory(size_t bytes, bool executable, MEMFLAGS flags) {
-  char* result = pd_reserve_memory(bytes, executable);
+char* os::reserve_memory(size_t bytes, MEMFLAGS flags, bool executable) {
+  char* result = pd_reserve_memory(bytes, flags, executable);
   if (result != nullptr) {
     MemTracker::record_virtual_memory_reserve(result, bytes, CALLER_PC, flags);
   }
   return result;
 }
 
-char* os::attempt_reserve_memory_at(char* addr, size_t bytes, bool executable) {
-  char* result = pd_attempt_reserve_memory_at(addr, bytes, executable);
+char* os::attempt_reserve_memory_at(char* addr, size_t bytes, MEMFLAGS mt_flag, bool executable) {
+  char* result = pd_attempt_reserve_memory_at(addr, bytes, mt_flag, executable);
   if (result != nullptr) {
     MemTracker::record_virtual_memory_reserve((address)result, bytes, CALLER_PC);
     log_debug(os)("Reserved memory at " INTPTR_FORMAT " for " SIZE_FORMAT " bytes.", p2i(addr), bytes);
@@ -1857,7 +1857,7 @@ static void hemi_split(T* arr, unsigned num) {
 
 // Given an address range [min, max), attempts to reserve memory within this area, with the given alignment.
 // If randomize is true, the location will be randomized.
-char* os::attempt_reserve_memory_between(char* min, char* max, size_t bytes, size_t alignment, bool randomize) {
+char* os::attempt_reserve_memory_between(char* min, char* max, size_t bytes, size_t alignment, bool randomize, MEMFLAGS mt_flag) {
 
   // Please keep the following constants in sync with the companion gtests:
 
@@ -1986,7 +1986,7 @@ char* os::attempt_reserve_memory_between(char* min, char* max, size_t bytes, siz
     const unsigned candidate_offset = points[i];
     char* const candidate = lo_att + candidate_offset * alignment_adjusted;
     assert(candidate <= hi_att, "Invalid offset %u (" ARGSFMT ")", candidate_offset, ARGSFMTARGS);
-    result = os::pd_attempt_reserve_memory_at(candidate, bytes, false);
+    result = os::pd_attempt_reserve_memory_at(candidate, bytes, mt_flag, false);
     if (!result) {
       log_trace(os, map)("Failed to attach at " PTR_FORMAT, p2i(candidate));
     }
@@ -2017,47 +2017,54 @@ static void assert_nonempty_range(const char* addr, size_t bytes) {
          p2i(addr), p2i(addr) + bytes);
 }
 
-bool os::commit_memory(char* addr, size_t bytes, bool executable) {
+bool os::commit_memory(char* addr, size_t bytes, MEMFLAGS flag, bool executable) {
   assert_nonempty_range(addr, bytes);
   bool res = pd_commit_memory(addr, bytes, executable);
   if (res) {
-    MemTracker::record_virtual_memory_commit((address)addr, bytes, CALLER_PC);
+    MemTracker::record_virtual_memory_commit((address)addr, bytes, CALLER_PC, flag);
   }
   return res;
 }
 
 bool os::commit_memory(char* addr, size_t size, size_t alignment_hint,
-                              bool executable) {
+                       MEMFLAGS flag, bool executable) {
   assert_nonempty_range(addr, size);
   bool res = os::pd_commit_memory(addr, size, alignment_hint, executable);
   if (res) {
-    MemTracker::record_virtual_memory_commit((address)addr, size, CALLER_PC);
+    MemTracker::record_virtual_memory_commit((address)addr, size, CALLER_PC, flag);
   }
   return res;
 }
 
-void os::commit_memory_or_exit(char* addr, size_t bytes, bool executable,
+void os::commit_memory_or_exit(char* addr, size_t bytes, MEMFLAGS flag, bool executable,
                                const char* mesg) {
   assert_nonempty_range(addr, bytes);
   pd_commit_memory_or_exit(addr, bytes, executable, mesg);
-  MemTracker::record_virtual_memory_commit((address)addr, bytes, CALLER_PC);
+  MemTracker::record_virtual_memory_commit((address)addr, bytes, CALLER_PC, flag);
 }
 
 void os::commit_memory_or_exit(char* addr, size_t size, size_t alignment_hint,
-                               bool executable, const char* mesg) {
+                               MEMFLAGS flag, bool executable, const char* mesg) {
   assert_nonempty_range(addr, size);
   os::pd_commit_memory_or_exit(addr, size, alignment_hint, executable, mesg);
-  MemTracker::record_virtual_memory_commit((address)addr, size, CALLER_PC);
+  MemTracker::record_virtual_memory_commit((address)addr, size, CALLER_PC, flag);
 }
 
-bool os::uncommit_memory(char* addr, size_t bytes, bool executable) {
+bool os::uncommit_memory(char* addr, size_t bytes, MEMFLAGS flag, bool executable) {
   assert_nonempty_range(addr, bytes);
   bool res;
   if (MemTracker::enabled()) {
-    Tracker tkr(Tracker::uncommit);
-    res = pd_uncommit_memory(addr, bytes, executable);
-    if (res) {
-      tkr.record((address)addr, bytes);
+    if (MemTracker::is_light_mode()) {
+      res = pd_uncommit_memory(addr, bytes, executable);
+      if (res) {
+        NMTLightTracker::record_virtual_memory_uncommit(bytes, flag);
+      }
+    } else {
+      Tracker tkr(Tracker::uncommit);
+      res = pd_uncommit_memory(addr, bytes, executable);
+      if (res) {
+        tkr.record((address)addr, bytes);
+      }
     }
   } else {
     res = pd_uncommit_memory(addr, bytes, executable);
@@ -2065,15 +2072,22 @@ bool os::uncommit_memory(char* addr, size_t bytes, bool executable) {
   return res;
 }
 
-bool os::release_memory(char* addr, size_t bytes) {
+bool os::release_memory(char* addr, size_t bytes, MEMFLAGS flag) {
   assert_nonempty_range(addr, bytes);
   bool res;
   if (MemTracker::enabled()) {
-    // Note: Tracker contains a ThreadCritical.
-    Tracker tkr(Tracker::release);
-    res = pd_release_memory(addr, bytes);
-    if (res) {
-      tkr.record((address)addr, bytes);
+    if (MemTracker::is_light_mode()) {
+      res = pd_release_memory(addr, bytes);
+      if (res) {
+        NMTLightTracker::record_virtual_memory_release(bytes, flag);
+      }
+    } else {
+      // Note: Tracker contains a ThreadCritical.
+      Tracker tkr(Tracker::release);
+      res = pd_release_memory(addr, bytes);
+      if (res) {
+        tkr.record((address)addr, bytes);
+      }
     }
   } else {
     res = pd_release_memory(addr, bytes);
@@ -2117,19 +2131,19 @@ void os::pretouch_memory(void* start, void* end, size_t page_size) {
   }
 }
 
-char* os::map_memory_to_file(size_t bytes, int file_desc) {
+char* os::map_memory_to_file(size_t bytes, int file_desc, MEMFLAGS mt_flag) {
   // Could have called pd_reserve_memory() followed by replace_existing_mapping_with_file_mapping(),
   // but AIX may use SHM in which case its more trouble to detach the segment and remap memory to the file.
   // On all current implementations null is interpreted as any available address.
-  char* result = os::map_memory_to_file(nullptr /* addr */, bytes, file_desc);
+  char* result = os::map_memory_to_file(nullptr /* addr */, bytes, file_desc, mt_flag);
   if (result != nullptr) {
     MemTracker::record_virtual_memory_reserve_and_commit(result, bytes, CALLER_PC);
   }
   return result;
 }
 
-char* os::attempt_map_memory_to_file_at(char* addr, size_t bytes, int file_desc) {
-  char* result = pd_attempt_map_memory_to_file_at(addr, bytes, file_desc);
+char* os::attempt_map_memory_to_file_at(char* addr, size_t bytes, int file_desc, MEMFLAGS mt_flag) {
+  char* result = pd_attempt_map_memory_to_file_at(addr, bytes, file_desc, mt_flag);
   if (result != nullptr) {
     MemTracker::record_virtual_memory_reserve_and_commit((address)result, bytes, CALLER_PC);
   }
@@ -2153,13 +2167,20 @@ char* os::remap_memory(int fd, const char* file_name, size_t file_offset,
                     read_only, allow_exec);
 }
 
-bool os::unmap_memory(char *addr, size_t bytes) {
+bool os::unmap_memory(char *addr, size_t bytes, MEMFLAGS flag) {
   bool result;
   if (MemTracker::enabled()) {
-    Tracker tkr(Tracker::release);
-    result = pd_unmap_memory(addr, bytes);
-    if (result) {
-      tkr.record((address)addr, bytes);
+    if (MemTracker::is_light_mode()) {
+      result = pd_unmap_memory(addr, bytes);
+      if (result) {
+        NMTLightTracker::record_virtual_memory_release(bytes, flag);
+      }
+    } else {
+      Tracker tkr(Tracker::release);
+      result = pd_unmap_memory(addr, bytes);
+      if (result) {
+        tkr.record((address)addr, bytes);
+      }
     }
   } else {
     result = pd_unmap_memory(addr, bytes);
@@ -2189,14 +2210,21 @@ char* os::reserve_memory_special(size_t size, size_t alignment, size_t page_size
   return result;
 }
 
-bool os::release_memory_special(char* addr, size_t bytes) {
+bool os::release_memory_special(char* addr, size_t bytes, MEMFLAGS mt_flag) {
   bool res;
   if (MemTracker::enabled()) {
-    // Note: Tracker contains a ThreadCritical.
-    Tracker tkr(Tracker::release);
-    res = pd_release_memory_special(addr, bytes);
-    if (res) {
-      tkr.record((address)addr, bytes);
+    if (MemTracker::is_light_mode()) {
+      res = pd_release_memory_special(addr, bytes);
+      if (res) {
+        NMTLightTracker::record_virtual_memory_release(bytes, mt_flag);
+      }
+    } else {
+      // Note: Tracker contains a ThreadCritical.
+      Tracker tkr(Tracker::release);
+      res = pd_release_memory_special(addr, bytes);
+      if (res) {
+        tkr.record((address)addr, bytes);
+      }
     }
   } else {
     res = pd_release_memory_special(addr, bytes);

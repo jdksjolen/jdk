@@ -127,6 +127,10 @@ bool MallocMemorySummary::category_limit_reached(MEMFLAGS f, size_t s, size_t so
 }
 
 bool MallocTracker::initialize(NMT_TrackingLevel level) {
+  if (level == NMT_light) {
+    NMTLightTracker::initialize();
+    return true;
+  }
   if (level >= NMT_summary) {
     MallocMemorySummary::initialize();
   }
@@ -157,7 +161,6 @@ void* MallocTracker::record_malloc(void* malloc_base, size_t size, MEMFLAGS flag
   // The alignment check: 8 bytes alignment for 32 bit systems.
   //                      16 bytes alignment for 64-bit systems.
   assert(((size_t)memblock & (sizeof(size_t) * 2 - 1)) == 0, "Alignment check");
-
 #ifdef ASSERT
   // Read back
   {
@@ -184,7 +187,13 @@ void* MallocTracker::record_free_block(void* memblock) {
 }
 
 void MallocTracker::deaccount(MallocHeader::FreeInfo free_info) {
-  MallocMemorySummary::record_free(free_info.size, free_info.flags);
+  if (MemTracker::is_summary_or_detail()) {
+    MallocMemorySummary::record_free(free_info.size, free_info.flags);
+  }
+  if (MemTracker::is_light_mode()) {
+    NMTLightTracker::record_free(free_info.size, free_info.flags);
+  }
+
   if (MemTracker::tracking_level() == NMT_detail) {
     MallocSiteTable::deallocation_at(free_info.size, free_info.mst_marker);
   }
