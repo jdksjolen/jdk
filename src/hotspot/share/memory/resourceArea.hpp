@@ -81,10 +81,6 @@ public:
     init_memory_provider(mem, init_size);
   }
 
-  void init(ContiguousProvider* amp) {
-    init_memory_provider(amp);
-  }
-
   char* allocate_bytes(size_t size, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
 
   // Bias this resource area to specific memory type

@@ -258,7 +258,6 @@ Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp, Tag tag) :
   _hwm = _chunk->bottom();      // Save the cached hwm, max
   _max = _chunk->top();
   set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
-
 }
 
 void Arena::init_memory_provider(ContiguousProvider* mp, size_t init_size) {
