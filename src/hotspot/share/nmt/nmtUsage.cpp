@@ -93,7 +93,6 @@ void NMTUsage::update_vm_usage() {
     _vm_total.reserved += vm->reserved();
     _vm_total.committed += vm->committed();
   }
-  _rss = os::rss();
 }
 
 void NMTUsage::refresh() {
