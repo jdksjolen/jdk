@@ -52,14 +52,14 @@ class ResourceArea: public Arena {
 
 public:
   explicit ResourceArea(MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
-    Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra)
+    Arena(flags, use_chunk_pool ? Arena::ArenaProvider::ChunkPool : Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra)
      DEBUG_ONLY(COMMA _nesting(0)) {
     if (use_chunk_pool) {
       init_memory_provider(nullptr);
     }
   }
   explicit ResourceArea(ContiguousProvider* mem, MEMFLAGS flags = mtThread) :
-    Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra)
+    Arena(flags, Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra)
     DEBUG_ONLY(COMMA _nesting(0)) {
     init_memory_provider(mem);
   }
@@ -71,13 +71,13 @@ public:
   }
 
   explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
-    Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {
+    Arena(flags, use_chunk_pool ? Arena::ArenaProvider::ChunkPool : Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {
     if (use_chunk_pool) {
       init_memory_provider(nullptr, init_size);
     }
   }
   explicit ResourceArea(size_t init_size, ContiguousProvider* mem, MEMFLAGS flags = mtThread)
-    : Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {
+    : Arena(flags, Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {
     init_memory_provider(mem, init_size);
   }
 

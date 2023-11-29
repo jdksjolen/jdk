@@ -237,7 +237,7 @@ void Chunk::next_chop(Chunk* chunk, ArenaMemoryProvider* mp) {
   chunk->_next = nullptr;
 }
 
-Arena::Arena(MEMFLAGS flag, Arena::ProvideAProviderPlease provide_mp, Tag tag) :
+Arena::Arena(MEMFLAGS flag, Arena::ArenaProvider provider, Tag tag) :
   _mem(nullptr), _flags(flag), _tag(tag), _size_in_bytes(0) {
   // TODO: Kludge.
   // See ResourceArea for why we can't init it more than we do here.
@@ -262,7 +262,9 @@ Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp, Tag tag) :
 }
 
 void Arena::init_memory_provider(ContiguousProvider* mp, size_t init_size) {
-  _mem = mp;
+  if (mp == nullptr) {
+    _mem = &Arena::chunk_pool;
+  }
 
   _first =  _mem->allocate_chunk(init_size, AllocFailStrategy::EXIT_OOM);
   _chunk = _first;

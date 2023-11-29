@@ -215,8 +215,11 @@ protected:
   Arena(MEMFLAGS memflag, Tag tag, size_t init_size);
   Arena(MEMFLAGS memflag,ContiguousProvider* mp, Tag tag = Tag::tag_other);
 
-  struct ProvideAProviderPlease {};
-  Arena(MEMFLAGS memflag, ProvideAProviderPlease provide_it, Tag tag = Tag::tag_other);
+  enum class ArenaProvider {
+    ChunkPool,
+    ContiguousAllocator
+  };
+  Arena(MEMFLAGS memflag, ArenaProvider provider, Tag tag = Tag::tag_other);
   void init_memory_provider(ContiguousProvider* mem, size_t init_size = Chunk::init_size);
   // Start the chunk_pool cleaner task
   static void start_chunk_pool_cleaner_task();
