@@ -23,6 +23,7 @@
  */
 
 #include "precompiled.hpp"
+#include "compiler/compilationMemoryStatistic.hpp"
 #include "compiler/compileBroker.hpp"
 #include "compiler/compileTask.hpp"
 #include "compiler/compilerThread.hpp"
@@ -48,9 +49,10 @@ CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
   _queue = queue;
   _counters = counters;
   _buffer_blob = nullptr;
+  _can_call_java = false;
   _compiler = nullptr;
   set_resource_area(new (mtThread) ResourceArea{&_resource_area_memory, mtCompiler});
-
+  _arena_stat = CompilationMemoryStatistic::enabled() ? new ArenaStatCounter : nullptr;
 #ifndef PRODUCT
   _ideal_graph_printer = nullptr;
 #endif
@@ -59,6 +61,13 @@ CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
 CompilerThread::~CompilerThread() {
   // Delete objects which were allocated on heap.
   delete _counters;
+  delete _arena_stat;
+}
+
+void CompilerThread::set_compiler(AbstractCompiler* c) {
+  // Only jvmci compiler threads can call Java
+  _can_call_java = c != nullptr && c->is_jvmci();
+  _compiler = c;
 }
 
 void CompilerThread::thread_entry(JavaThread* thread, TRAPS) {
@@ -66,6 +75,7 @@ void CompilerThread::thread_entry(JavaThread* thread, TRAPS) {
   CompileBroker::compiler_thread_loop();
 }
 
-bool CompilerThread::can_call_java() const {
-  return _compiler != nullptr && _compiler->is_jvmci();
+// Hide native compiler threads from external view.
+bool CompilerThread::is_hidden_from_external_view() const {
+  return _compiler == nullptr || _compiler->is_hidden_from_external_view();
 }

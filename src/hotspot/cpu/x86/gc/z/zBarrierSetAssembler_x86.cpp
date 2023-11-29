@@ -59,8 +59,7 @@
 ZBarrierSetAssembler::ZBarrierSetAssembler()
   : _load_bad_relocations(),
     _store_bad_relocations(),
-    _store_good_relocations() {
-}
+    _store_good_relocations() {}
 
 enum class ZXMMSpillMode {
   none,
@@ -357,7 +356,7 @@ static void emit_store_fast_path_check_c2(MacroAssembler* masm, Address ref_addr
   // This is a JCC erratum mitigation wrapper for calling the inner check
   int size = store_fast_path_check_size(masm, ref_addr, is_atomic, medium_path);
   // Emit JCC erratum mitigation nops with the right size
-  IntelJccErratumAlignment(*masm, size);
+  IntelJccErratumAlignment intel_alignment(*masm, size);
   // Emit the JCC erratum mitigation guarded code
   emit_store_fast_path_check(masm, ref_addr, is_atomic, medium_path);
 #endif
@@ -1354,8 +1353,8 @@ private:
   }
 
 public:
-  ZSaveLiveRegisters(MacroAssembler* masm, ZBarrierStubC2* stub) :
-      _masm(masm),
+  ZSaveLiveRegisters(MacroAssembler* masm, ZBarrierStubC2* stub)
+    : _masm(masm),
       _gp_registers(),
       _opmask_registers(),
       _xmm_registers(),
@@ -1446,8 +1445,8 @@ private:
   const Address         _ref_addr;
 
 public:
-  ZSetupArguments(MacroAssembler* masm, ZLoadBarrierStubC2* stub) :
-      _masm(masm),
+  ZSetupArguments(MacroAssembler* masm, ZLoadBarrierStubC2* stub)
+    : _masm(masm),
       _ref(stub->ref()),
       _ref_addr(stub->ref_addr()) {
 

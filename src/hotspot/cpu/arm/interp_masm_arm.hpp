@@ -26,7 +26,6 @@
 #define CPU_ARM_INTERP_MASM_ARM_HPP
 
 #include "asm/macroAssembler.hpp"
-#include "interpreter/invocationCounter.hpp"
 #include "oops/method.hpp"
 #include "runtime/frame.hpp"
 #include "prims/jvmtiExport.hpp"
@@ -82,8 +81,8 @@ class InterpreterMacroAssembler: public MacroAssembler {
   // Helpers for runtime call arguments/results
   void get_const(Register reg)                             { ldr(reg, Address(Rmethod, Method::const_offset())); }
   void get_constant_pool(Register reg)                     { get_const(reg); ldr(reg, Address(reg, ConstMethod::constants_offset())); }
-  void get_constant_pool_cache(Register reg)               { get_constant_pool(reg); ldr(reg, Address(reg, ConstantPool::cache_offset_in_bytes())); }
-  void get_cpool_and_tags(Register cpool, Register tags)   { get_constant_pool(cpool); ldr(tags, Address(cpool, ConstantPool::tags_offset_in_bytes())); }
+  void get_constant_pool_cache(Register reg)               { get_constant_pool(reg); ldr(reg, Address(reg, ConstantPool::cache_offset())); }
+  void get_cpool_and_tags(Register cpool, Register tags)   { get_constant_pool(cpool); ldr(tags, Address(cpool, ConstantPool::tags_offset())); }
 
   // Sets reg. Blows Rtemp.
   void get_unsigned_2_byte_index_at_bcp(Register reg, int bcp_offset);
@@ -103,6 +102,7 @@ class InterpreterMacroAssembler: public MacroAssembler {
   void load_resolved_klass_at_offset(Register Rcpool, Register Rindex, Register Rklass);
 
   void load_resolved_indy_entry(Register cache, Register index);
+  void load_field_entry(Register cache, Register index, int bcp_offset = 1);
 
   void pop_ptr(Register r);
   void pop_i(Register r = R0_tos);

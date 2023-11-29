@@ -28,6 +28,8 @@
 #include <ffi.h>
 
 #include <errno.h>
+#include <stdint.h>
+#include <wchar.h>
 #ifdef _WIN64
 #include <Windows.h>
 #include <Winsock2.h>
@@ -40,12 +42,29 @@ static jclass LibFallback_class;
 static jmethodID LibFallback_doUpcall_ID;
 static const char* LibFallback_doUpcall_sig = "(JJLjava/lang/invoke/MethodHandle;)V";
 
-JNIEXPORT void JNICALL
+#define CHECK_NULL(expr) \
+  if (expr == NULL) { \
+    return JNI_FALSE; \
+  }
+
+JNIEXPORT jboolean JNICALL
 Java_jdk_internal_foreign_abi_fallback_LibFallback_init(JNIEnv* env, jclass cls) {
-  (*env)->GetJavaVM(env, &VM);
-  LibFallback_class = (*env)->FindClass(env, "jdk/internal/foreign/abi/fallback/LibFallback");
+  jint result = (*env)->GetJavaVM(env, &VM);
+  if (result != 0) {
+    return JNI_FALSE;
+  }
+
+  jclass LibFallback_class_local = (*env)->FindClass(env, "jdk/internal/foreign/abi/fallback/LibFallback");
+  CHECK_NULL(LibFallback_class_local)
+
+  LibFallback_class = (*env)->NewGlobalRef(env, LibFallback_class_local);
+  CHECK_NULL(LibFallback_class)
+
   LibFallback_doUpcall_ID = (*env)->GetStaticMethodID(env,
     LibFallback_class, "doUpcall", LibFallback_doUpcall_sig);
+  CHECK_NULL(LibFallback_doUpcall_ID)
+
+  return JNI_TRUE;
 }
 
 JNIEXPORT jlong JNICALL
@@ -56,6 +75,10 @@ Java_jdk_internal_foreign_abi_fallback_LibFallback_sizeofCif(JNIEnv* env, jclass
 JNIEXPORT jint JNICALL
 Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1prep_1cif(JNIEnv* env, jclass cls, jlong cif, jint abi, jint nargs, jlong rtype, jlong atypes) {
   return ffi_prep_cif(jlong_to_ptr(cif), (ffi_abi) abi, (unsigned int) nargs, jlong_to_ptr(rtype), jlong_to_ptr(atypes));
+}
+JNIEXPORT jint JNICALL
+Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1prep_1cif_1var(JNIEnv* env, jclass cls, jlong cif, jint abi, jint nfixedargs, jint ntotalargs, jlong rtype, jlong atypes) {
+  return ffi_prep_cif_var(jlong_to_ptr(cif), (ffi_abi) abi, (unsigned int) nfixedargs, (unsigned int) ntotalargs, jlong_to_ptr(rtype), jlong_to_ptr(atypes));
 }
 JNIEXPORT jint JNICALL
 Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1get_1struct_1offsets(JNIEnv* env, jclass cls, jint abi, jlong type, jlong offsets) {
@@ -200,4 +223,24 @@ Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1type_1double(JNIEnv* env
 JNIEXPORT jlong JNICALL
 Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1type_1pointer(JNIEnv* env, jclass cls) {
   return ptr_to_jlong(&ffi_type_pointer);
+}
+
+JNIEXPORT jint JNICALL
+Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1sizeof_1short(JNIEnv* env, jclass cls) {
+  return sizeof(short);
+}
+
+JNIEXPORT jint JNICALL
+Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1sizeof_1int(JNIEnv* env, jclass cls) {
+  return sizeof(int);
+}
+
+JNIEXPORT jint JNICALL
+Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1sizeof_1long(JNIEnv* env, jclass cls) {
+  return sizeof(long);
+}
+
+JNIEXPORT jint JNICALL
+Java_jdk_internal_foreign_abi_fallback_LibFallback_ffi_1sizeof_1wchar(JNIEnv* env, jclass cls) {
+  return sizeof(wchar_t);
 }

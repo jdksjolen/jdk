@@ -26,6 +26,7 @@
 #define SHARE_MEMORY_RESOURCEAREA_HPP
 
 #include "memory/allocation.hpp"
+#include "memory/arena.hpp"
 #include "runtime/javaThread.hpp"
 
 // The resource area holds temporary data structures in the VM.
@@ -51,32 +52,32 @@ class ResourceArea: public Arena {
 
 public:
   explicit ResourceArea(MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
-    Arena(flags, Arena::ProvideAProviderPlease{})
+    Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra)
      DEBUG_ONLY(COMMA _nesting(0)) {
     if (use_chunk_pool) {
       init_memory_provider(nullptr);
     }
   }
   explicit ResourceArea(ContiguousProvider* mem, MEMFLAGS flags = mtThread) :
-    Arena(flags, Arena::ProvideAProviderPlease{})
+    Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra)
     DEBUG_ONLY(COMMA _nesting(0)) {
     init_memory_provider(mem);
   }
 
   ~ResourceArea() {
     if (_mem != nullptr && Thread::current()->resource_area() != this) {
-      _mem->reset_full();
+      _mem->reset_full(0);
     }
   }
 
   explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
-    Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
+    Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {
     if (use_chunk_pool) {
       init_memory_provider(nullptr, init_size);
     }
   }
   explicit ResourceArea(size_t init_size, ContiguousProvider* mem, MEMFLAGS flags = mtThread)
-    : Arena(flags, Arena::ProvideAProviderPlease{}) DEBUG_ONLY(COMMA _nesting(0)) {
+    : Arena(flags, Arena::ProvideAProviderPlease{}, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {
     init_memory_provider(mem, init_size);
   }
 
