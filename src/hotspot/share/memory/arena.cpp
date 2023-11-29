@@ -264,6 +264,8 @@ Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp, Tag tag) :
 void Arena::init_memory_provider(ContiguousProvider* mp, size_t init_size) {
   if (mp == nullptr) {
     _mem = &Arena::chunk_pool;
+  } else {
+    _mem = mp;
   }
 
   _first =  _mem->allocate_chunk(init_size, AllocFailStrategy::EXIT_OOM);
