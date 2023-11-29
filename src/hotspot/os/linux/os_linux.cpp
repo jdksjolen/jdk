@@ -1996,18 +1996,6 @@ int os::get_loaded_modules_info(os::LoadedModulesCallbackFunc callback, void *pa
   return dl_iterate_phdr(&dl_iterate_callback, &callback_param);
 }
 
-size_t os::rss() {
-  return os::Linux::get_rss();
-}
-
-size_t os::Linux::get_rss() {
-  meminfo_t info;
-  if (query_process_memory_info(&info)) {
-    return info.vmrss * K;
-  }
-  return 0;
-}
-
 void os::print_os_info_brief(outputStream* st) {
   os::Linux::print_distro_info(st);
 
