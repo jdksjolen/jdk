@@ -30,7 +30,7 @@
 #include "runtime/globals.hpp"
 #include "logging/log.hpp"
 #include "runtime/threadCritical.hpp"
-#include "services/memTracker.hpp"
+#include "nmt/memTracker.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
