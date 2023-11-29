@@ -224,7 +224,9 @@ void Chunk::chop(Chunk* chunk, ArenaMemoryProvider* mp) {
     Chunk *tmp = chunk->next();
     // clear out this chunk (to detect allocation bugs)
     if (ZapResourceArea) memset(chunk->bottom(), badResourceValue, chunk->length());
-    mp->free(chunk);
+    if (mp != nullptr) {
+      mp->free(chunk);
+    }
     chunk = tmp;
   }
 }
