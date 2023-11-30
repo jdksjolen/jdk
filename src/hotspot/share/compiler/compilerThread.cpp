@@ -51,7 +51,7 @@ CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
   _buffer_blob = nullptr;
   _can_call_java = false;
   _compiler = nullptr;
-  set_resource_area(new (mtThread) ResourceArea{&_resource_area_memory, mtCompiler});
+  set_resource_area(new (mtThread) ResourceArea{/*&_resource_area_memory,*/ mtCompiler});
   _arena_stat = CompilationMemoryStatistic::enabled() ? new ArenaStatCounter : nullptr;
 #ifndef PRODUCT
   _ideal_graph_printer = nullptr;
