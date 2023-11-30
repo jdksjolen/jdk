@@ -99,7 +99,7 @@ public:
     size_t sz;
   };
 
-  virtual AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) = 0;
+  virtual AllocationResult alloc(AllocFailType alloc_failmode, size_t length, MEMFLAGS flags) = 0;
   virtual void free(void* ptr) = 0;
   // Is this provider capable of freeing its memory on destruction?
   virtual bool self_free() = 0;
@@ -107,10 +107,9 @@ public:
   virtual bool reset_full(size_t memory_to_leave) = 0;
 
   Chunk* allocate_chunk(size_t length, AllocFailType alloc_failmode) {
-    size_t bytes = ARENA_ALIGN(sizeof(Chunk)) + length;
     assert(is_aligned(length, ARENA_AMALLOC_ALIGNMENT),
            "chunk payload length misaligned: " SIZE_FORMAT ".", length);
-    ArenaMemoryProvider::AllocationResult res = alloc(alloc_failmode, bytes, length, mtChunk);
+    ArenaMemoryProvider::AllocationResult res = alloc(alloc_failmode, length, mtChunk);
     if (res.loc == nullptr) {
       return nullptr;
     }
@@ -134,13 +133,13 @@ public:
   explicit ContiguousProvider(ContiguousAllocator::MemoryArea ma, MEMFLAGS flag) :
     _cont_allocator(ma, flag) {}
 
-  AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
-    ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(bytes);
+  AllocationResult alloc(AllocFailType alloc_failmode, size_t length, MEMFLAGS flags) override {
+    ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(length + ARENA_ALIGN(sizeof(Chunk)));
      if (p.loc != nullptr) {
        return {p.loc, p.sz};
      }
      if (alloc_failmode == AllocFailStrategy::EXIT_OOM) {
-       vm_exit_out_of_memory(bytes, OOM_MALLOC_ERROR, "ContiguousAllocator::alloc");
+       vm_exit_out_of_memory(length, OOM_MALLOC_ERROR, "ContiguousAllocator::alloc");
      }
      return AllocationResult{nullptr, 0};
   }
@@ -164,7 +163,7 @@ public:
 
 class ChunkPoolProvider final : public ArenaMemoryProvider {
 public:
-  AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override;
+  AllocationResult alloc(AllocFailType alloc_failmode, size_t length, MEMFLAGS flags) override;
   void free(void* p) override;
   bool self_free() override;
   bool reset_full(size_t memory_to_leave) override;

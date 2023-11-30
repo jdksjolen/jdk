@@ -114,11 +114,11 @@ public:
 ChunkPoolProvider Arena::chunk_pool{};
 
 ArenaMemoryProvider::AllocationResult
-ChunkPoolProvider::alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) {
+ChunkPoolProvider::alloc(AllocFailType alloc_failmode, size_t length, MEMFLAGS flags) {
   Chunk* chunk = ChunkPool::allocate_chunk(length, alloc_failmode);
   if (chunk != nullptr) {
     assert(chunk->length() == length, "wrong length?");
-    return ArenaMemoryProvider::AllocationResult{chunk, bytes};
+    return ArenaMemoryProvider::AllocationResult{chunk, length + ARENA_ALIGN(sizeof(Chunk)) };
   }
   return ArenaMemoryProvider::AllocationResult{nullptr, 0};
 }
@@ -176,7 +176,6 @@ Chunk* ChunkPool::allocate_chunk(size_t length, AllocFailType alloc_failmode) {
     }
     chunk = (Chunk*)p;
   }
-  ::new(chunk) Chunk(length);
   // We rely on arena alignment <= malloc alignment.
   assert(is_aligned(chunk, ARENA_AMALLOC_ALIGNMENT), "Chunk start address misaligned.");
   return chunk;
@@ -259,7 +258,7 @@ Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp, Tag tag) :
 }
 
 void Arena::init_memory_provider(ArenaMemoryProvider* mp, size_t init_size) {
-    _mem = mp;
+  _mem = mp;
 
   _first =  _mem->allocate_chunk(init_size, AllocFailStrategy::EXIT_OOM);
   _chunk = _first;
@@ -271,13 +270,13 @@ void Arena::init_memory_provider(ArenaMemoryProvider* mp, size_t init_size) {
 
 
 Arena::Arena(MEMFLAGS flag, Tag tag, size_t init_size)
-  : _mem(&Arena::chunk_pool), _flags(flag), _tag(tag), _size_in_bytes(0)  {
+  : _mem(nullptr), _flags(flag), _tag(tag), _size_in_bytes(0)  {
   MemTracker::record_new_arena(flag);
   init_memory_provider(&Arena::chunk_pool, ARENA_ALIGN(init_size));
 }
 
 Arena::Arena(MEMFLAGS flag, Tag tag)
-  : _mem(&Arena::chunk_pool), _flags(flag), _tag(tag), _size_in_bytes(0) {
+  : _mem(nullptr), _flags(flag), _tag(tag), _size_in_bytes(0) {
   MemTracker::record_new_arena(flag);
   init_memory_provider(&Arena::chunk_pool, Chunk::init_size);
 }
