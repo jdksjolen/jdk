@@ -153,7 +153,7 @@ Chunk* ChunkPool::allocate_chunk(size_t length, AllocFailType alloc_failmode) {
   // - sizeof(Chunk) (B) may not be aligned to 64-bit, and we have to take that into
   //   account when calculating the Payload bottom (C) (see Chunk::bottom())
   // - the payload size (length) must be aligned to 64-bit, which takes care of 64-bit
-  //   aligning (
+  //   aligning (D)
 
   assert(is_aligned(length, ARENA_AMALLOC_ALIGNMENT), "chunk payload length misaligned: "
          SIZE_FORMAT ".", length);

@@ -625,7 +625,6 @@ void* os::malloc(size_t size, MEMFLAGS flags) {
   return os::malloc(size, flags, CALLER_PC);
 }
 
-static volatile uint64_t allocs = 0;
 void* os::malloc(size_t size, MEMFLAGS memflags, const NativeCallStack& stack) {
 
   // Special handling for NMT preinit phase before arguments are parsed
