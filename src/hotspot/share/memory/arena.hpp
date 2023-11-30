@@ -212,9 +212,9 @@ protected:
   }
 
  public:
-  Arena(MEMFLAGS memflag,  Tag tag = Tag::tag_other);
+  Arena(MEMFLAGS memflag, Tag tag = Tag::tag_other);
   Arena(MEMFLAGS memflag, Tag tag, size_t init_size);
-  Arena(MEMFLAGS memflag,ContiguousProvider* mp, Tag tag = Tag::tag_other);
+  Arena(MEMFLAGS memflag, ContiguousProvider* mp, Tag tag = Tag::tag_other);
 
   enum class ArenaProvider {
     ChunkPool,
