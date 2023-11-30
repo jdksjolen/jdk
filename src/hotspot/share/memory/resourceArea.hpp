@@ -141,8 +141,27 @@ public:
     }
 #endif
 
-    // Not in contiguous allocator, we must take the slow path.
-    if (_mem == nullptr) {
+    if (_mem->reset_to(state._chunk->top())) {
+      // Fast path, no need to do rest of work.
+      // Chop off other chunks, they're already dead.
+      state._chunk->set_next(nullptr);
+      set_size_in_bytes(state._size_in_bytes);
+      char* replaced_hwm = _hwm;
+
+      _chunk = state._chunk;
+      _hwm = state._hwm;
+      _max = state._max;
+
+      // Clear out this chunk (to detect allocation bugs).
+      // If current chunk contains the replaced HWM, this means we are
+      // doing the rollback within the same chunk, and we only need to
+      // clear up to replaced HWM.
+      if (ZapResourceArea) {
+        char* limit = _chunk->contains(replaced_hwm) ? replaced_hwm : _max;
+        assert(limit >= _hwm, "Sanity check: non-negative memset size");
+        memset(_hwm, badResourceValue, limit - _hwm);
+      }
+    } else {
       if (state._chunk->next() != nullptr) { // Delete later chunks.
         // Reset size before deleting chunks.  Otherwise, the total
         // size could exceed the total chunk size.
@@ -174,34 +193,8 @@ public:
           assert(limit >= _hwm, "Sanity check: non-negative memset size");
           memset(_hwm, badResourceValue, limit - _hwm);
         }
-      } else {
-        // No allocations. Nothing to rollback. Check it.
-        assert(_chunk == state._chunk, "Sanity check: idempotence");
-        assert(_hwm == state._hwm,     "Sanity check: idempotence");
-        assert(_max == state._max,     "Sanity check: idempotence");
       }
       return;
-    }
-
-    // We're in fast path -- aka contiguous allocator
-    // Chop off other chunks
-    state._chunk->set_next(nullptr);
-    set_size_in_bytes(state._size_in_bytes);
-    char* replaced_hwm = _hwm;
-
-    _chunk = state._chunk;
-    _hwm = state._hwm;
-    _max = state._max;
-    _mem->reset_to(_chunk->top());
-
-    // Clear out this chunk (to detect allocation bugs).
-    // If current chunk contains the replaced HWM, this means we are
-    // doing the rollback within the same chunk, and we only need to
-    // clear up to replaced HWM.
-    if (ZapResourceArea) {
-      char* limit = _chunk->contains(replaced_hwm) ? replaced_hwm : _max;
-      assert(limit >= _hwm, "Sanity check: non-negative memset size");
-      memset(_hwm, badResourceValue, limit - _hwm);
     }
   }
 };
