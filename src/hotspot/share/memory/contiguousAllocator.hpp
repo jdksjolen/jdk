@@ -157,6 +157,8 @@ public:
     offset = (char*)chunk_aligned_pointer;
     size_t unused_bytes = committed_boundary - offset;
 
+    // Test: Always set to 0
+    memset(offset, 0, unused_bytes);
     // We don't want to keep around too many pages that aren't in use,
     // so we ask the OS to throw away the physical backing, while keeping the memory reserved.
     if (unused_bytes >= slack) {

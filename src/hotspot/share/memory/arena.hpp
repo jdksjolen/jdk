@@ -35,6 +35,7 @@
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
 #include "runtime/os.hpp"
+
 #include <new>
 
 class ArenaMemoryProvider;
@@ -69,10 +70,10 @@ public:
     slack      = 24,            // suspected sizeof(Chunk) + internal malloc headers
 #endif
 
-    tiny_size  =   256 - slack, // Size of first chunk (tiny)
-    init_size  =   1*K - slack, // Size of first chunk (normal aka small)
-    medium_size=  10*K - slack, // Size of medium-sized chunk
-    size       =  32*K - slack, // Default size of an Arena chunk (following the first)
+    tiny_size  =  256 - slack, // Size of first chunk (tiny)
+    init_size  =  1*K - slack, // Size of first chunk (normal aka small)
+    medium_size= 10*K - slack, // Size of medium-sized chunk
+    size       = 32*K - slack, // Default size of an Arena chunk (following the first)
     non_pool_size = init_size + 32 // An initial size which is not one of above
   };
 
@@ -82,6 +83,7 @@ public:
   static size_t aligned_overhead_size(size_t byte_size) { return ARENA_ALIGN(byte_size); }
 
   size_t length() const         { return _len;  }
+  size_t full_size() const           { return _len + sizeof(Chunk); }
   Chunk* next() const           { return _next;  }
   void set_next(Chunk* n)       { _next = n;  }
   // Boundaries of data area (possibly unused)
@@ -112,7 +114,7 @@ public:
     if (res.loc == nullptr) {
       return nullptr;
     }
-    return ::new (res.loc) Chunk(res.sz - sizeof(Chunk));
+    return ::new (res.loc) Chunk(res.sz - ARENA_ALIGN(sizeof(Chunk)));
   }
 
   void deallocate_chunk(Chunk* p) {
@@ -255,17 +257,6 @@ protected:
 #endif
     if (((char*)ptr) + size == _hwm) {
       _hwm = (char*)ptr;
-      if (_hwm == _chunk->bottom()) {
-        Chunk* n_current = _first;
-        int n = 0;
-        while (n_current->next() != _chunk) {
-          n_current = n_current->next();
-          n++;
-        }
-        log_info(mmu)("FREE_CHUNK! %d with size %zu", n, _chunk->length());
-        Chunk::chop(_chunk, _mem);
-        _chunk = n_current;
-      }
       return true;
     } else {
       // Unable to fast free, so we just drop it.

@@ -221,12 +221,12 @@ Chunk::Chunk(size_t length) : _len(length) {
 
 void Chunk::chop(Chunk* chunk, ArenaMemoryProvider* mp) {
   while (chunk != nullptr) {
-    Chunk *tmp = chunk->next();
-    // clear out this chunk (to detect allocation bugs)
-    if (ZapResourceArea) memset(chunk->bottom(), badResourceValue, chunk->length());
-    if (mp != nullptr) {
-      mp->free(chunk);
+    Chunk* tmp = chunk->next();
+    // Clear out this chunk (to detect allocation bugs)
+    if (ZapResourceArea) {
+      memset(chunk->bottom(), badResourceValue, chunk->length());
     }
+    mp->deallocate_chunk(chunk);
     chunk = tmp;
   }
 }
@@ -249,18 +249,13 @@ Arena::Arena(MEMFLAGS flag, Arena::ArenaProvider provider, Tag tag) :
 }
 
 Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp, Tag tag) :
-  _mem(mp), _flags(flag), _tag(tag), _size_in_bytes(0) {
+  _mem(nullptr), _flags(flag), _tag(tag), _size_in_bytes(0) {
   // TODO: Kludge.
   // See ResourceArea for why we can't init it more than we do here.
   // I need to re-think this init interface a bit...
   MemTracker::record_new_arena(flag);
 
-  _first =  _mem->allocate_chunk(Chunk::init_size, AllocFailStrategy::EXIT_OOM);
-  _chunk = _first;
-
-  _hwm = _chunk->bottom();      // Save the cached hwm, max
-  _max = _chunk->top();
-  set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
+  init_memory_provider(mp, Chunk::init_size);
 }
 
 void Arena::init_memory_provider(ArenaMemoryProvider* mp, size_t init_size) {
@@ -271,29 +266,20 @@ void Arena::init_memory_provider(ArenaMemoryProvider* mp, size_t init_size) {
 
   _hwm = _chunk->bottom();      // Save the cached hwm, max
   _max = _chunk->top();
-  set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
+  set_size_in_bytes(_first->full_size());
 }
 
 
 Arena::Arena(MEMFLAGS flag, Tag tag, size_t init_size)
   : _mem(&Arena::chunk_pool), _flags(flag), _tag(tag), _size_in_bytes(0)  {
-  init_size = ARENA_ALIGN(init_size);
-  _chunk = ChunkPool::allocate_chunk(init_size, AllocFailStrategy::EXIT_OOM);
-  _first = _chunk;
-  _hwm = _chunk->bottom();      // Save the cached hwm, max
-  _max = _chunk->top();
   MemTracker::record_new_arena(flag);
-  set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
+  init_memory_provider(&Arena::chunk_pool, ARENA_ALIGN(init_size));
 }
 
 Arena::Arena(MEMFLAGS flag, Tag tag)
   : _mem(&Arena::chunk_pool), _flags(flag), _tag(tag), _size_in_bytes(0) {
-  _chunk = ChunkPool::allocate_chunk(Chunk::init_size, AllocFailStrategy::EXIT_OOM);
-  _first = _chunk;
-  _hwm = _chunk->bottom();      // Save the cached hwm, max
-  _max = _chunk->top();
   MemTracker::record_new_arena(flag);
-  set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
+  init_memory_provider(&Arena::chunk_pool, Chunk::init_size);
 }
 
 Arena::~Arena() {
@@ -366,7 +352,7 @@ void* Arena::grow(size_t x, AllocFailType alloc_failmode) {
   }
   _hwm  = _chunk->bottom();     // Save the cached hwm, max
   _max =  _chunk->top();
-  set_size_in_bytes(size_in_bytes() + len + Chunk::aligned_overhead_size());
+  set_size_in_bytes(size_in_bytes() + _chunk->full_size());
   void* result = _hwm;
   _hwm += x;
   return result;
