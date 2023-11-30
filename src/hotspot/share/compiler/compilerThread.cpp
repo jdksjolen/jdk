@@ -31,7 +31,7 @@
 
 // Create a CompilerThread
 CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
-  : JavaThread(&CompilerThread::thread_entry, 0, false),
+  : JavaThread(&CompilerThread::thread_entry, 0, true),
     _backing_compiler_memory{9, ContiguousAllocator::get_chunk_size(false)},
     _resource_area_memory{_backing_compiler_memory.next(), mtCompiler},
     _compiler_memory{_backing_compiler_memory.next(), mtCompiler},
@@ -51,7 +51,7 @@ CompilerThread::CompilerThread(CompileQueue* queue, CompilerCounters* counters)
   _buffer_blob = nullptr;
   _can_call_java = false;
   _compiler = nullptr;
-  set_resource_area(new (mtThread) ResourceArea{/*&_resource_area_memory,*/ mtCompiler});
+  //this->set_resource_area(new (mtThread) ResourceArea{/*&_resource_area_memory,*/ mtCompiler});
   _arena_stat = CompilationMemoryStatistic::enabled() ? new ArenaStatCounter : nullptr;
 #ifndef PRODUCT
   _ideal_graph_printer = nullptr;
