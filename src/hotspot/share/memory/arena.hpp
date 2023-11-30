@@ -116,7 +116,7 @@ public:
   }
 
   void deallocate_chunk(Chunk* p) {
-    free(p);
+    this->free(p);
   }
 };
 
@@ -133,7 +133,6 @@ public:
     _cont_allocator(ma, flag) {}
 
   AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
-    size_t chunk_aligned_size = align_up(bytes, _cont_allocator.chunk_size);
     ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(bytes);
      if (p.loc != nullptr) {
        return {p.loc, p.sz};
@@ -148,7 +147,6 @@ public:
   }
 
   bool reset_to(void* ptr) override {
-    assert(ptr >= _cont_allocator.start && ptr <= _cont_allocator.offset, "invariant");
     _cont_allocator.reset_to(ptr);
     return true;
  }

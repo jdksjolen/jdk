@@ -352,7 +352,7 @@ void* Arena::grow(size_t x, AllocFailType alloc_failmode) {
   }
 
   Chunk* k = _chunk;            // Get filled-up chunk address
-  _chunk = ChunkPool::allocate_chunk(len, alloc_failmode);
+  _chunk = _mem->allocate_chunk(len, alloc_failmode);
 
   if (_chunk == nullptr) {
     _chunk = k;                 // restore the previous value of _chunk

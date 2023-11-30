@@ -151,7 +151,7 @@ public:
 
   void reset_to(void* p) {
     assert(is_aligned(p,chunk_size), "Must be chunk aligned");
-    assert(p <= offset, "must be");
+    assert(p >= start && p <= offset, "Must be");
 
     void* chunk_aligned_pointer = p;
     offset = (char*)chunk_aligned_pointer;
