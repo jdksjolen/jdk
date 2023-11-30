@@ -113,7 +113,8 @@ public:
     if (res.loc == nullptr) {
       return nullptr;
     }
-    return ::new (res.loc) Chunk(res.sz - ARENA_ALIGN(sizeof(Chunk)));
+    return (Chunk*)(res.loc);
+    //return ::new (res.loc) Chunk(res.sz - ARENA_ALIGN(sizeof(Chunk)));
   }
 
   void deallocate_chunk(Chunk* p) {
