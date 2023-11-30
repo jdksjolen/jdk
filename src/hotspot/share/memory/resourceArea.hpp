@@ -54,9 +54,6 @@ public:
   explicit ResourceArea(MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
     Arena(flags, use_chunk_pool ? Arena::ArenaProvider::ChunkPool : Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra)
      DEBUG_ONLY(COMMA _nesting(0)) {
-    if (use_chunk_pool) {
-      init_memory_provider(nullptr);
-    }
   }
   explicit ResourceArea(ContiguousProvider* mem, MEMFLAGS flags = mtThread) :
     Arena(flags, Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra)
@@ -64,17 +61,8 @@ public:
     init_memory_provider(mem);
   }
 
-  ~ResourceArea() {
-    if (_mem != nullptr && Thread::current()->resource_area() != this) {
-      _mem->reset_full(0);
-    }
-  }
-
   explicit ResourceArea(size_t init_size, MEMFLAGS flags = mtThread, bool use_chunk_pool = true) :
     Arena(flags, use_chunk_pool ? Arena::ArenaProvider::ChunkPool : Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {
-    if (use_chunk_pool) {
-      init_memory_provider(nullptr, init_size);
-    }
   }
   explicit ResourceArea(size_t init_size, ContiguousProvider* mem, MEMFLAGS flags = mtThread)
     : Arena(flags, Arena::ArenaProvider::ContiguousAllocator, Arena::Tag::tag_ra) DEBUG_ONLY(COMMA _nesting(0)) {

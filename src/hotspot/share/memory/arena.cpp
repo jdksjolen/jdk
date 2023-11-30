@@ -242,6 +242,9 @@ Arena::Arena(MEMFLAGS flag, Arena::ArenaProvider provider, Tag tag) :
   // TODO: Kludge.
   // See ResourceArea for why we can't init it more than we do here.
   // I need to re-think this init interface a bit...
+  if (provider == ArenaProvider::ChunkPool) {
+    init_memory_provider(&Arena::chunk_pool);
+  }
   MemTracker::record_new_arena(flag);
 }
 
@@ -260,12 +263,8 @@ Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp, Tag tag) :
   set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
 }
 
-void Arena::init_memory_provider(ContiguousProvider* mp, size_t init_size) {
-  if (mp == nullptr) {
-    _mem = &Arena::chunk_pool;
-  } else {
+void Arena::init_memory_provider(ArenaMemoryProvider* mp, size_t init_size) {
     _mem = mp;
-  }
 
   _first =  _mem->allocate_chunk(init_size, AllocFailStrategy::EXIT_OOM);
   _chunk = _first;
@@ -307,8 +306,10 @@ void Arena::destruct_contents() {
   // reset size before chop to avoid a rare racing condition
   // that can have total arena memory exceed total chunk memory
   set_size_in_bytes(0);
-  if (_first != nullptr && _mem == nullptr) {
-    Chunk::chop(_first, _mem);
+  if (!_mem->reset_full(0)) {
+    if (_first != nullptr) {
+      Chunk::chop(_first, _mem);
+    }
   }
   reset();
 }

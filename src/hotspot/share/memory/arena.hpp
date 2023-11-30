@@ -173,6 +173,7 @@ public:
 
 // Fast allocation of memory
 class Arena : public CHeapObjBase {
+protected:
   static ChunkPoolProvider chunk_pool;
 public:
 
@@ -220,7 +221,7 @@ protected:
     ContiguousAllocator
   };
   Arena(MEMFLAGS memflag, ArenaProvider provider, Tag tag = Tag::tag_other);
-  void init_memory_provider(ContiguousProvider* mem, size_t init_size = Chunk::init_size);
+  void init_memory_provider(ArenaMemoryProvider* mem, size_t init_size = Chunk::init_size);
   // Start the chunk_pool cleaner task
   static void start_chunk_pool_cleaner_task();
   ~Arena();
