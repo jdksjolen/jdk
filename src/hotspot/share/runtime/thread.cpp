@@ -76,9 +76,9 @@ Thread::Thread(bool self_init) {
 
   // allocated data structures
   set_osthread(nullptr);
-  if (self_init) {
+  //if (self_init) {
     set_resource_area(new (mtThread)ResourceArea(mtThread, true));
-  }
+  //}
   DEBUG_ONLY(_current_resource_mark = nullptr;)
   set_handle_area(new (mtThread) HandleArea(nullptr));
   set_metadata_handles(new (mtClass) GrowableArray<Metadata*>(30, mtClass));
