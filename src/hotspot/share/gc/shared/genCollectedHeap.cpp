@@ -34,7 +34,7 @@
 #include "gc/serial/defNewGeneration.hpp"
 #include "gc/serial/genMarkSweep.hpp"
 #include "gc/serial/markSweep.hpp"
-#include "gc/shared/adaptiveSizePolicy.hpp"
+#include "gc/serial/tenuredGeneration.hpp"
 #include "gc/shared/cardTableBarrierSet.hpp"
 #include "gc/shared/collectedHeap.inline.hpp"
 #include "gc/shared/collectorCounters.hpp"
@@ -48,7 +48,6 @@
 #include "gc/shared/gcVMOperations.hpp"
 #include "gc/shared/genArguments.hpp"
 #include "gc/shared/genCollectedHeap.hpp"
-#include "gc/shared/generationSpec.hpp"
 #include "gc/shared/locationPrinter.inline.hpp"
 #include "gc/shared/oopStorage.inline.hpp"
 #include "gc/shared/oopStorageParState.inline.hpp"
@@ -86,17 +85,8 @@ GenCollectedHeap::GenCollectedHeap(Generation::Name young,
   CollectedHeap(),
   _young_gen(nullptr),
   _old_gen(nullptr),
-  _young_gen_spec(new GenerationSpec(young,
-                                     NewSize,
-                                     MaxNewSize,
-                                     GenAlignment)),
-  _old_gen_spec(new GenerationSpec(old,
-                                   OldSize,
-                                   MaxOldSize,
-                                   GenAlignment)),
   _rem_set(nullptr),
-  _soft_ref_gen_policy(),
-  _size_policy(nullptr),
+  _soft_ref_policy(),
   _gc_policy_counters(new GCPolicyCounters(policy_counters_name, 2, 2)),
   _incremental_collection_failed(false),
   _full_collections_completed(0),
@@ -117,8 +107,8 @@ jint GenCollectedHeap::initialize() {
 
   initialize_reserved_region(heap_rs);
 
-  ReservedSpace young_rs = heap_rs.first_part(_young_gen_spec->max_size());
-  ReservedSpace old_rs = heap_rs.last_part(_young_gen_spec->max_size());
+  ReservedSpace young_rs = heap_rs.first_part(MaxNewSize);
+  ReservedSpace old_rs = heap_rs.last_part(MaxNewSize);
 
   _rem_set = create_rem_set(heap_rs.region());
   _rem_set->initialize(young_rs.base(), old_rs.base());
@@ -127,8 +117,8 @@ jint GenCollectedHeap::initialize() {
   bs->initialize();
   BarrierSet::set_barrier_set(bs);
 
-  _young_gen = _young_gen_spec->init(young_rs, rem_set());
-  _old_gen = _old_gen_spec->init(old_rs, rem_set());
+  _young_gen = new DefNewGeneration(young_rs, NewSize, MinNewSize, MaxNewSize);
+  _old_gen = new TenuredGeneration(old_rs, OldSize, MinOldSize, MaxOldSize, rem_set());
 
   GCInitLogger::print();
 
@@ -139,25 +129,14 @@ CardTableRS* GenCollectedHeap::create_rem_set(const MemRegion& reserved_region) 
   return new CardTableRS(reserved_region);
 }
 
-void GenCollectedHeap::initialize_size_policy(size_t init_eden_size,
-                                              size_t init_promo_size,
-                                              size_t init_survivor_size) {
-  const double max_gc_pause_sec = ((double) MaxGCPauseMillis) / 1000.0;
-  _size_policy = new AdaptiveSizePolicy(init_eden_size,
-                                        init_promo_size,
-                                        init_survivor_size,
-                                        max_gc_pause_sec,
-                                        GCTimeRatio);
-}
-
 ReservedHeapSpace GenCollectedHeap::allocate(size_t alignment) {
   // Now figure out the total size.
   const size_t pageSize = UseLargePages ? os::large_page_size() : os::vm_page_size();
   assert(alignment % pageSize == 0, "Must be");
 
   // Check for overflow.
-  size_t total_reserved = _young_gen_spec->max_size() + _old_gen_spec->max_size();
-  if (total_reserved < _young_gen_spec->max_size()) {
+  size_t total_reserved = MaxNewSize + MaxOldSize;
+  if (total_reserved < MaxNewSize) {
     vm_exit_during_initialization("The size of the object heap + VM data exceeds "
                                   "the maximum representable size");
   }
@@ -171,9 +150,9 @@ ReservedHeapSpace GenCollectedHeap::allocate(size_t alignment) {
   os::trace_page_sizes("Heap",
                        MinHeapSize,
                        total_reserved,
-                       used_page_size,
                        heap_rs.base(),
-                       heap_rs.size());
+                       heap_rs.size(),
+                       used_page_size);
 
   return heap_rs;
 }
@@ -194,10 +173,6 @@ void GenCollectedHeap::post_initialize() {
 
   def_new_gen->ref_processor_init();
 
-  initialize_size_policy(def_new_gen->eden()->capacity(),
-                         _old_gen->capacity(),
-                         def_new_gen->from()->capacity());
-
   MarkSweep::initialize();
 
   ScavengableNMethods::initialize(&_is_scavengable);
@@ -214,14 +189,6 @@ PreGenGCValues GenCollectedHeap::get_pre_gc_values() const {
                         def_new_gen->from()->capacity(),
                         old_gen()->used(),
                         old_gen()->capacity());
-}
-
-GenerationSpec* GenCollectedHeap::young_gen_spec() const {
-  return _young_gen_spec;
-}
-
-GenerationSpec* GenCollectedHeap::old_gen_spec() const {
-  return _old_gen_spec;
 }
 
 size_t GenCollectedHeap::capacity() const {
@@ -278,12 +245,7 @@ HeapWord* GenCollectedHeap::expand_heap_and_allocate(size_t size, bool   is_tlab
 }
 
 HeapWord* GenCollectedHeap::mem_allocate_work(size_t size,
-                                              bool is_tlab,
-                                              bool* gc_overhead_limit_was_exceeded) {
-  // In general gc_overhead_limit_was_exceeded should be false so
-  // set it so here and reset it to true only if the gc time
-  // limit is being exceeded as checked below.
-  *gc_overhead_limit_was_exceeded = false;
+                                              bool is_tlab) {
 
   HeapWord* result = nullptr;
 
@@ -365,23 +327,6 @@ HeapWord* GenCollectedHeap::mem_allocate_work(size_t size,
          continue;  // Retry and/or stall as necessary.
       }
 
-      // Allocation has failed and a collection
-      // has been done.  If the gc time limit was exceeded the
-      // this time, return null so that an out-of-memory
-      // will be thrown.  Clear gc_overhead_limit_exceeded
-      // so that the overhead exceeded does not persist.
-
-      const bool limit_exceeded = size_policy()->gc_overhead_limit_exceeded();
-      const bool softrefs_clear = soft_ref_policy()->all_soft_refs_clear();
-
-      if (limit_exceeded && softrefs_clear) {
-        *gc_overhead_limit_was_exceeded = true;
-        size_policy()->set_gc_overhead_limit_exceeded(false);
-        if (op.result() != nullptr) {
-          CollectedHeap::fill_with_object(op.result(), size);
-        }
-        return nullptr;
-      }
       assert(result == nullptr || is_in_reserved(result),
              "result not in heap");
       return result;
@@ -418,8 +363,7 @@ HeapWord* GenCollectedHeap::attempt_allocation(size_t size,
 HeapWord* GenCollectedHeap::mem_allocate(size_t size,
                                          bool* gc_overhead_limit_was_exceeded) {
   return mem_allocate_work(size,
-                           false /* is_tlab */,
-                           gc_overhead_limit_was_exceeded);
+                           false /* is_tlab */);
 }
 
 bool GenCollectedHeap::must_clear_all_soft_refs() {
@@ -871,24 +815,9 @@ bool GenCollectedHeap::is_in_partial_collection(const void* p) {
 }
 #endif
 
-void GenCollectedHeap::oop_iterate(OopIterateClosure* cl) {
-  _young_gen->oop_iterate(cl);
-  _old_gen->oop_iterate(cl);
-}
-
 void GenCollectedHeap::object_iterate(ObjectClosure* cl) {
   _young_gen->object_iterate(cl);
   _old_gen->object_iterate(cl);
-}
-
-Space* GenCollectedHeap::space_containing(const void* addr) const {
-  Space* res = _young_gen->space_containing(addr);
-  if (res != nullptr) {
-    return res;
-  }
-  res = _old_gen->space_containing(addr);
-  assert(res != nullptr, "Could not find containing space");
-  return res;
 }
 
 HeapWord* GenCollectedHeap::block_start(const void* addr) const {
@@ -935,65 +864,13 @@ size_t GenCollectedHeap::unsafe_max_tlab_alloc(Thread* thr) const {
 HeapWord* GenCollectedHeap::allocate_new_tlab(size_t min_size,
                                               size_t requested_size,
                                               size_t* actual_size) {
-  bool gc_overhead_limit_was_exceeded;
   HeapWord* result = mem_allocate_work(requested_size /* size */,
-                                       true /* is_tlab */,
-                                       &gc_overhead_limit_was_exceeded);
+                                       true /* is_tlab */);
   if (result != nullptr) {
     *actual_size = requested_size;
   }
 
   return result;
-}
-
-// Requires "*prev_ptr" to be non-null.  Deletes and a block of minimal size
-// from the list headed by "*prev_ptr".
-static ScratchBlock *removeSmallestScratch(ScratchBlock **prev_ptr) {
-  bool first = true;
-  size_t min_size = 0;   // "first" makes this conceptually infinite.
-  ScratchBlock **smallest_ptr, *smallest;
-  ScratchBlock  *cur = *prev_ptr;
-  while (cur) {
-    assert(*prev_ptr == cur, "just checking");
-    if (first || cur->num_words < min_size) {
-      smallest_ptr = prev_ptr;
-      smallest     = cur;
-      min_size     = smallest->num_words;
-      first        = false;
-    }
-    prev_ptr = &cur->next;
-    cur     =  cur->next;
-  }
-  smallest      = *smallest_ptr;
-  *smallest_ptr = smallest->next;
-  return smallest;
-}
-
-// Sort the scratch block list headed by res into decreasing size order,
-// and set "res" to the result.
-static void sort_scratch_list(ScratchBlock*& list) {
-  ScratchBlock* sorted = nullptr;
-  ScratchBlock* unsorted = list;
-  while (unsorted) {
-    ScratchBlock *smallest = removeSmallestScratch(&unsorted);
-    smallest->next  = sorted;
-    sorted          = smallest;
-  }
-  list = sorted;
-}
-
-ScratchBlock* GenCollectedHeap::gather_scratch(Generation* requestor,
-                                               size_t max_alloc_words) {
-  ScratchBlock* res = nullptr;
-  _young_gen->contribute_scratch(res, requestor, max_alloc_words);
-  _old_gen->contribute_scratch(res, requestor, max_alloc_words);
-  sort_scratch_list(res);
-  return res;
-}
-
-void GenCollectedHeap::release_scratch() {
-  _young_gen->reset_scratch();
-  _old_gen->reset_scratch();
 }
 
 void GenCollectedHeap::prepare_for_verify() {
@@ -1160,16 +1037,3 @@ void GenCollectedHeap::record_gen_tops_before_GC() {
   }
 }
 #endif  // not PRODUCT
-
-class GenEnsureParsabilityClosure: public GenCollectedHeap::GenClosure {
- public:
-  void do_generation(Generation* gen) {
-    gen->ensure_parsability();
-  }
-};
-
-void GenCollectedHeap::ensure_parsability(bool retire_tlabs) {
-  CollectedHeap::ensure_parsability(retire_tlabs);
-  GenEnsureParsabilityClosure ep_cl;
-  generation_iterate(&ep_cl, false);
-}

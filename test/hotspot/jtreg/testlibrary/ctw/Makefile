@@ -57,7 +57,6 @@ EXPORTS=--add-exports java.base/jdk.internal.jimage=ALL-UNNAMED \
 	--add-exports java.base/jdk.internal.classfile=ALL-UNNAMED \
 	--add-exports java.base/jdk.internal.classfile.attribute=ALL-UNNAMED \
 	--add-exports java.base/jdk.internal.classfile.constantpool=ALL-UNNAMED \
-	--add-exports java.base/jdk.internal.classfile.java.lang.constant=ALL-UNNAMED \
 	--add-exports java.base/jdk.internal.access=ALL-UNNAMED
 
 CTW_MAIN_CLASS = sun.hotspot.tools.ctw.CompileTheWorld
@@ -78,7 +77,7 @@ $(DST_DIR):
 	@mkdir -p $@
 
 $(DST_DIR)/ctw.sh: $(DST_DIR)
-	echo '$${JAVA_HOME}/bin/java $${JAVA_OPTIONS} $(EXPORTS) -XX:-UseCounterDecay -Xbatch "-XX:CompileCommand=exclude,java/lang/invoke/MethodHandle.*" -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:wb.jar -jar ctw.jar $$@' > $@
+	echo '$${JAVA_HOME}/bin/java $${JAVA_OPTIONS} $(EXPORTS) -Xbatch "-XX:CompileCommand=exclude,java/lang/invoke/MethodHandle.*" -XX:+UnlockDiagnosticVMOptions -XX:+WhiteBoxAPI -Xbootclasspath/a:wb.jar -jar ctw.jar $$@' > $@
 	chmod a+x $@
 
 $(DST_DIR)/ctwrunner.sh: $(DST_DIR)

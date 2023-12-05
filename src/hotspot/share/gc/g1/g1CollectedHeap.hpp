@@ -560,6 +560,9 @@ public:
     return _monitoring_support;
   }
 
+  void pin_object(JavaThread* thread, oop obj) override;
+  void unpin_object(JavaThread* thread, oop obj) override;
+
   void resize_heap_if_necessary();
 
   // Check if there is memory to uncommit and if so schedule a task to do it.
@@ -613,7 +616,7 @@ public:
   // We register a region with the fast "in collection set" test. We
   // simply set to true the array slot corresponding to this region.
   void register_young_region_with_region_attr(HeapRegion* r) {
-    _region_attr.set_in_young(r->hrm_index());
+    _region_attr.set_in_young(r->hrm_index(), r->has_pinned_objects());
   }
   inline void register_new_survivor_region_with_region_attr(HeapRegion* r);
   inline void register_region_with_region_attr(HeapRegion* r);
@@ -684,6 +687,8 @@ public:
   // at the same time.
   void free_region(HeapRegion* hr, FreeRegionList* free_list);
 
+  // Add the given region to the retained regions collection set candidates.
+  void retain_region(HeapRegion* hr);
   // It dirties the cards that cover the block so that the post
   // write barrier never queues anything when updating objects on this
   // block. It is assumed (and in fact we assert) that the block
@@ -700,21 +705,18 @@ public:
   void free_humongous_region(HeapRegion* hr,
                              FreeRegionList* free_list);
 
-  // Facility for allocating a fixed range within the heap and marking
-  // the containing regions as 'old'. For use at JVM init time, when the
-  // caller may mmap archived heap data at the specified range.
-
-  // Verify that the range is within the reserved heap.
-  bool check_archive_addresses(MemRegion range);
-
   // Execute func(HeapRegion* r, bool is_last) on every region covered by the
   // given range.
   template <typename Func>
   void iterate_regions_in_range(MemRegion range, const Func& func);
 
-  // Commit the appropriate G1 region(s) containing the specified range
-  // and mark them as 'old' region(s).
-  bool alloc_archive_regions(MemRegion range);
+  // Commit the required number of G1 region(s) according to the size requested
+  // and mark them as 'old' region(s). Preferred address is treated as a hint for
+  // the location of the archive space in the heap. The returned address may or may
+  // not be same as the preferred address.
+  // This API is only used for allocating heap space for the archived heap objects
+  // in the CDS archive.
+  HeapWord* alloc_archive_region(size_t word_size, HeapWord* preferred_addr);
 
   // Populate the G1BlockOffsetTablePart for archived regions with the given
   // memory range.
@@ -1031,7 +1033,7 @@ public:
 
   // Return "TRUE" iff the given object address is within the collection
   // set. Assumes that the reference points into the heap.
-  inline bool is_in_cset(const HeapRegion *hr) const;
+  inline bool is_in_cset(const HeapRegion* hr) const;
   inline bool is_in_cset(oop obj) const;
   inline bool is_in_cset(HeapWord* addr) const;
 
@@ -1292,9 +1294,6 @@ public:
 
   G1HeapSummary create_g1_heap_summary();
   G1EvacSummary create_g1_evac_summary(G1EvacStats* stats);
-
-  void pin_object(JavaThread* thread, oop obj) override;
-  void unpin_object(JavaThread* thread, oop obj) override;
 
   // Printing
 private:

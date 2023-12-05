@@ -185,6 +185,10 @@ void PerfData::create_entry(BasicType dtype, size_t dsize, size_t vlen) {
   PerfMemory::mark_updated();
 }
 
+bool PerfData::name_equals(const char* name) const {
+  return strcmp(name, this->name()) == 0;
+}
+
 PerfLong::PerfLong(CounterNS ns, const char* namep, Units u, Variability v)
                  : PerfData(ns, namep, u, v) {
 
@@ -192,17 +196,9 @@ PerfLong::PerfLong(CounterNS ns, const char* namep, Units u, Variability v)
 }
 
 PerfLongVariant::PerfLongVariant(CounterNS ns, const char* namep, Units u,
-                                 Variability v, jlong* sampled)
-                                : PerfLong(ns, namep, u, v),
-                                  _sampled(sampled), _sample_helper(nullptr) {
-
-  sample();
-}
-
-PerfLongVariant::PerfLongVariant(CounterNS ns, const char* namep, Units u,
                                  Variability v, PerfLongSampleHelper* helper)
                                 : PerfLong(ns, namep, u, v),
-                                  _sampled(nullptr), _sample_helper(helper) {
+                                  _sample_helper(helper) {
 
   sample();
 }
@@ -509,17 +505,9 @@ PerfDataList::~PerfDataList() {
 
 }
 
-bool PerfDataList::by_name(void* name, PerfData* pd) {
-
-  if (pd == nullptr)
-    return false;
-
-  return strcmp((const char*)name, pd->name()) == 0;
-}
-
 PerfData* PerfDataList::find_by_name(const char* name) {
 
-  int i = _set->find((void*)name, PerfDataList::by_name);
+  int i = _set->find_if([&](PerfData* pd) { return pd->name_equals(name); });
 
   if (i >= 0 && i <= _set->length())
     return _set->at(i);

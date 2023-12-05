@@ -758,14 +758,15 @@ public final class Files {
             // parent may not exist or other reason
         }
         SecurityException se = null;
+        Path absDir = dir;
         try {
-            dir = dir.toAbsolutePath();
+            absDir = dir.toAbsolutePath();
         } catch (SecurityException x) {
             // don't have permission to get absolute path
             se = x;
         }
         // find a descendant that exists
-        Path parent = dir.getParent();
+        Path parent = absDir.getParent();
         while (parent != null) {
             try {
                 provider(parent).checkAccess(parent);
@@ -778,7 +779,7 @@ public final class Files {
         if (parent == null) {
             // unable to find existing parent
             if (se == null) {
-                throw new FileSystemException(dir.toString(), null,
+                throw new FileSystemException(absDir.toString(), null,
                     "Unable to determine if root directory exists");
             } else {
                 throw se;
@@ -787,7 +788,7 @@ public final class Files {
 
         // create directories
         Path child = parent;
-        for (Path name: parent.relativize(dir)) {
+        for (Path name: parent.relativize(absDir)) {
             child = child.resolve(name);
             createAndCheckIsDirectory(child, attrs);
         }
@@ -1530,7 +1531,8 @@ public final class Files {
      * @throws  SecurityException
      *          In the case of the default provider, and a security manager is
      *          installed, the {@link SecurityManager#checkRead(String) checkRead}
-     *          method is invoked to check read access to both files.
+     *          method is invoked to check read access to both files when the
+     *          two paths are not equal
      *
      * @see java.nio.file.attribute.BasicFileAttributes#fileKey
      */
@@ -1570,6 +1572,9 @@ public final class Files {
      * and {@code g}, {@code mismatch(f,g)} will return the same value as
      * {@code mismatch(g,f)}).
      *
+     * <p> If both {@code Path} objects are equal, then this method returns
+     * {@code true} without checking if the file exists.
+     *
      * @param   path
      *          the path to the first file
      * @param   path2
@@ -1582,7 +1587,8 @@ public final class Files {
      * @throws  SecurityException
      *          In the case of the default provider, and a security manager is
      *          installed, the {@link SecurityManager#checkRead(String) checkRead}
-     *          method is invoked to check read access to both files.
+     *          method is invoked to check read access to both files when the
+     *          two paths are not equal
      *
      * @since 12
      */

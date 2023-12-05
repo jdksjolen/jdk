@@ -24,13 +24,16 @@
  */
 
 #include "precompiled.hpp"
+#include "compiler/compilationMemoryStatistic.hpp"
 #include "memory/allocation.hpp"
 #include "memory/allocation.inline.hpp"
+#include "memory/arena.hpp"
 #include "memory/resourceArea.hpp"
+#include "nmt/memTracker.inline.hpp"
 #include "runtime/os.hpp"
 #include "runtime/task.hpp"
 #include "runtime/threadCritical.hpp"
-#include "services/memTracker.inline.hpp"
+#include "runtime/trimNativeHeap.hpp"
 #include "utilities/align.hpp"
 #include "utilities/debug.hpp"
 #include "utilities/ostream.hpp"
@@ -42,24 +45,18 @@ STATIC_ASSERT(is_aligned((int)Chunk::medium_size, ARENA_AMALLOC_ALIGNMENT));
 STATIC_ASSERT(is_aligned((int)Chunk::size, ARENA_AMALLOC_ALIGNMENT));
 STATIC_ASSERT(is_aligned((int)Chunk::non_pool_size, ARENA_AMALLOC_ALIGNMENT));
 
-//--------------------------------------------------------------------------------------
-// ChunkPool implementation
-
 // MT-safe pool of same-sized chunks to reduce malloc/free thrashing
 // NB: not using Mutex because pools are used before Threads are initialized
 class ChunkPool {
-  Chunk*       _first;        // first cached Chunk; its first word points to next chunk
-  const size_t _size;         // (inner payload) size of the chunks this pool serves
-
   // Our four static pools
-  static const int _num_pools = 4;
+  static constexpr int _num_pools = 4;
   static ChunkPool _pools[_num_pools];
 
- public:
-  ChunkPool(size_t size) : _first(nullptr), _size(size) {}
+  Chunk*       _first;
+  const size_t _size;         // (inner payload) size of the chunks this pool serves
 
-  // Allocate a chunk from the pool; returns null if pool is empty.
-  Chunk* allocate() {
+  // Returns null if pool is empty.
+  Chunk* take_from_pool() {
     ThreadCritical tc;
     Chunk* c = _first;
     if (_first != nullptr) {
@@ -67,16 +64,14 @@ class ChunkPool {
     }
     return c;
   }
-
-  // Return a chunk to the pool
-  void free(Chunk* chunk) {
+  void return_to_pool(Chunk* chunk) {
     assert(chunk->length() == _size, "wrong pool for this chunk");
     ThreadCritical tc;
     chunk->set_next(_first);
     _first = chunk;
   }
 
-  // Prune the pool
+  // Clear this pool of all contained chunks
   void prune() {
     // Free all chunks while in ThreadCritical lock
     // so NMT adjustment is stable.
@@ -91,12 +86,6 @@ class ChunkPool {
     _first = nullptr;
   }
 
-  static void clean() {
-    for (int i = 0; i < _num_pools; i++) {
-      _pools[i].prune();
-    }
-  }
-
   // Given a (inner payload) size, return the pool responsible for it, or null if the size is non-standard
   static ChunkPool* get_pool_for_size(size_t size) {
     for (int i = 0; i < _num_pools; i++) {
@@ -107,13 +96,22 @@ class ChunkPool {
     return nullptr;
   }
 
+public:
+  ChunkPool(size_t size) : _first(nullptr), _size(size) {}
+
+  static void clean() {
+    NativeHeapTrimmer::SuspendMark sm("chunk pool cleaner");
+    for (int i = 0; i < _num_pools; i++) {
+      _pools[i].prune();
+    }
+  }
+
+  // Returns an initialized and null-terminated Chunk of requested size
+  static Chunk* allocate_chunk(size_t length, AllocFailType alloc_failmode);
+  static void deallocate_chunk(Chunk* p);
 };
 
 ChunkPool ChunkPool::_pools[] = { Chunk::size, Chunk::medium_size, Chunk::init_size, Chunk::tiny_size };
-
-//--------------------------------------------------------------------------------------
-// ChunkPoolCleaner implementation
-//
 
 class ChunkPoolCleaner : public PeriodicTask {
   static const int cleaning_interval = 5000; // cleaning interval in ms
@@ -165,10 +163,6 @@ bool ChunkPoolProvider::reset_to(void* ptr) {
 
 ChunkPoolProvider Arena::chunk_pool{};
 
-//--------------------------------------------------------------------------------------
-// Chunk implementation
-
-
 // TODO: Inline destroy and allocate_chunk
 Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ContiguousProvider* mem_provide) throw() {
   // - requested_size = sizeof(Chunk)
@@ -211,9 +205,7 @@ void Chunk::destroy(void* p, ContiguousProvider* mp) {
   }
 }
 
-Chunk::Chunk(size_t length) : _len(length) {
-  _next = nullptr;         // Chain on the linked list
-}
+ChunkPool ChunkPool::_pools[] = { Chunk::size, Chunk::medium_size, Chunk::init_size, Chunk::tiny_size };
 
 void Chunk::chop(Chunk* chunk, ContiguousProvider* mp) {
   while (chunk != nullptr) {
@@ -230,7 +222,7 @@ void Chunk::next_chop(Chunk* chunk, ContiguousProvider* mp) {
   chunk->_next = nullptr;
 }
 
-void Chunk::start_chunk_pool_cleaner_task() {
+void Arena::start_chunk_pool_cleaner_task() {
 #ifdef ASSERT
   static bool task_created = false;
   assert(!task_created, "should not start chuck pool cleaner twice");
@@ -326,13 +318,19 @@ void Arena::set_size_in_bytes(size_t size) {
     ssize_t delta = size - size_in_bytes();
     _size_in_bytes = size;
     MemTracker::record_arena_size_change(delta, _flags);
+    if (CompilationMemoryStatistic::enabled() && _flags == mtCompiler) {
+      Thread* const t = Thread::current();
+      if (t != nullptr && t->is_Compiler_thread()) {
+        CompilationMemoryStatistic::on_arena_change(delta, this);
+      }
+    }
   }
 }
 
 // Total of all Chunks in arena
 size_t Arena::used() const {
   size_t sum = _chunk->length() - (_max-_hwm); // Size leftover in this Chunk
-  Chunk *k = _first;
+  Chunk* k = _first;
   while( k != _chunk) {         // Whilst have Chunks in a row
     sum += k->length();         // Total size of this Chunk
     k = k->next();              // Bump along to next Chunk
@@ -357,8 +355,12 @@ void* Arena::grow(size_t x, AllocFailType alloc_failmode) {
     _chunk = k;                 // restore the previous value of _chunk
     return nullptr;
   }
-  if (k) k->set_next(_chunk);   // Append new chunk to end of linked list
-  else _first = _chunk;
+
+  if (k != nullptr) {
+    k->set_next(_chunk);        // Append new chunk to end of linked list
+  } else {
+    _first = _chunk;
+  }
   _hwm  = _chunk->bottom();     // Save the cached hwm, max
   _max =  _chunk->top();
   set_size_in_bytes(size_in_bytes() + len + Chunk::aligned_overhead_size());
@@ -413,7 +415,7 @@ bool Arena::contains( const void *ptr ) const {
   if (_chunk == nullptr) return false;
   if( (void*)_chunk->bottom() <= ptr && ptr < (void*)_hwm )
     return true;                // Check for in this chunk
-  for (Chunk *c = _first; c; c = c->next()) {
+  for (Chunk* c = _first; c; c = c->next()) {
     if (c == _chunk) continue;  // current chunk has been processed
     if ((void*)c->bottom() <= ptr && ptr < (void*)c->top()) {
       return true;              // Check for every chunk in Arena

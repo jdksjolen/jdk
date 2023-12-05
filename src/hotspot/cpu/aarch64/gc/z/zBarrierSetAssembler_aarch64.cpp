@@ -601,8 +601,8 @@ private:
   }
 
 public:
-  ZAdjustAddress(MacroAssembler* masm, Address addr) :
-      _masm(masm),
+  ZAdjustAddress(MacroAssembler* masm, Address addr)
+    : _masm(masm),
       _addr(addr),
       _pre_adjustment(addr.getMode() == Address::pre ? addr.offset() : 0),
       _post_adjustment(addr.getMode() == Address::post ? addr.offset() : 0) {
@@ -1132,8 +1132,8 @@ public:
     }
   }
 
-  ZSaveLiveRegisters(MacroAssembler* masm, ZBarrierStubC2* stub) :
-      _masm(masm),
+  ZSaveLiveRegisters(MacroAssembler* masm, ZBarrierStubC2* stub)
+    : _masm(masm),
       _gp_regs(),
       _fp_regs(),
       _p_regs() {
@@ -1169,8 +1169,8 @@ private:
   const Address         _ref_addr;
 
 public:
-  ZSetupArguments(MacroAssembler* masm, ZLoadBarrierStubC2* stub) :
-      _masm(masm),
+  ZSetupArguments(MacroAssembler* masm, ZLoadBarrierStubC2* stub)
+    : _masm(masm),
       _ref(stub->ref()),
       _ref_addr(stub->ref_addr()) {
 
@@ -1290,6 +1290,9 @@ static bool aarch64_test_and_branch_reachable(int branch_offset, int target_offs
   return test_and_branch_to_trampoline_delta < test_and_branch_delta_limit;
 }
 
+ZLoadBarrierStubC2Aarch64::ZLoadBarrierStubC2Aarch64(const MachNode* node, Address ref_addr, Register ref)
+  : ZLoadBarrierStubC2(node, ref_addr, ref), _test_and_branch_reachable_entry(), _offset(), _deferred_emit(false), _test_and_branch_reachable(false) {}
+
 ZLoadBarrierStubC2Aarch64::ZLoadBarrierStubC2Aarch64(const MachNode* node, Address ref_addr, Register ref, int offset)
   : ZLoadBarrierStubC2(node, ref_addr, ref), _test_and_branch_reachable_entry(), _offset(offset), _deferred_emit(false), _test_and_branch_reachable(false) {
   PhaseOutput* const output = Compile::current()->output();
@@ -1317,6 +1320,12 @@ int ZLoadBarrierStubC2Aarch64::get_stub_size() {
   ZLoadBarrierStubC2::emit_code(masm);
   output->set_in_scratch_emit_size(false);
   return cb.insts_size();
+}
+
+ZLoadBarrierStubC2Aarch64* ZLoadBarrierStubC2Aarch64::create(const MachNode* node, Address ref_addr, Register ref) {
+  ZLoadBarrierStubC2Aarch64* const stub = new (Compile::current()->comp_arena()) ZLoadBarrierStubC2Aarch64(node, ref_addr, ref);
+  register_stub(stub);
+  return stub;
 }
 
 ZLoadBarrierStubC2Aarch64* ZLoadBarrierStubC2Aarch64::create(const MachNode* node, Address ref_addr, Register ref, int offset) {
