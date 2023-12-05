@@ -1,6 +1,6 @@
 #include "memory/allocation.hpp"
 #include "runtime/globals.hpp"
-#include "services/memTracker.hpp"
+#include "nmt/memTracker.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"

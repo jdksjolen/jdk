@@ -48,6 +48,8 @@ STATIC_ASSERT(is_aligned((int)Chunk::non_pool_size, ARENA_AMALLOC_ALIGNMENT));
 // MT-safe pool of same-sized chunks to reduce malloc/free thrashing
 // NB: not using Mutex because pools are used before Threads are initialized
 class ChunkPool {
+  friend class Chunk;
+  friend class ChunkPoolProvider;
   // Our four static pools
   static constexpr int _num_pools = 4;
   static ChunkPool _pools[_num_pools];
@@ -129,7 +131,7 @@ ArenaMemoryProvider::AllocationResult
   // Try to reuse a freed chunk from the pool
   ChunkPool* pool = ChunkPool::get_pool_for_size(length);
   if (pool != nullptr) {
-    Chunk* c = pool->allocate();
+    Chunk* c = pool->take_from_pool();
     if (c != nullptr) {
       assert(c->length() == length, "wrong length?");
       return ArenaMemoryProvider::AllocationResult{c, bytes};
@@ -150,7 +152,7 @@ void ChunkPoolProvider::free(void* p) {
   Chunk* c = (Chunk*)p;
   ChunkPool* pool = ChunkPool::get_pool_for_size(c->length());
   if (pool != nullptr) {
-    pool->free(c);
+    pool->return_to_pool(c);
   } else {
     os::free(c);
   }
@@ -162,6 +164,10 @@ bool ChunkPoolProvider::reset_to(void* ptr) {
 }
 
 ChunkPoolProvider Arena::chunk_pool{};
+
+Chunk::Chunk(size_t length) : _len(length) {
+  _next = nullptr;         // Chain on the linked list
+}
 
 // TODO: Inline destroy and allocate_chunk
 Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ContiguousProvider* mem_provide) throw() {
@@ -205,8 +211,6 @@ void Chunk::destroy(void* p, ContiguousProvider* mp) {
   }
 }
 
-ChunkPool ChunkPool::_pools[] = { Chunk::size, Chunk::medium_size, Chunk::init_size, Chunk::tiny_size };
-
 void Chunk::chop(Chunk* chunk, ContiguousProvider* mp) {
   while (chunk != nullptr) {
     Chunk *tmp = chunk->next();
@@ -234,15 +238,15 @@ void Arena::start_chunk_pool_cleaner_task() {
 
 //------------------------------Arena------------------------------------------
 Arena::Arena(MEMFLAGS flag, Arena::ProvideAProviderPlease provide_mp) :
-  _mem(nullptr), _flags(flag), _size_in_bytes(0) {
+  _mem(nullptr), _flags(flag), _tag(Tag::tag_other), _size_in_bytes(0) {
   // TODO: Kludge.
   // See ResourceArea for why we can't init it more than we do here.
   // I need to re-think this init interface a bit...
   MemTracker::record_new_arena(flag);
 }
 
-Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp) :
-  _mem(mp), _flags(flag), _size_in_bytes(0) {
+Arena::Arena(MEMFLAGS flag, ContiguousProvider* mp, Tag tag) :
+  _mem(mp), _flags(flag), _tag(tag), _size_in_bytes(0) {
   // TODO: Kludge.
   // See ResourceArea for why we can't init it more than we do here.
   // I need to re-think this init interface a bit...
@@ -269,9 +273,9 @@ void Arena::init_memory_provider(ContiguousProvider* mp, size_t init_size) {
 }
 
 
-Arena::Arena(MEMFLAGS flag, size_t init_size) :
+Arena::Arena(MEMFLAGS flag, Tag tag, size_t init_size) :
   _mem(nullptr),
-  _flags(flag), _size_in_bytes(0)  {
+  _flags(flag), _tag(tag), _size_in_bytes(0)  {
 
   init_size = ARENA_ALIGN(init_size);
   _first =  Chunk::allocate_chunk(AllocFailStrategy::EXIT_OOM, init_size, _mem);
@@ -283,8 +287,8 @@ Arena::Arena(MEMFLAGS flag, size_t init_size) :
   set_size_in_bytes(_first->length() + Chunk::aligned_overhead_size());
 }
 
-Arena::Arena(MEMFLAGS flag) :
-  _mem(nullptr), _flags(flag), _size_in_bytes(0) {
+Arena::Arena(MEMFLAGS flag, Tag tag) :
+  _mem(nullptr),_flags(flag), _tag(tag), _size_in_bytes(0) {
 
   _first =  Chunk::allocate_chunk(AllocFailStrategy::EXIT_OOM, Chunk::init_size, _mem);
   _chunk = _first;

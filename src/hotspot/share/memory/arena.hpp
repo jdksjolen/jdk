@@ -30,7 +30,7 @@
 #include "runtime/globals.hpp"
 #include "logging/log.hpp"
 #include "runtime/threadCritical.hpp"
-#include "services/memTracker.hpp"
+#include "nmt/memTracker.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/powerOfTwo.hpp"
@@ -198,19 +198,16 @@ protected:
   }
 
  public:
-  Arena(MEMFLAGS memflag);
-  Arena(MEMFLAGS memflag, size_t init_size);
-  Arena(MEMFLAGS memflag, ContiguousProvider* mp);
+  Arena(MEMFLAGS memflag, Tag tag = Tag::tag_other);
+  Arena(MEMFLAGS memflag, ContiguousProvider* mp, Tag tag = Tag::tag_other);
 
   struct ProvideAProviderPlease {};
   Arena(MEMFLAGS memflag, ProvideAProviderPlease provide_it);
-  void init_memory_provider(ContiguousProvider* mem, size_t init_size = Chunk::init_size);
+  Arena(MEMFLAGS memflag, Tag tag, size_t init_size);
 
+  void init_memory_provider(ContiguousProvider* mem, size_t init_size = Chunk::init_size);
   // Start the chunk_pool cleaner task
   static void start_chunk_pool_cleaner_task();
-  Arena(MEMFLAGS memflag, Tag tag = Tag::tag_other);
-  Arena(MEMFLAGS memflag, Tag tag, size_t init_size);
-  Arena(MEMFLAGS memflag, ContiguousProvider* mp, Tag tag);
   ~Arena();
   void  destruct_contents();
   char* hwm() const             { return _hwm; }
