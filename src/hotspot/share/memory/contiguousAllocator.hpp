@@ -19,7 +19,7 @@ class ContiguousAllocator {
 public:
   struct AllocationResult { void* loc; size_t sz; };
   static size_t get_chunk_size(bool useHugePages) {
-    return align_up(useHugePages ? 2*M : 4*K, os::vm_page_size());
+    return align_up(useHugePages ? 2*M : 128*K, os::vm_page_size());
   }
 private:
 

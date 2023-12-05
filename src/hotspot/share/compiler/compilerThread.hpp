@@ -64,7 +64,7 @@ public:
       size(4096*M),
       start(nullptr),
       size_per(0) /* Set later */ {
-      void* ret = ::mmap(nullptr, size, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+      void* ret = ::mmap(nullptr, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
       assert(ret != MAP_FAILED, "mustn't");
       char* addr = (char*)ret;
       char* aligned_addr = align_up(addr, chunk_size);
