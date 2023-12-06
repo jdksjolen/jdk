@@ -58,27 +58,20 @@ private:
       return r;
     }
 
-    // Avoid mapping 2MB huge page
-    // We can't, unfortunately, do this. This is because NMT is not featureful enough.
-    /*if (is_aligned(next_offset, 2*M)) {
-      this->offset += chunk_size;
-      next_offset += chunk_size;
-      }*/
-
     if (next_offset >= start + this->size) {
       vm_exit_out_of_memory(chunk_aligned_size, OOM_MALLOC_ERROR, "FIRST");
       return {nullptr, 0};
     }
 
-    constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE;
-    char* addr = (char*)::mmap(this->offset, chunk_aligned_size, PROT_READ|PROT_WRITE, flags, -1, 0);
-    if (addr == MAP_FAILED) {
-      vm_exit_out_of_memory(chunk_aligned_size, OOM_MALLOC_ERROR, "end: %p, offs: %p len: %zu, err: %d",start + this->size,  this->offset, chunk_aligned_size, errno);
+#define MADV_POPULATE_WRITE 23
+    int ret = ::madvise(this->offset, chunk_aligned_size, MADV_POPULATE_WRITE);
+#undef MADV_POPULATE_WRITE
+    if (ret == -1) {
       return {nullptr, 0};
     }
-    assert(addr == this->offset, "not equal");
 
     MemTracker::record_virtual_memory_commit(this->offset, chunk_aligned_size, CALLER_PC);
+    void* addr = this->offset;
     this->offset = next_offset;
     assert(this->offset >= this->committed_boundary, "must be");
     this->committed_boundary = this->offset;
@@ -88,7 +81,7 @@ private:
 public:
   static const size_t default_size = 1*G;
   // The size of unused-but-allocated chunks that we allow before madvising() that they're not needed.
-  static const size_t slack = 16*K;
+  static const size_t slack = 16;
   MEMFLAGS flag;
   size_t size;
   size_t chunk_size;
@@ -147,7 +140,7 @@ public:
 
     // We don't want to keep around too many pages that aren't in use,
     // so we ask the OS to throw away the physical backing, while keeping the memory reserved.
-    if (unused_bytes >= slack) {
+    if (unused_bytes >= slack*chunk_size) {
       // Look into MADV_FREE/MADV_COLD
       int ret = ::madvise(offset, unused_bytes, MADV_DONTNEED);
       assert(ret == 0, "must");
