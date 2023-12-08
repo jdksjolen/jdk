@@ -19,7 +19,7 @@ class ContiguousAllocator {
 public:
   struct AllocationResult { void* loc; size_t sz; };
   static size_t get_chunk_size(bool useHugePages) {
-    return align_up(useHugePages ? 2*M : 4096*K, os::vm_page_size());
+    return align_up(useHugePages ? 2*M : 512*K, os::vm_page_size());
   }
 private:
 
@@ -44,19 +44,17 @@ private:
       addr += cz;
       size -= cz;
     }
-
-    MemTracker::record_virtual_memory_reserve(addr, size, CALLER_PC, flag);
     return addr;
   }
 
   AllocationResult populate_chunk(size_t requested_size) {
-    size_t chunk_aligned_size = align_up(requested_size, chunk_size);
-    char* next_offset = this->offset + chunk_aligned_size;
+    char* next_offset = this->offset + requested_size;
     if (next_offset <= committed_boundary) {
-      AllocationResult r{this->offset, chunk_aligned_size};
+      AllocationResult r{this->offset, requested_size};
       this->offset = next_offset;
       return r;
     }
+    size_t chunk_aligned_size = align_up(requested_size, chunk_size);
 
     if (next_offset >= start + this->size) {
       vm_exit_out_of_memory(chunk_aligned_size, OOM_MALLOC_ERROR, "FIRST");
@@ -64,24 +62,22 @@ private:
     }
 
 #define MADV_POPULATE_WRITE 23
-    int ret = ::madvise(this->offset, chunk_aligned_size, MADV_POPULATE_WRITE);
+    int ret = ::madvise(committed_boundary, chunk_aligned_size, MADV_POPULATE_WRITE);
 #undef MADV_POPULATE_WRITE
     if (ret == -1) {
       return {nullptr, 0};
     }
+    this->committed_boundary += chunk_aligned_size;
 
-    MemTracker::record_virtual_memory_commit(this->offset, chunk_aligned_size, CALLER_PC);
     void* addr = this->offset;
     this->offset = next_offset;
-    assert(this->offset >= this->committed_boundary, "must be");
-    this->committed_boundary = this->offset;
-    return {addr, chunk_aligned_size};
+    return {addr, requested_size};
   }
 
 public:
   static const size_t default_size = 1*G;
   // The size of unused-but-allocated chunks that we allow before madvising() that they're not needed.
-  static const size_t slack = 16;
+  static const size_t slack = 4;
   MEMFLAGS flag;
   size_t size;
   size_t chunk_size;
@@ -96,7 +92,7 @@ public:
       committed_boundary(align_up(start, chunk_size)) {
     // Pre-fault first 64k.
     constexpr const int flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED | MAP_POPULATE;
-    char* addr = (char*)::mmap(this->offset, align_up(64*K, chunk_size), PROT_READ|PROT_WRITE, flags, -1, 0);
+    char* addr = (char*)::mmap(this->offset, align_up(512*K, chunk_size), PROT_READ|PROT_WRITE, flags, -1, 0);
     committed_boundary = addr;
   }
 
@@ -131,7 +127,6 @@ public:
   }
 
   void reset_to(void* p) {
-    assert(is_aligned(p,chunk_size), "Must be chunk aligned");
     assert(p <= offset, "must be");
 
     void* chunk_aligned_pointer = p;
@@ -141,10 +136,10 @@ public:
     // We don't want to keep around too many pages that aren't in use,
     // so we ask the OS to throw away the physical backing, while keeping the memory reserved.
     if (unused_bytes >= slack*chunk_size) {
+      committed_boundary = align_up(offset, chunk_size);
       // Look into MADV_FREE/MADV_COLD
-      int ret = ::madvise(offset, unused_bytes, MADV_DONTNEED);
+      int ret = ::madvise(committed_boundary, align_up(unused_bytes, chunk_size), MADV_DONTNEED);
       assert(ret == 0, "must");
-      committed_boundary = offset;
       // The actual reserved region(s) might not cover this whole area, therefore
       // the reserved region will not be found. We must first register a covering region.
       // Here's another issue: NMT wants the flags to match, but we've got no clue.
