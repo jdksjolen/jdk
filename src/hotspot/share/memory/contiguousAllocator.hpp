@@ -121,9 +121,7 @@ public:
     offset = start;
     // Try to get rid of any huge pages accidentally allocated by doing size - memory
     // instead of committed_boundary
-#define MADV_FREE 8
-    int ret = ::madvise(offset+memory_to_leave, size - memory_to_leave, MADV_FREE);
-#undef MADV_FREE
+    int ret = ::madvise(offset+memory_to_leave, size - memory_to_leave, MADV_DONTNEED);
     assert(ret == 0 || errno == ENOMEM, "must");
     committed_boundary = offset + memory_to_leave;;
   }
@@ -140,9 +138,7 @@ public:
     if (unused_bytes >= slack*chunk_size) {
       committed_boundary = align_up(offset, chunk_size);
       // Look into MADV_FREE/MADV_COLD
-#define MADV_FREE 8
-      int ret = ::madvise(committed_boundary, align_up(unused_bytes, chunk_size), MADV_FREE);
-#undef MADV_FREE
+      int ret = ::madvise(committed_boundary, align_up(unused_bytes, chunk_size), MADV_DONTNEED);
       assert(ret == 0, "must");
       // The actual reserved region(s) might not cover this whole area, therefore
       // the reserved region will not be found. We must first register a covering region.
