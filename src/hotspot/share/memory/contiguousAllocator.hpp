@@ -57,7 +57,6 @@ private:
     size_t chunk_aligned_size = align_up(requested_size, chunk_size);
 
     if (next_offset >= start + this->size) {
-      vm_exit_out_of_memory(chunk_aligned_size, OOM_MALLOC_ERROR, "FIRST");
       return {nullptr, 0};
     }
 
@@ -121,9 +120,11 @@ public:
     offset = start;
     // Try to get rid of any huge pages accidentally allocated by doing size - memory
     // instead of committed_boundary
-    int ret = ::madvise(align_up(offset+memory_to_leave, chunk_size), align_up(size - memory_to_leave, chunk_size), MADV_DONTNEED);
+    void* aligned_start = align_up(offset + memory_to_leave, chunk_size);
+    const unsigned long aligned_size = align_up(size - memory_to_leave, chunk_size);
+    int ret = ::madvise(aligned_start, aligned_size, MADV_DONTNEED);
     assert(ret == 0 || errno == ENOMEM, "must");
-    committed_boundary = offset + memory_to_leave;;
+    committed_boundary = (char*)aligned_start;
   }
 
   void reset_to(void* p) {
