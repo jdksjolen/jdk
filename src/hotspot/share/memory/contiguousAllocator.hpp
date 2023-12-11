@@ -121,7 +121,7 @@ public:
     offset = start;
     // Try to get rid of any huge pages accidentally allocated by doing size - memory
     // instead of committed_boundary
-    int ret = ::madvise(offset+memory_to_leave, size - memory_to_leave, MADV_DONTNEED);
+    int ret = ::madvise(align_up(offset+memory_to_leave, chunk_size), align_up(size - memory_to_leave, chunk_size), MADV_DONTNEED);
     assert(ret == 0 || errno == ENOMEM, "must");
     committed_boundary = offset + memory_to_leave;;
   }
