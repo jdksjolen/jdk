@@ -66,7 +66,6 @@ public:
     _cont_allocator(ma, flag) {}
 
   AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
-    size_t chunk_aligned_size = align_up(bytes, _cont_allocator.chunk_size);
     ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(bytes);
      if (p.loc != nullptr) {
        return {p.loc, p.sz};
