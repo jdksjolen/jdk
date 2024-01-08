@@ -170,7 +170,7 @@ Chunk::Chunk(size_t length) : _len(length) {
 }
 
 // TODO: Inline destroy and allocate_chunk
-Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ContiguousProvider* mem_provide) throw() {
+Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaMemoryProvider* mem_provide) throw() {
   // - requested_size = sizeof(Chunk)
   // - length = payload size
   // We must ensure that the boundaries of the payload (C and D) are aligned to 64-bit:
@@ -205,13 +205,15 @@ Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, Contig
 
 }
 
-void Chunk::destroy(void* p, ContiguousProvider* mp) {
+void Chunk::destroy(void* p, ArenaMemoryProvider* mp) {
   if (mp == nullptr) {
     Arena::chunk_pool.free(p);
+  } else {
+    mp->drop_chunk((Chunk*)p);
   }
 }
 
-void Chunk::chop(Chunk* chunk, ContiguousProvider* mp) {
+void Chunk::chop(Chunk* chunk, ArenaMemoryProvider* mp) {
   while (chunk != nullptr) {
     Chunk *tmp = chunk->next();
     // clear out this chunk (to detect allocation bugs)
@@ -221,7 +223,7 @@ void Chunk::chop(Chunk* chunk, ContiguousProvider* mp) {
   }
 }
 
-void Chunk::next_chop(Chunk* chunk, ContiguousProvider* mp) {
+void Chunk::next_chop(Chunk* chunk, ArenaMemoryProvider* mp) {
   Chunk::chop(chunk->_next, mp);
   chunk->_next = nullptr;
 }
@@ -426,4 +428,9 @@ bool Arena::contains( const void *ptr ) const {
     }
   }
   return false;                 // Not in any Chunk, so not in Arena
+}
+
+bool ChunkPoolProvider::drop_chunk(Chunk* chunk) {
+  Arena::chunk_pool.free(chunk);
+  return true;
 }

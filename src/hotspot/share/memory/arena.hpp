@@ -33,10 +33,15 @@
 #include "nmt/memTracker.hpp"
 #include "utilities/align.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/growableArray.hpp"
 #include "utilities/powerOfTwo.hpp"
 #include "runtime/os.hpp"
 
+  // The byte alignment to be used by Arena::Amalloc.
+#define ARENA_AMALLOC_ALIGNMENT BytesPerLong
+#define ARENA_ALIGN(x) (align_up((x), ARENA_AMALLOC_ALIGNMENT))
 
+class Chunk;
 // TODO: This is a protocol, but maybe use templates to avoid taking v-table hit.
 class ArenaMemoryProvider : public StackObj {
 public:
@@ -45,59 +50,14 @@ public:
     size_t sz;
   };
 
-  virtual AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) = 0;
+  virtual AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length,
+                                 MEMFLAGS flags) = 0;
   virtual void free(void* ptr) = 0;
   // Is this provider capable of freeing its memory on destruction?
   virtual bool self_free() = 0;
   virtual bool reset_to(void* ptr) = 0;
+  virtual bool drop_chunk(Chunk* chunk) = 0;
 };
-
-class ContiguousProvider final : public ArenaMemoryProvider {
-  ContiguousAllocator _cont_allocator;
-  ContiguousAllocator::AllocationResult returned_chunks[3];
-public:
-  explicit ContiguousProvider(MEMFLAGS flag, bool useHugePages) :
-    _cont_allocator(flag, useHugePages), returned_chunks{} {}
-  explicit ContiguousProvider(MEMFLAGS flag) :
-    _cont_allocator(flag), returned_chunks{} {}
-  explicit ContiguousProvider(MEMFLAGS flag, size_t max_size) :
-    _cont_allocator(max_size, flag), returned_chunks{} {}
-  explicit ContiguousProvider(ContiguousAllocator::MemoryArea ma, MEMFLAGS flag) :
-    _cont_allocator(ma, flag) {}
-
-  AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
-    ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(bytes);
-     if (p.loc != nullptr) {
-       return {p.loc, p.sz};
-     }
-     if (alloc_failmode == AllocFailStrategy::EXIT_OOM) {
-       vm_exit_out_of_memory(bytes, OOM_MALLOC_ERROR, "ContiguousAllocator::alloc");
-     }
-     return AllocationResult{nullptr, 0};
-  }
-  void free(void* ptr) override {
-    // NOP.
-  }
-
-  bool reset_to(void* ptr) override {
-    assert(ptr >= _cont_allocator.start && ptr <= _cont_allocator.offset, "invariant");
-    _cont_allocator.reset_to(ptr);
-    return true;
- }
-  bool reset_full(size_t memory_to_leave = 0) {
-    _cont_allocator.reset_full(memory_to_leave);
-    return true;
-  }
-  bool self_free() override { return true; }
-  size_t used() {
-    return _cont_allocator.offset - _cont_allocator.start;
-  }
-};
-
-// The byte alignment to be used by Arena::Amalloc.
-#define ARENA_AMALLOC_ALIGNMENT BytesPerLong
-#define ARENA_ALIGN(x) (align_up((x), ARENA_AMALLOC_ALIGNMENT))
-
 
 // Linked list of raw memory chunks
 class Chunk {
@@ -106,10 +66,10 @@ class Chunk {
   Chunk*       _next;     // Next Chunk in list
   const size_t _len;      // Size of this Chunk
  public:
-  static void destroy(void* p, ContiguousProvider* mp);
+  static void destroy(void* p, ArenaMemoryProvider* mp);
   // Allocate enough memory for a chunk being able to hold length bytes
   static Chunk*
-  allocate_chunk(AllocFailType alloc_failmode, size_t length, ContiguousProvider* mp);
+  allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaMemoryProvider* mp);
 public:
   NONCOPYABLE(Chunk);
 
@@ -136,8 +96,8 @@ public:
     non_pool_size = init_size + 32 // An initial size which is not one of above
   };
 
-  static void chop(Chunk* chnk, ContiguousProvider* mp);      // Chop this chunk
-  static void next_chop(Chunk* chnk, ContiguousProvider* mp); // Chop next chunk
+  static void chop(Chunk* chnk, ArenaMemoryProvider* mp);      // Chop this chunk
+  static void next_chop(Chunk* chnk, ArenaMemoryProvider* mp); // Chop next chunk
   static size_t aligned_overhead_size(void) { return ARENA_ALIGN(sizeof(Chunk)); }
   static size_t aligned_overhead_size(size_t byte_size) { return ARENA_ALIGN(byte_size); }
 
@@ -150,12 +110,86 @@ public:
   bool contains(char* p) const  { return bottom() <= p && p <= top(); }
 };
 
+class ContiguousProvider final : public ArenaMemoryProvider {
+  ContiguousAllocator _cont_allocator;
+  struct SavedChunk {
+    Chunk* chunk;
+    size_t len;
+    SavedChunk(Chunk* chunk) :
+      chunk(chunk), len(chunk->length()) {
+    }
+    SavedChunk() :
+      chunk(nullptr), len(0) {}
+  };
+  GrowableArrayCHeap<SavedChunk, mtInternal>* _saved_chunks{nullptr};
+public:
+  explicit ContiguousProvider(MEMFLAGS flag, bool useHugePages) :
+    _cont_allocator(flag, useHugePages),
+    _saved_chunks{new GrowableArrayCHeap<SavedChunk, mtInternal>()} {}
+  explicit ContiguousProvider(MEMFLAGS flag) :
+    _cont_allocator(flag),
+    _saved_chunks{new GrowableArrayCHeap<SavedChunk, mtInternal>()} {}
+  explicit ContiguousProvider(MEMFLAGS flag, size_t max_size) :
+    _cont_allocator(max_size, flag),
+    _saved_chunks{new GrowableArrayCHeap<SavedChunk, mtInternal>()} {}
+  explicit ContiguousProvider(ContiguousAllocator::MemoryArea ma, MEMFLAGS flag) :
+    _cont_allocator(ma, flag),
+    _saved_chunks{new GrowableArrayCHeap<SavedChunk, mtInternal>()} {}
+
+  AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override {
+    for (int i = 0; i < _saved_chunks->length(); i++) {
+      SavedChunk& sc = _saved_chunks->at(i);
+      if (sc.len >= length) {
+        AllocationResult ret{sc.chunk, ARENA_ALIGN(sc.len + sizeof(Chunk)) };
+        _saved_chunks->remove_at(i);
+        return ret;
+      }
+    }
+    ContiguousAllocator::AllocationResult p = _cont_allocator.alloc(bytes);
+     if (p.loc != nullptr) {
+       return {p.loc, p.sz};
+     }
+     if (alloc_failmode == AllocFailStrategy::EXIT_OOM) {
+       vm_exit_out_of_memory(bytes, OOM_MALLOC_ERROR, "ContiguousAllocator::alloc");
+     }
+     return AllocationResult{nullptr, 0};
+  }
+
+  bool drop_chunk(Chunk* chunk) override {
+    _saved_chunks->push(SavedChunk{chunk});
+    return true;
+  }
+
+  void free(void* ptr) override {
+    // NOP.
+  }
+
+  bool reset_to(void* ptr) override {
+    assert(ptr >= _cont_allocator.start && ptr <= _cont_allocator.offset, "invariant");
+    _cont_allocator.reset_to(ptr);
+    // Just drop all saved chunks
+    _saved_chunks->clear();
+    return true;
+ }
+  bool reset_full(size_t memory_to_leave = 0) {
+    _cont_allocator.reset_full(memory_to_leave);
+    // Just drop all saved chunks
+    _saved_chunks->clear();
+    return true;
+  }
+  bool self_free() override { return true; }
+  size_t used() {
+    return _cont_allocator.offset - _cont_allocator.start;
+  }
+};
+
 class ChunkPoolProvider final : public ArenaMemoryProvider {
 public:
   AllocationResult alloc(AllocFailType alloc_failmode, size_t bytes, size_t length, MEMFLAGS flags) override;
   void free(void* p) override;
   bool self_free() override;
   bool reset_to(void* ptr) override;
+  bool drop_chunk(Chunk* chunk) override;
 };
 
 class Arena : public CHeapObjBase {
