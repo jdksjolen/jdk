@@ -167,7 +167,6 @@ public:
 
     if (_hwm != state._hwm) {
       // HWM moved: resource area was used. Roll back!
-
       char* replaced_hwm = _hwm;
 
       _chunk = state._chunk;

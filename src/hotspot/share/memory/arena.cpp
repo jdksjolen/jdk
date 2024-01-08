@@ -202,7 +202,6 @@ Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaM
     return nullptr;
   }
   return ::new (res.loc) Chunk(res.sz - sizeof(Chunk));
-
 }
 
 void Chunk::destroy(void* p, ArenaMemoryProvider* mp) {

@@ -140,7 +140,7 @@ public:
     for (int i = 0; i < _saved_chunks->length(); i++) {
       SavedChunk& sc = _saved_chunks->at(i);
       if (sc.len >= length) {
-        AllocationResult ret{sc.chunk, ARENA_ALIGN(sc.len + sizeof(Chunk)) };
+        AllocationResult ret{sc.chunk, sc.len + sizeof(Chunk) };
         _saved_chunks->remove_at(i);
         return ret;
       }
