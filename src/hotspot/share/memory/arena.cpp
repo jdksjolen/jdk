@@ -170,7 +170,7 @@ Chunk::Chunk(size_t length) : _len(length) {
 }
 
 // TODO: Inline destroy and allocate_chunk
-Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaMemoryProvider* mem_provide) throw() {
+Chunk* Chunk::allocate_chunk(AllocFailType alloc_failmode, size_t length, ArenaMemoryProvider* mem_provide) {
   // - requested_size = sizeof(Chunk)
   // - length = payload size
   // We must ensure that the boundaries of the payload (C and D) are aligned to 64-bit:
