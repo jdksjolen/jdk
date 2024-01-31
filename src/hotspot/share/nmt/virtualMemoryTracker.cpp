@@ -349,69 +349,66 @@ bool VirtualMemoryTracker::add_reserved_region(address base_addr, size_t size,
     VirtualMemorySummary::record_reserved_memory(size, flag);
     return _reserved_regions->add(rgn) != nullptr;
   } else {
-    // Deal with recursive reservation
-    // os::reserve_memory() -> pd_reserve_memory() -> os::reserve_memory()
-    // See JDK-8198226.
-    if (reserved_rgn->same_region(base_addr, size) &&
-        (reserved_rgn->flag() == flag || reserved_rgn->flag() == mtNone)) {
-      reserved_rgn->set_call_stack(stack);
-      reserved_rgn->set_flag(flag);
+    assert(!(reserved_rgn->same_region(base_addr, size) &&
+             (reserved_rgn->flag() == flag || reserved_rgn->flag() == mtNone)),
+           "no recursive reservation");
+    assert(reserved_rgn->overlap_region(base_addr, size), "Must be");
+
+    // Overlapped reservation.
+    // It can happen when the regions are thread stacks, as JNI
+    // thread does not detach from VM before exits, and leads to
+    // leak JavaThread object
+    if (reserved_rgn->flag() == mtThreadStack) {
+      guarantee(!CheckJNICalls, "Attached JNI thread exited without being detached");
+      // Overwrite with new region
+
+      // Release old region
+      VirtualMemorySummary::record_uncommitted_memory(reserved_rgn->committed_size(),
+                                                      reserved_rgn->flag());
+      VirtualMemorySummary::record_released_memory(reserved_rgn->size(), reserved_rgn->flag());
+
+      // Add new region
+      VirtualMemorySummary::record_reserved_memory(rgn.size(), flag);
+
+      *reserved_rgn = rgn;
       return true;
-    } else {
-      assert(reserved_rgn->overlap_region(base_addr, size), "Must be");
-
-      // Overlapped reservation.
-      // It can happen when the regions are thread stacks, as JNI
-      // thread does not detach from VM before exits, and leads to
-      // leak JavaThread object
-      if (reserved_rgn->flag() == mtThreadStack) {
-        guarantee(!CheckJNICalls, "Attached JNI thread exited without being detached");
-        // Overwrite with new region
-
-        // Release old region
-        VirtualMemorySummary::record_uncommitted_memory(reserved_rgn->committed_size(), reserved_rgn->flag());
-        VirtualMemorySummary::record_released_memory(reserved_rgn->size(), reserved_rgn->flag());
-
-        // Add new region
-        VirtualMemorySummary::record_reserved_memory(rgn.size(), flag);
-
-        *reserved_rgn = rgn;
-        return true;
-      }
-
-      // CDS mapping region.
-      // CDS reserves the whole region for mapping CDS archive, then maps each section into the region.
-      // NMT reports CDS as a whole.
-      if (reserved_rgn->flag() == mtClassShared) {
-        log_debug(nmt)("CDS reserved region \'%s\' as a whole (" INTPTR_FORMAT ", " SIZE_FORMAT ")",
-                      reserved_rgn->flag_name(), p2i(reserved_rgn->base()), reserved_rgn->size());
-        assert(reserved_rgn->contain_region(base_addr, size), "Reserved CDS region should contain this mapping region");
-        return true;
-      }
-
-      // Mapped CDS string region.
-      // The string region(s) is part of the java heap.
-      if (reserved_rgn->flag() == mtJavaHeap) {
-        log_debug(nmt)("CDS reserved region \'%s\' as a whole (" INTPTR_FORMAT ", " SIZE_FORMAT ")",
-                      reserved_rgn->flag_name(), p2i(reserved_rgn->base()), reserved_rgn->size());
-        assert(reserved_rgn->contain_region(base_addr, size), "Reserved heap region should contain this mapping region");
-        return true;
-      }
-
-      // Print some more details. Don't use UL here to avoid circularities.
-      tty->print_cr("Error: existing region: [" INTPTR_FORMAT "-" INTPTR_FORMAT "), flag %u.\n"
-                    "       new region: [" INTPTR_FORMAT "-" INTPTR_FORMAT "), flag %u.",
-                    p2i(reserved_rgn->base()), p2i(reserved_rgn->end()), (unsigned)reserved_rgn->flag(),
-                    p2i(base_addr), p2i(base_addr + size), (unsigned)flag);
-      if (MemTracker::tracking_level() == NMT_detail) {
-        tty->print_cr("Existing region allocated from:");
-        reserved_rgn->call_stack()->print_on(tty);
-        tty->print_cr("New region allocated from:");
-        stack.print_on(tty);
-      }
-      ShouldNotReachHere();
-      return false;
     }
+
+    // CDS mapping region.
+    // CDS reserves the whole region for mapping CDS archive, then maps each section into the region.
+    // NMT reports CDS as a whole.
+    if (reserved_rgn->flag() == mtClassShared) {
+      log_debug(nmt)("CDS reserved region \'%s\' as a whole (" INTPTR_FORMAT ", " SIZE_FORMAT ")",
+                     reserved_rgn->flag_name(), p2i(reserved_rgn->base()), reserved_rgn->size());
+      assert(reserved_rgn->contain_region(base_addr, size),
+             "Reserved CDS region should contain this mapping region");
+      return true;
+    }
+
+    // Mapped CDS string region.
+    // The string region(s) is part of the java heap.
+    if (reserved_rgn->flag() == mtJavaHeap) {
+      log_debug(nmt)("CDS reserved region \'%s\' as a whole (" INTPTR_FORMAT ", " SIZE_FORMAT ")",
+                     reserved_rgn->flag_name(), p2i(reserved_rgn->base()), reserved_rgn->size());
+      assert(reserved_rgn->contain_region(base_addr, size),
+             "Reserved heap region should contain this mapping region");
+      return true;
+    }
+
+    // Print some more details. Don't use UL here to avoid circularities.
+    tty->print_cr("Error: existing region: [" INTPTR_FORMAT "-" INTPTR_FORMAT "), flag %u.\n"
+                  "       new region: [" INTPTR_FORMAT "-" INTPTR_FORMAT "), flag %u.",
+                  p2i(reserved_rgn->base()), p2i(reserved_rgn->end()),
+                  (unsigned)reserved_rgn->flag(), p2i(base_addr), p2i(base_addr + size),
+                  (unsigned)flag);
+    if (MemTracker::tracking_level() == NMT_detail) {
+      tty->print_cr("Existing region allocated from:");
+      reserved_rgn->call_stack()->print_on(tty);
+      tty->print_cr("New region allocated from:");
+      stack.print_on(tty);
+    }
+    ShouldNotReachHere();
+    return false;
   }
 }
 
