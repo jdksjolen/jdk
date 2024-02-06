@@ -35,20 +35,20 @@ class outputStream;
 class ReservedSpace {
   friend class VMStructs;
  protected:
-  MEMFLAGS flag = mtNone;
+  const MEMFLAGS _flag = mtNone;
+  bool   _special;
   char*  _base;
   size_t _size;
   size_t _noaccess_prefix;
   size_t _alignment;
   size_t _page_size;
-  bool   _special;
   int    _fd_for_heap;
  private:
   bool   _executable;
 
   // ReservedSpace
   ReservedSpace(char* base, size_t size, size_t alignment,
-                size_t page_size, bool special, bool executable);
+                size_t page_size, bool special, bool executable, MEMFLAGS flag = mtNone);
  protected:
   // Helpers to clear and set members during initialization. Two members
   // require special treatment:
@@ -71,14 +71,15 @@ class ReservedSpace {
   ReservedSpace();
   // Initialize the reserved space with the given size. Depending on the size
   // a suitable page size and alignment will be used.
-  explicit ReservedSpace(size_t size);
+  explicit ReservedSpace(size_t size, MEMFLAGS flag = mtNone);
   // Initialize the reserved space with the given size. The preferred_page_size
   // is used as the minimum page size/alignment. This may waste some space if
   // the given size is not aligned to that value, as the reservation will be
   // aligned up to the final alignment in this case.
-  ReservedSpace(size_t size, size_t preferred_page_size);
+  ReservedSpace(size_t size, size_t preferred_page_size, MEMFLAGS flag = mtNone);
   ReservedSpace(size_t size, size_t alignment, size_t page_size,
-                char* requested_address = nullptr);
+                char* requested_address = nullptr,
+                MEMFLAGS flag = mtNone);
 
   // Accessors
   char*  base()            const { return _base;      }

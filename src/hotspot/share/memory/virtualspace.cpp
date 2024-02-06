@@ -41,11 +41,11 @@
 // ReservedSpace
 
 // Dummy constructor
-ReservedSpace::ReservedSpace() : _base(nullptr), _size(0), _noaccess_prefix(0),
-    _alignment(0), _special(false), _fd_for_heap(-1), _executable(false) {
+ReservedSpace::ReservedSpace() : _flag(mtNone), _special(false), _base(nullptr), _size(0),
+    _noaccess_prefix(0), _alignment(0), _fd_for_heap(-1), _executable(false) {
 }
 
-ReservedSpace::ReservedSpace(size_t size) : _fd_for_heap(-1) {
+ReservedSpace::ReservedSpace(size_t size, MEMFLAGS flag) : _flag(flag), _fd_for_heap(-1) {
   // Want to use large pages where possible. If the size is
   // not large page aligned the mapping will be a mix of
   // large and normal pages.
@@ -54,7 +54,7 @@ ReservedSpace::ReservedSpace(size_t size) : _fd_for_heap(-1) {
   initialize(size, alignment, page_size, nullptr, false);
 }
 
-ReservedSpace::ReservedSpace(size_t size, size_t preferred_page_size) : _fd_for_heap(-1) {
+ReservedSpace::ReservedSpace(size_t size, size_t preferred_page_size, MEMFLAGS flag) : _flag(flag),  _fd_for_heap(-1) {
   // When a page size is given we don't want to mix large
   // and normal pages. If the size is not a multiple of the
   // page size it will be aligned up to achieve this.
@@ -69,12 +69,13 @@ ReservedSpace::ReservedSpace(size_t size, size_t preferred_page_size) : _fd_for_
 ReservedSpace::ReservedSpace(size_t size,
                              size_t alignment,
                              size_t page_size,
-                             char* requested_address) : _fd_for_heap(-1) {
+                             char* requested_address,
+                             MEMFLAGS flag) : _flag(flag), _fd_for_heap(-1) {
   initialize(size, alignment, page_size, requested_address, false);
 }
 
 ReservedSpace::ReservedSpace(char* base, size_t size, size_t alignment, size_t page_size,
-                             bool special, bool executable) : _fd_for_heap(-1) {
+                             bool special, bool executable, MEMFLAGS flag) : _flag(flag), _fd_for_heap(-1) {
   assert((size % os::vm_allocation_granularity()) == 0,
          "size not allocation aligned");
   initialize_members(base, size, alignment, page_size, special, executable);
@@ -235,7 +236,7 @@ void ReservedSpace::reserve(size_t size,
     // When there is a backing file directory for this space then whether
     // large pages are allocated is up to the filesystem of the backing file.
     // So UseLargePages is not taken into account for this reservation.
-    char* base = reserve_memory(requested_address, size, alignment, _fd_for_heap, executable, flag);
+    char* base = reserve_memory(requested_address, size, alignment, _fd_for_heap, executable, _flag);
     if (base != nullptr) {
       initialize_members(base, size, alignment, os::vm_page_size(), true, executable);
     }
@@ -250,7 +251,7 @@ void ReservedSpace::reserve(size_t size,
     // explicit large pages and these have to be committed up front to ensure
     // no reservations are lost.
     do {
-      char* base = reserve_memory_special(requested_address, size, alignment, page_size, executable, flag);
+      char* base = reserve_memory_special(requested_address, size, alignment, page_size, executable, _flag);
       if (base != nullptr) {
         // Successful reservation using large pages.
         initialize_members(base, size, alignment, page_size, true, executable);
@@ -266,7 +267,7 @@ void ReservedSpace::reserve(size_t size,
   }
 
   // == Case 3 ==
-  char* base = reserve_memory(requested_address, size, alignment, -1, executable, flag);
+  char* base = reserve_memory(requested_address, size, alignment, -1, executable, _flag);
   if (base != nullptr) {
     // Successful mapping.
     initialize_members(base, size, alignment, page_size, false, executable);
