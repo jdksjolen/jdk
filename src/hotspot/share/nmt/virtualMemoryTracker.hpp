@@ -381,7 +381,7 @@ class VirtualMemoryTracker : AllStatic {
 
   static bool add_reserved_region (address base_addr, size_t size, const NativeCallStack& stack, MEMFLAGS flag = mtNone);
 
-  static bool add_committed_region      (address base_addr, size_t size, const NativeCallStack& stack);
+  static bool add_committed_region      (address base_addr, size_t size, const NativeCallStack& stack, MEMFLAGS flag = mtNone);
   static bool remove_uncommitted_region (address base_addr, size_t size);
   static bool remove_released_region    (address base_addr, size_t size);
   static bool remove_released_region    (ReservedMemoryRegion* rgn);

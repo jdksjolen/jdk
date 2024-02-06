@@ -155,17 +155,17 @@ class MemTracker : AllStatic {
     if (addr != nullptr) {
       ThreadCritical tc;
       VirtualMemoryTracker::add_reserved_region((address)addr, size, stack, flag);
-      VirtualMemoryTracker::add_committed_region((address)addr, size, stack);
+      VirtualMemoryTracker::add_committed_region((address)addr, size, stack, flag);
     }
   }
 
   static inline void record_virtual_memory_commit(void* addr, size_t size,
-    const NativeCallStack& stack) {
+    const NativeCallStack& stack, MEMFLAGS flag = mtNone) {
     assert_post_init();
     if (!enabled()) return;
     if (addr != nullptr) {
       ThreadCritical tc;
-      VirtualMemoryTracker::add_committed_region((address)addr, size, stack);
+      VirtualMemoryTracker::add_committed_region((address)addr, size, stack, flag);
     }
   }
 

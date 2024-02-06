@@ -432,7 +432,7 @@ void VirtualMemoryTracker::set_reserved_region_type(address addr, MEMFLAGS flag)
 }
 
 bool VirtualMemoryTracker::add_committed_region(address addr, size_t size,
-  const NativeCallStack& stack) {
+                                                const NativeCallStack& stack, MEMFLAGS flag) {
   assert(addr != nullptr, "Invalid address");
   assert(size > 0, "Invalid size");
   assert(_reserved_regions != nullptr, "Sanity check");
@@ -446,6 +446,7 @@ bool VirtualMemoryTracker::add_committed_region(address addr, size_t size,
   }
   assert(reserved_rgn != nullptr, "Add committed region, No reserved region found");
   assert(reserved_rgn->contain_region(addr, size), "Not completely contained");
+  assert(reserved_rgn->flag() == flag, "should be same");
   bool result = reserved_rgn->add_committed_region(addr, size, stack);
   log_debug(nmt)("Add committed region \'%s\'(" INTPTR_FORMAT ", " SIZE_FORMAT ") %s",
                 reserved_rgn->flag_name(),  p2i(rgn.base()), rgn.size(), (result ? "Succeeded" : "Failed"));

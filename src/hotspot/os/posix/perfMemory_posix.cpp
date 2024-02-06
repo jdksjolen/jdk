@@ -65,22 +65,22 @@ static char* backing_store_file_name = nullptr;  // name of the backing store
 static char* create_standard_memory(size_t size) {
 
   // allocate an aligned chuck of memory
-  char* mapAddress = os::reserve_memory(size);
+  char* map_address = os::reserve_memory(size, !ExecMem, mtNone);
 
-  if (mapAddress == nullptr) {
+  if (map_address == nullptr) {
     return nullptr;
   }
 
   // commit memory
-  if (!os::commit_memory(mapAddress, size, !ExecMem)) {
+  if (!os::commit_memory(map_address, size, !ExecMem, mtNone)) {
     if (PrintMiscellaneous && Verbose) {
       warning("Could not commit PerfData memory\n");
     }
-    os::release_memory(mapAddress, size);
+    os::release_memory(map_address, size);
     return nullptr;
   }
 
-  return mapAddress;
+  return map_address;
 }
 
 // save the specified memory region to the given file

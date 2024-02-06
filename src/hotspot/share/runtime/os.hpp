@@ -451,16 +451,16 @@ class os: AllStatic {
   // If randomize is true, the location will be randomized.
   static char* attempt_reserve_memory_between(char* min, char* max, size_t bytes, size_t alignment, bool randomize);
 
-  static bool   commit_memory(char* addr, size_t bytes, bool executable);
+  static bool   commit_memory(char* addr, size_t bytes, bool executable, MEMFLAGS flag = mtNone);
   static bool   commit_memory(char* addr, size_t size, size_t alignment_hint,
-                              bool executable);
+                              bool executable, MEMFLAGS flag = mtNone);
   // Same as commit_memory() that either succeeds or calls
   // vm_exit_out_of_memory() with the specified mesg.
   static void   commit_memory_or_exit(char* addr, size_t bytes,
-                                      bool executable, const char* mesg);
+                                      bool executable, const char* mesg, MEMFLAGS flag = mtNone);
   static void   commit_memory_or_exit(char* addr, size_t size,
                                       size_t alignment_hint,
-                                      bool executable, const char* mesg);
+                                      bool executable, const char* mesg, MEMFLAGS flag = mtNone);
   static bool   uncommit_memory(char* addr, size_t bytes, bool executable = false);
   static bool   release_memory(char* addr, size_t bytes);
 
