@@ -311,7 +311,7 @@ void ReservedSpace::initialize(size_t size,
 
 ReservedSpace ReservedSpace::first_part(size_t partition_size, size_t alignment) {
   assert(partition_size <= size(), "partition failed");
-  ReservedSpace result(base(), partition_size, alignment, page_size(), special(), executable());
+  ReservedSpace result(base(), partition_size, alignment, page_size(), special(), executable(), flag());
   return result;
 }
 
@@ -320,7 +320,7 @@ ReservedSpace
 ReservedSpace::last_part(size_t partition_size, size_t alignment) {
   assert(partition_size <= size(), "partition failed");
   ReservedSpace result(base() + partition_size, size() - partition_size,
-                       alignment, page_size(), special(), executable());
+                       alignment, page_size(), special(), executable(), flag());
   return result;
 }
 

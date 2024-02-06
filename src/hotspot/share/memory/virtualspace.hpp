@@ -35,7 +35,7 @@ class outputStream;
 class ReservedSpace {
   friend class VMStructs;
  protected:
-  const MEMFLAGS _flag = mtNone;
+  MEMFLAGS _flag = mtNone;
   bool   _special;
   char*  _base;
   size_t _size;
@@ -91,6 +91,7 @@ class ReservedSpace {
   bool   executable()      const { return _executable;   }
   size_t noaccess_prefix() const { return _noaccess_prefix;   }
   bool is_reserved()       const { return _base != nullptr; }
+  MEMFLAGS flag()          const { return _flag; }
   void release();
 
   // Splitting
