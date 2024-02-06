@@ -113,7 +113,7 @@ class ReservedSpace {
 
   // Put a ReservedSpace over an existing range
   static ReservedSpace space_for_range(char* base, size_t size, size_t alignment,
-                                       size_t page_size, bool special, bool executable);
+                                       size_t page_size, bool special, bool executable, MEMFLAGS flag = mtNone);
 };
 
 ReservedSpace
