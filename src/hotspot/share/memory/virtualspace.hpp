@@ -35,6 +35,7 @@ class outputStream;
 class ReservedSpace {
   friend class VMStructs;
  protected:
+  MEMFLAGS flag = mtNone;
   char*  _base;
   size_t _size;
   size_t _noaccess_prefix;

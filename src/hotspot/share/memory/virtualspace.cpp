@@ -81,27 +81,27 @@ ReservedSpace::ReservedSpace(char* base, size_t size, size_t alignment, size_t p
 }
 
 // Helper method
-static char* attempt_map_or_reserve_memory_at(char* base, size_t size, int fd, bool executable) {
+static char* attempt_map_or_reserve_memory_at(char* base, size_t size, int fd, bool executable, MEMFLAGS flag = mtNone) {
   if (fd != -1) {
-    return os::attempt_map_memory_to_file_at(base, size, fd);
+    return os::attempt_map_memory_to_file_at(base, size, fd, flag);
   }
-  return os::attempt_reserve_memory_at(base, size, executable);
+  return os::attempt_reserve_memory_at(base, size, executable, flag);
 }
 
 // Helper method
-static char* map_or_reserve_memory(size_t size, int fd, bool executable) {
+static char* map_or_reserve_memory(size_t size, int fd, bool executable, MEMFLAGS flag = mtNone) {
   if (fd != -1) {
-    return os::map_memory_to_file(size, fd);
+    return os::map_memory_to_file(size, fd, flag);
   }
-  return os::reserve_memory(size, executable);
+  return os::reserve_memory(size, executable, flag);
 }
 
 // Helper method
-static char* map_or_reserve_memory_aligned(size_t size, size_t alignment, int fd, bool executable) {
+static char* map_or_reserve_memory_aligned(size_t size, size_t alignment, int fd, bool executable, MEMFLAGS flag = mtNone) {
   if (fd != -1) {
-    return os::map_memory_to_file_aligned(size, alignment, fd);
+    return os::map_memory_to_file_aligned(size, alignment, fd, flag);
   }
-  return os::reserve_memory_aligned(size, alignment, executable);
+  return os::reserve_memory_aligned(size, alignment, executable, flag);
 }
 
 // Helper method
@@ -154,7 +154,7 @@ static void log_on_large_pages_failure(char* req_addr, size_t bytes) {
 }
 
 static char* reserve_memory(char* requested_address, const size_t size,
-                            const size_t alignment, int fd, bool exec) {
+                            const size_t alignment, int fd, bool exec, MEMFLAGS flag = mtNone) {
   char* base;
   // If the memory was requested at a particular address, use
   // os::attempt_reserve_memory_at() to avoid mapping over something
@@ -163,12 +163,12 @@ static char* reserve_memory(char* requested_address, const size_t size,
     assert(is_aligned(requested_address, alignment),
            "Requested address " PTR_FORMAT " must be aligned to " SIZE_FORMAT,
            p2i(requested_address), alignment);
-    base = attempt_map_or_reserve_memory_at(requested_address, size, fd, exec);
+    base = attempt_map_or_reserve_memory_at(requested_address, size, fd, exec, flag);
   } else {
     // Optimistically assume that the OS returns an aligned base pointer.
     // When reserving a large address range, most OSes seem to align to at
     // least 64K.
-    base = map_or_reserve_memory(size, fd, exec);
+    base = map_or_reserve_memory(size, fd, exec, flag);
     // Check alignment constraints. This is only needed when there is
     // no requested address.
     if (!is_aligned(base, alignment)) {
@@ -183,14 +183,14 @@ static char* reserve_memory(char* requested_address, const size_t size,
 }
 
 static char* reserve_memory_special(char* requested_address, const size_t size,
-                                    const size_t alignment, const size_t page_size, bool exec) {
+                                    const size_t alignment, const size_t page_size, bool exec, MEMFLAGS flag = mtNone) {
 
   log_trace(pagesize)("Attempt special mapping: size: " SIZE_FORMAT "%s, "
                       "alignment: " SIZE_FORMAT "%s",
                       byte_size_in_exact_unit(size), exact_unit_for_byte_size(size),
                       byte_size_in_exact_unit(alignment), exact_unit_for_byte_size(alignment));
 
-  char* base = os::reserve_memory_special(size, alignment, page_size, requested_address, exec);
+  char* base = os::reserve_memory_special(size, alignment, page_size, requested_address, exec, flag);
   if (base != nullptr) {
     // Check alignment constraints.
     assert(is_aligned(base, alignment),
@@ -235,7 +235,7 @@ void ReservedSpace::reserve(size_t size,
     // When there is a backing file directory for this space then whether
     // large pages are allocated is up to the filesystem of the backing file.
     // So UseLargePages is not taken into account for this reservation.
-    char* base = reserve_memory(requested_address, size, alignment, _fd_for_heap, executable);
+    char* base = reserve_memory(requested_address, size, alignment, _fd_for_heap, executable, flag);
     if (base != nullptr) {
       initialize_members(base, size, alignment, os::vm_page_size(), true, executable);
     }
@@ -250,7 +250,7 @@ void ReservedSpace::reserve(size_t size,
     // explicit large pages and these have to be committed up front to ensure
     // no reservations are lost.
     do {
-      char* base = reserve_memory_special(requested_address, size, alignment, page_size, executable);
+      char* base = reserve_memory_special(requested_address, size, alignment, page_size, executable, flag);
       if (base != nullptr) {
         // Successful reservation using large pages.
         initialize_members(base, size, alignment, page_size, true, executable);
@@ -266,7 +266,7 @@ void ReservedSpace::reserve(size_t size,
   }
 
   // == Case 3 ==
-  char* base = reserve_memory(requested_address, size, alignment, -1, executable);
+  char* base = reserve_memory(requested_address, size, alignment, -1, executable, flag);
   if (base != nullptr) {
     // Successful mapping.
     initialize_members(base, size, alignment, page_size, false, executable);

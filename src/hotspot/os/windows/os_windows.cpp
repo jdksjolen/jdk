@@ -3383,9 +3383,9 @@ static char* map_or_reserve_memory_aligned(size_t size, size_t alignment, int fi
   return aligned_base;
 }
 
-char* os::reserve_memory_aligned(size_t size, size_t alignment, bool exec) {
+char* os::reserve_memory_aligned(size_t size, size_t alignment, bool exec, MEMFLAGS flag) {
   // exec can be ignored
-  return map_or_reserve_memory_aligned(size, alignment, -1 /* file_desc */);
+  return map_or_reserve_memory_aligned(size, alignment, -1 /* file_desc */, flag);
 }
 
 char* os::map_memory_to_file_aligned(size_t size, size_t alignment, int fd, MEMFLAGS flag) {

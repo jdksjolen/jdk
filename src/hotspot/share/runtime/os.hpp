@@ -441,7 +441,7 @@ class os: AllStatic {
   static char*  reserve_memory(size_t bytes, bool executable = false, MEMFLAGS flags = mtNone);
 
   // Reserves virtual memory that starts at an address that is aligned to 'alignment'.
-  static char*  reserve_memory_aligned(size_t size, size_t alignment, bool executable = false);
+  static char*  reserve_memory_aligned(size_t size, size_t alignment, bool executable = false, MEMFLAGS flag = mtNone);
 
   // Attempts to reserve the virtual memory at [addr, addr + bytes).
   // Does not overwrite existing mappings.
@@ -533,7 +533,7 @@ class os: AllStatic {
   static char*  non_memory_address_word();
   // reserve, commit and pin the entire memory region
   static char*  reserve_memory_special(size_t size, size_t alignment, size_t page_size,
-                                       char* addr, bool executable);
+                                       char* addr, bool executable, MEMFLAGS flag = mtNone);
   static bool   release_memory_special(char* addr, size_t bytes);
   static void   large_page_init();
   static size_t large_page_size();
