@@ -38,15 +38,15 @@
 // Recursion is used in these, but the depth of the call stack is the depth of
 // the tree which is O(log n) so we are safe from stack overflow.
 // There is an imperative equivalent of these two, if needed. https://www2.hawaii.edu/~nodari/teaching/f19/scribes/notes07.pdf
-template<typename K, typename V, int(*CMP)(K,K), uint64_t(*RAND)(), void* (*ALLOC)(size_t)>
+template<typename K, typename V, int(*CMP)(K,K), uint64_t(*RAND)(), void* (*ALLOC)(size_t), void (*FREE(void*))>
 class TreapNode {
   friend class VMATree;
   uint64_t priority;
   K key;
   V value;
-  using Nd = TreapNode<K,V,CMP, RAND, ALLOC>;
-  TreapNode<K, V, CMP, RAND, ALLOC>* left;
-  TreapNode<K, V, CMP, RAND, ALLOC>* right;
+  using Nd = TreapNode<K,V,CMP, RAND, ALLOC, FREE>;
+  TreapNode<K, V, CMP, RAND, ALLOC, FREE>* left;
+  TreapNode<K, V, CMP, RAND, ALLOC, FREE>* right;
 private:
   struct pair {
     Nd* left;
@@ -106,7 +106,9 @@ public:
   }
 
   static Nd* mk_nd(const K& k, const V& v) {
-    return new Nd(k, v, RAND());
+    void* place = ALLOC(sizeof(Nd));
+    new (place) Nd(k, v, RAND());
+    return (Nd*)place;
   }
 
   static Nd* find(Nd* node, const K& k) {
@@ -147,7 +149,7 @@ public:
 
     if (sndSplit.right != nullptr) {
       // The key k existed, we delete it.
-      delete sndSplit.right;
+      FREE(sndSplit.right);
     }
     // Merge together everything
     return merge(sndSplit.left, fstSplit.right);
