@@ -57,62 +57,6 @@ public:
     }
   };
 
-  // Some memory range
-  struct Range {
-    address start;
-    size_t size;
-    Range(address start = 0, size_t size = 0)
-      : start(start),
-        size(size) {
-    }
-    address end() const {
-      return start + size;
-    }
-  };
-
-  // Add tracking information
-  struct TrackedRange : public Range {
-    NativeCallStackStorage::StackIndex stack_idx; // From whence did this happen?
-    MEMFLAGS flag; // What flag does it have? Guaranteed to be mtNone for committed range.
-    TrackedRange(address start = 0, size_t size = 0,
-                 NativeCallStackStorage::StackIndex stack_idx = {0, 0}, MEMFLAGS flag = mtNone)
-      : Range(start, size),
-        stack_idx(stack_idx),
-        flag(flag) {
-    }
-  };
-
-  // Give it the possibility of being offset
-  struct TrackedOffsetRange : public TrackedRange {
-    address physical_address;
-    TrackedOffsetRange(address start = 0, size_t size = 0, address physical_address = 0,
-                       NativeCallStackStorage::StackIndex stack_idx = {0, 0},
-                       MEMFLAGS flag = mtNone)
-      : TrackedRange(start, size, stack_idx, flag),
-        physical_address(physical_address) {
-    }
-    explicit TrackedOffsetRange(const TrackedRange& rng)
-      : TrackedOffsetRange(rng.start, rng.size, rng.start, rng.stack_idx, rng.flag) {
-    }
-    TrackedOffsetRange(const TrackedOffsetRange& rng) = default;
-    TrackedOffsetRange& operator=(const TrackedOffsetRange& rng) {
-      this->start = rng.start;
-      this->size = rng.size;
-      this->physical_address = rng.physical_address;
-      this->stack_idx = rng.stack_idx;
-      this->flag = rng.flag;
-      return *this;
-    }
-    TrackedOffsetRange(TrackedOffsetRange&& rng)
-      : TrackedRange(rng.start, rng.size, rng.stack_idx, rng.flag),
-        physical_address(rng.physical_address) {
-    }
-
-    address physical_end() const {
-      return physical_address + size;
-    }
-  };
-
   struct MetadataCommitted {
     NativeCallStackStorage::StackIndex stack_idx;
     MetadataCommitted() : stack_idx(0,0) {
@@ -144,9 +88,6 @@ public:
   using ReservedRegionStorage = VMATree<MetadataReserved>;
   using CommittedRegionStorage = GrowableArrayCHeap<VMATree<MetadataCommitted>, mtNMT>;
 
-  using OffsetRegionStorage = GrowableArrayCHeap<TrackedOffsetRange, mtNMT>;
-  using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
-
   struct VirtualMemory : public CHeapObj<mtNMT> {
     // Reserved memory within this process' memory map.
     ReservedRegionStorage reserved_regions;
@@ -169,146 +110,29 @@ public:
     }
   };
 
-  void reserve_memory2(PhysicalMemorySpace space, address base_addr, size_t size, MEMFLAGS flag, const NativeCallStack& stack) {
-    NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
-    MetadataReserved md(idx, flag, space, (size_t)base_addr);
-    _virt_mem.reserved_regions.register_new_mapping((size_t)base_addr, size, md);
-  }
-  void release_memory2(address base_addr, size_t size) {
-    // No-op metadata
-    MetadataReserved md((size_t)base_addr);
-    _virt_mem.reserved_regions.register_unmapping((size_t)base_addr, size, md);
-  }
-  void commit_memory_into_space2(const PhysicalMemorySpace space, address offset, size_t size, const NativeCallStack& stack) {
-    NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
-    MetadataCommitted md{idx};
-    _virt_mem.committed_regions.at(space.id).register_new_mapping((size_t)offset, size, md);
-  }
-
-  void uncommit_memory_into_space2(const PhysicalMemorySpace& space, address offset, size_t size) {
-    MetadataCommitted md;
-    _virt_mem.committed_regions.at(space.id).register_unmapping((size_t)offset, size, md);
-  }
-
-  void add_view_into_space2(const PhysicalMemorySpace& space, address base_addr,
-                           size_t size, address offset, MEMFLAGS flag,
-                           const NativeCallStack& stack) {
-    NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
-    MetadataReserved md{idx, flag, space, (size_t)offset};
-    _virt_mem.reserved_regions.register_new_mapping((size_t)base_addr, size, md);
-  }
-
-  void remove_view_into_space2(const PhysicalMemorySpace& space, address base_addr, size_t size) {
-    _virt_mem.reserved_regions.change_metadata((size_t)base_addr, size, [&](auto x) {
-
-    });
-  }
-
 private:
-  // Thread stack tracking
-  address thread_stack_uncommitted_bottom(TrackedRange& rng, RegionStorage& committed_ranges);
-  void merge_thread_stacks(GrowableArrayCHeap<Range, mtNMT>& ranges);
-  // Iterate the range, find committed region within its bound.
-  class RegionIterator : public StackObj {
-  private:
-    const address _start;
-    const size_t _size;
-
-    address _current_start;
-
-  public:
-    RegionIterator(address start, size_t size)
-      : _start(start),
-        _size(size),
-        _current_start(start) {
-    }
-
-    // return true if committed region is found
-    bool next_committed(address& start, size_t& size);
-
-  private:
-    address end() const {
-      return _start + _size;
-    }
-  };
-  void snapshot_thread_stacks();
-
-private:
-  // Utilities
-  static bool adjacent(Range a, Range b);
-  static bool after(Range a, Range b); // a < b
-  static bool disjoint(Range a, Range b);
-  static bool overlaps(Range a, Range b);
-  static bool is_same(Range a, Range b);
-  static bool is_empty(Range a);
-  static Range union_of(Range a, Range b);
-  static Range overlap_of(Range a, Range b);
-  static bool same_stack(TrackedRange& a, TrackedRange& b);
-
-  // Pre-condition: ranges is sorted in a left-aligned fashion
-  // That is: (a,b) comes before (c,d) if a <= c
-  // Merges the ranges into a minimal sequence, taking into account that two ranges can only be merged if:
-  // 1. Their NativeCallStacks are the same
-  // 2. Their starts align correctly
-  static void merge_memregions(RegionStorage& ranges);
-  static void merge_mapped(OffsetRegionStorage& ranges);
-
-  static void sort_regions(GrowableArrayCHeap<VirtualMemoryView::Range, mtNMT>& storage);
-  static void sort_regions(OffsetRegionStorage& storage);
-  static void sort_regions(RegionStorage& storage);
-
   static bool equal_stacks(NativeCallStackStorage::StackIndex a,
                            NativeCallStackStorage::StackIndex b) {
     return a.index() == b.index() && a.chunk() == b.chunk();
   }
-
-  // Split the range to_split by removing to_remove from it, storing the remaining parts in out.
-  // Returns an OverlappingResult and will fill the out array with at most 2 elements.
-  // The integer pointed to by len will be  set to the number of resulting TrackedRanges put into the out array.
-  // The physical address is managed appropriately for the out array.
-  enum class OverlappingResult {
-    NoOverlap,
-    EntirelyEnclosed,
-    SplitInMiddle,
-    ShortenedFromLeft,
-    ShortenedFromRight,
-  };
-  static OverlappingResult overlap_of(TrackedOffsetRange to_split, Range to_remove,
-                                      TrackedOffsetRange* out, int* len);
-
 private:
   // Data and API
   VirtualMemory _virt_mem;
-  GrowableArrayCHeap<Range, mtNMT> _thread_stacks; // Committed thread stacks are handled specially
-
   NativeCallStackStorage _stack_storage;
-
-  void register_memory(RegionStorage& storage, address base_addr, size_t size, MEMFLAGS flag,
-                              const NativeCallStack& stack);
-  void unregister_memory(RegionStorage& storage, address base_addr, size_t size);
-
-  // Create a canonical mapping from address to MEMFLAGS stored in `mapping`.
-  // This is used for computing the MEMFLAGS of each committed region
-  // TODO: Unnecessarily high computational complexity right now.
-  static void map_it(const VirtualMemoryView::RegionStorage& res,
-                     const VirtualMemoryView::OffsetRegionStorage& map,
-                     VirtualMemoryView::RegionStorage& mapping);
-
   void initialize(bool is_detailed_mode);
 
-  void reserve_memory(address base_addr, size_t size, MEMFLAGS flag,
-                             const NativeCallStack& stack);
+  void reserve_memory(PhysicalMemorySpace space, address base_addr, size_t size, MEMFLAGS flag,
+                      const NativeCallStack& stack);
   void release_memory(address base_addr, size_t size);
+  void commit_memory_into_space(const PhysicalMemorySpace space, address offset, size_t size,
+                                const NativeCallStack& stack);
+
+  void uncommit_memory_into_space(const PhysicalMemorySpace& space, address offset, size_t size);
 
   void add_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size,
-                                  address offset, MEMFLAGS flag, const NativeCallStack& stack);
-  void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr,
-                                     size_t size);
+                           address offset, MEMFLAGS flag, const NativeCallStack& stack);
 
-  void commit_memory_into_space(const PhysicalMemorySpace& space, address offset,
-                                       size_t size, const NativeCallStack& stack);
-  void uncommit_memory_into_space(const PhysicalMemorySpace& space, address offset,
-                                         size_t size);
+  void remove_view_into_space(const PhysicalMemorySpace& space, address base_addr, size_t size);
 
   // Produce a report on output.
   void report(VirtualMemory& mem, outputStream* output, size_t scale = K);
@@ -320,7 +144,8 @@ private:
   void compute_summary_snapshot(VirtualMemory& vmem);
 
 public:
-  VirtualMemoryView(bool is_detailed_mode);
+  VirtualMemoryView(bool is_detailed_mode) {
+  }
 
   class Interface : public AllStatic {
     // A default PhysicalMemorySpace for when allocating to the heap.
