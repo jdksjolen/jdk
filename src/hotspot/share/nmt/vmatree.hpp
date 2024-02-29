@@ -25,6 +25,7 @@
 #ifndef SHARE_NMT_VMATREE_HPP
 #define SHARE_NMT_VMATREE_HPP
 
+#include "memory/resourceArea.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "nmt/treap.hpp"
 #include "runtime/os.hpp"
@@ -206,8 +207,35 @@ public:
     register_mapping(from, to, false, mdata);
   }
 
-  template<typename CHANGER>
-  void change_metadata(size_t address, size_t size, CHANGER changer) {
+  // Visit all nodes between [from, to)
+  template<typename F>
+  void visit(size_t from, size_t to, F f) {
+    ResourceArea area(mtNMT);
+    ResourceMark rm(&area);
+    GrowableArray<VTreap*> to_visit(&area, 16, 0, nullptr);
+    to_visit.push(tree);
+    VTreap* head = nullptr;
+    while (!to_visit.empty()) {
+      head = to_visit.top();
+      to_visit.pop();
+      if (head == nullptr) continue;
+
+      int cmp_from = addr_cmp(head->key, from);
+      int cmp_to = addr_cmp(head->key, to);
+      if (cmp_from >= 0) {
+        // Do it.
+        if (cmp_to < 0) {
+          f(head);
+        }
+        // Go both left and right.
+        to_visit.push(head->left);
+        to_visit.push(head->right);
+      } else {
+        // Don't do it.
+        // Go right.
+        to_visit.push(head->right);
+      }
+    }
   }
 };
 
