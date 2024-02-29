@@ -105,7 +105,7 @@ private:
 
 public:
   TreapNode(const K& k, const V& v, uint64_t p)
-  : priority(p), key(k), value(v) {
+  : priority(p), key(k), value(v), left(nullptr), right(nullptr) {
   }
 
   static Nd* mk_nd(const K& k, const V& v) {
