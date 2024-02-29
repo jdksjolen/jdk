@@ -144,8 +144,7 @@ private:
   void compute_summary_snapshot(VirtualMemory& vmem);
 
 public:
-  VirtualMemoryView(bool is_detailed_mode) {
-  }
+  VirtualMemoryView(bool is_detailed_mode);
 
   class Interface : public AllStatic {
     // A default PhysicalMemorySpace for when allocating to the heap.

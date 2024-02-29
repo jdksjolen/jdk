@@ -193,7 +193,7 @@ public:
     }
 
     // Finally, if needed, delete all nodes between (A, B)
-    while (to_be_deleted.size() > 0) {
+    while (to_be_deleted.length() > 0) {
       const size_t delete_me = to_be_deleted.top();
       to_be_deleted.pop();
       tree = VTreap::remove(tree, delete_me);
