@@ -57,17 +57,17 @@ void* node_malloc(size_t x) {
 
 template<typename METADATA>
 class VMATree {
+public:
   struct State { bool in; bool out; METADATA metadata; };
   using VTreap = TreapNode<size_t, State, addr_cmp, wyhash64, node_malloc, os::free>;
   VTreap* tree;
-public:
   VMATree()
   : tree(nullptr) {
   }
 
-  void register_mapping(size_t A, size_t B, bool in_use) {
-    State stA{false, in_use};
-    State stB{in_use, false};
+  void register_mapping(size_t A, size_t B, bool in_use, Metadata& metadata) {
+    State stA{false, in_use, metadata};
+    State stB{in_use, false, METADATA()};
 
     // First handle A.
     // Find first node LEQ A
@@ -195,11 +195,16 @@ public:
     }
   }
 
-  void register_new_mapping(size_t from, size_t to) {
-    register_mapping(from, to, true);
+  void register_new_mapping(size_t from, size_t to, METADATA& mdata) {
+    register_mapping(from, to, true, mdata);
   }
-  void register_unmapping(size_t from, size_t to) {
-    register_mapping(from, to, false);
+  void register_unmapping(size_t from, size_t to, METADATA& mdata) {
+    register_mapping(from, to, false, mdata);
+  }
+
+  template<typename CHANGER>
+  void change_metadata(size_t address, size_t size, CHANGER changer) {
+    
   }
 };
 

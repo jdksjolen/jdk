@@ -113,22 +113,50 @@ public:
     }
   };
 
+  struct MetadataCommitted {
+    NativeCallStackStorage::StackIndex stack_idx;
+    MetadataCommitted() : stack_idx(0,0) {
+    }
+    MetadataCommitted(NativeCallStackStorage::StackIndex stack_idx) : stack_idx(stack_idx) {
+    }
+  };
+
+  struct MetadataReserved {
+    NativeCallStackStorage::StackIndex stack_idx;
+    MEMFLAGS flag;
+    PhysicalMemorySpace pid; // Physical device it points into.
+    size_t physical_address; // Offset into the physical device.
+    MetadataReserved(size_t base_addr)
+    : stack_idx(0, 0),
+        flag(mtNone),
+        pid(),
+        physical_address(base_addr) {
+    }
+    MetadataReserved(NativeCallStackStorage::StackIndex stack_idx, MEMFLAGS flag,
+                     PhysicalMemorySpace pid, size_t physical_address)
+      : stack_idx(stack_idx),
+        flag(flag),
+        pid(pid),
+        physical_address(physical_address) {
+    }
+  };
+
+  using ReservedRegionStorage = VMATree<MetadataReserved>;
+  using CommittedRegionStorage = GrowableArrayCHeap<VMATree<MetadataCommitted>, mtNMT>;
+
   using OffsetRegionStorage = GrowableArrayCHeap<TrackedOffsetRange, mtNMT>;
   using RegionStorage = GrowableArrayCHeap<TrackedRange, mtNMT>;
 
   struct VirtualMemory : public CHeapObj<mtNMT> {
     // Reserved memory within this process' memory map.
-    RegionStorage reserved_regions;
+    ReservedRegionStorage reserved_regions;
     // Committed memory per PhysicalMemorySpace
-    GrowableArrayCHeap<RegionStorage, mtNMT> committed_regions;
-    // Mappings from virtual memory space to committed memory, per PhysicalMemorySpace.
-    GrowableArrayCHeap<OffsetRegionStorage, mtNMT> mapped_regions;
+    GrowableArrayCHeap<CommittedRegionStorage, mtNMT> committed_regions;
     // Summary tracking per PhysicalMemorySpace
     GrowableArrayCHeap<VirtualMemorySnapshot, mtNMT> summary;
     VirtualMemory()
       : reserved_regions(),
         committed_regions(),
-        mapped_regions(),
         summary() {
     }
     VirtualMemory(const VirtualMemory& other) {
@@ -136,42 +164,45 @@ public:
     }
     // Deep copying of VirtualMemory
     VirtualMemory& operator=(const VirtualMemory& other) {
-      if (this != &other) {
-        this->reserved_regions = RegionStorage{other.reserved_regions.length()};
-        this->mapped_regions =
-            GrowableArrayCHeap<OffsetRegionStorage, mtNMT>{other.mapped_regions.length()};
-        this->committed_regions =
-            GrowableArrayCHeap<RegionStorage, mtNMT>{other.committed_regions.length()};
-        this->summary = GrowableArrayCHeap<VirtualMemorySnapshot, mtNMT>(other.summary.length());
-
-        for (int i = 0; i < other.reserved_regions.length(); i++) {
-          const TrackedRange& ith = other.reserved_regions.at(i);
-          this->reserved_regions.push(ith);
-        }
-
-        for (int i = 0; i < other.mapped_regions.length(); i++) {
-          const OffsetRegionStorage& ith = other.mapped_regions.at(i);
-          this->mapped_regions.push(ith);
-          OffsetRegionStorage& vith = this->mapped_regions.at(i);
-          for (int j = 0; j < ith.length(); j++) {
-            vith.push(ith.at(j));
-          }
-        }
-        for (int i = 0; i < other.committed_regions.length(); i++) {
-          const RegionStorage& ith = other.committed_regions.at(i);
-          this->committed_regions.push(ith);
-          RegionStorage& vith = this->committed_regions.at(i);
-          for (int j = 0; j < ith.length(); j++) {
-            vith.push(ith.at(j));
-          }
-        }
-        for (int i = 0; i < other.summary.length(); i++) {
-          summary.push(other.summary.at(i));
-        }
-      }
+      // TODO: Does not work.
       return *this;
     }
   };
+
+  void reserve_memory2(PhysicalMemorySpace space, address base_addr, size_t size, MEMFLAGS flag, const NativeCallStack& stack) {
+    NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
+    MetadataReserved md(idx, flag, space, (size_t)base_addr);
+    _virt_mem.reserved_regions.register_new_mapping((size_t)base_addr, size, md);
+  }
+  void release_memory2(address base_addr, size_t size) {
+    // No-op metadata
+    MetadataReserved md((size_t)base_addr);
+    _virt_mem.reserved_regions.register_unmapping((size_t)base_addr, size, md);
+  }
+  void commit_memory_into_space2(const PhysicalMemorySpace space, address offset, size_t size, const NativeCallStack& stack) {
+    NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
+    MetadataCommitted md{idx};
+    _virt_mem.committed_regions.at(space.id).register_new_mapping((size_t)offset, size, md);
+  }
+
+  void uncommit_memory_into_space2(const PhysicalMemorySpace& space, address offset, size_t size) {
+    MetadataCommitted md;
+    _virt_mem.committed_regions.at(space.id).register_unmapping((size_t)offset, size, md);
+  }
+
+  void add_view_into_space2(const PhysicalMemorySpace& space, address base_addr,
+                           size_t size, address offset, MEMFLAGS flag,
+                           const NativeCallStack& stack) {
+    NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
+    MetadataReserved md{idx, flag, space, (size_t)offset};
+    _virt_mem.reserved_regions.register_new_mapping((size_t)base_addr, size, md);
+  }
+
+  void remove_view_into_space2(const PhysicalMemorySpace& space, address base_addr, size_t size) {
+    _virt_mem.reserved_regions.change_metadata((size_t)base_addr, size, [&](auto x) {
+
+    });
+  }
 
 private:
   // Thread stack tracking
