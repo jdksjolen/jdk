@@ -104,6 +104,7 @@ public:
       : reserved_regions(),
         committed_regions(),
         summary() {
+      committed_regions.push(VMATree<MetadataCommitted>());
     }
     VirtualMemory(const VirtualMemory& other) {
       *this = other;
