@@ -143,22 +143,6 @@ public:
 
     // Find all nodes between (A, B] and record their addresses. Also update B's
     // outgoing state.
-    auto do_it = [&](VTreap* node) {
-      stB.out = node->value.out;
-      if (node->key < B) {
-        // Delete all nodes preceding B.
-        to_be_deleted.push(node->key);
-      } else {
-        // Re-purpose B node, unless it would result in a noop node, in which case
-        // delete old node at B.
-        if (stB.in == stB.out) {
-          to_be_deleted.push(B);
-        } else {
-          node->value = stB;
-        }
-        B_needs_insert = false;
-      }
-    };
     { // Iterate over each node who is larger than A
     GrowableArrayCHeap<VTreap*, mtNMT> to_visit;
       to_visit.push(tree);
@@ -168,14 +152,34 @@ public:
         to_visit.pop();
         if (head == nullptr) continue;
 
-        int cmp_r = addr_cmp(head->key, A);
-        if (cmp_r >= 0) {
-          // Do it.
-          do_it(head);
+        int cmp_A = addr_cmp(head->key, A);
+        int cmp_B = addr_cmp(head->key, B);
+        if (cmp_B > 0) {
+          // B's node didnt exist, we must match the next node's in value.
+          if (B_needs_insert) {
+            stB.out = head->value.in;
+          }
+          break; // Exit the loop.
+        } else if (cmp_A > 0 && cmp_B <= 0) {
+          stB.out = head->value.out;
+          if (cmp_B < 0) {
+            // Delete all nodes preceding B.
+            to_be_deleted.push(head->key);
+          } else if (cmp_B == 0) {
+            // Re-purpose B node, unless it would result in a noop node, in
+            // which case delete old node at B.
+            if (stB.in == stB.out) {
+              to_be_deleted.push(B);
+            } else {
+              head->value = stB;
+            }
+            B_needs_insert = false;
+          } else { /* Unreachable */}
+
           // Go both left and right.
           to_visit.push(head->left);
           to_visit.push(head->right);
-        } else if (cmp_r < 0) {
+        } else if (cmp_A < 0) {
           // Don't do it.
           // Go right.
           to_visit.push(head->right);
@@ -204,7 +208,6 @@ public:
 
   template<typename CHANGER>
   void change_metadata(size_t address, size_t size, CHANGER changer) {
-    
   }
 };
 
