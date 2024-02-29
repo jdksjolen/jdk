@@ -55,10 +55,10 @@ void* node_malloc(size_t x) {
   return os::malloc(x, mtNMT);
 }
 
-
+template<typename METADATA>
 class VMATree {
-  struct State { bool in; bool out; };
-  using VTreap = TreapNode<size_t, State, addr_cmp, wyhash64, node_malloc>;
+  struct State { bool in; bool out; METADATA metadata; };
+  using VTreap = TreapNode<size_t, State, addr_cmp, wyhash64, node_malloc, os::free>;
   VTreap* tree;
 public:
   VMATree()
@@ -72,13 +72,12 @@ public:
     // First handle A.
     // Find first node LEQ A
     VTreap* le_n = nullptr;
-    { // le search
+    { // LE search
       VTreap* head = tree;
       while (head != nullptr) {
         int cmp_r = addr_cmp(head->key, A);
         if (cmp_r == 0) { // Exact match
           le_n = head;
-          break;
         }
         if (cmp_r < 0) {
           // Found a match, try to find a better one.
@@ -170,13 +169,13 @@ public:
         if (head == nullptr) continue;
 
         int cmp_r = addr_cmp(head->key, A);
-        if (cmp_r > 0) {
+        if (cmp_r >= 0) {
           // Do it.
           do_it(head);
           // Go both left and right.
           to_visit.push(head->left);
           to_visit.push(head->right);
-        } else if (cmp_r >= 0) {
+        } else if (cmp_r < 0) {
           // Don't do it.
           // Go right.
           to_visit.push(head->right);

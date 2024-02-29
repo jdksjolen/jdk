@@ -38,9 +38,11 @@
 // Recursion is used in these, but the depth of the call stack is the depth of
 // the tree which is O(log n) so we are safe from stack overflow.
 // There is an imperative equivalent of these two, if needed. https://www2.hawaii.edu/~nodari/teaching/f19/scribes/notes07.pdf
-template<typename K, typename V, int(*CMP)(K,K), uint64_t(*RAND)(), void* (*ALLOC)(size_t), void (*FREE(void*))>
+template<typename K, typename V, int(*CMP)(K,K), uint64_t(*RAND)(), void* (*ALLOC)(size_t), void (*FREE)(void*)>
 class TreapNode {
+  template<typename METADATA> // Has to mention the
   friend class VMATree;
+
   uint64_t priority;
   K key;
   V value;
