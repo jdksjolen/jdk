@@ -31,42 +31,22 @@
 #include "runtime/os.hpp"
 #include "utilities/growableArray.hpp"
 
-int addr_cmp(size_t a, size_t b) {
-  if (a < b) return -1;
-  if (a == b) return 0;
-  if (a > b) return 1;
-  else {
-    // Can't happen
-    return -1337;
-  }
-}
+int addr_cmp(size_t a, size_t b);
+uint64_t prng_next();
 
-uint64_t wyhash64_x;
-uint64_t wyhash64() {
-  wyhash64_x += 0x60bee2bee120fc15;
-  __uint128_t tmp;
-  tmp = (__uint128_t) wyhash64_x * 0xa3b195354a39b70d;
-  uint64_t m1 = (tmp >> 64) ^ tmp;
-  tmp = (__uint128_t)m1 * 0x1b03738712fad5c9;
-  uint64_t m2 = (tmp >> 64) ^ tmp;
-  return m2;
-}
-
-void* node_malloc(size_t x) {
-  return os::malloc(x, mtNMT);
-}
+void* node_malloc(size_t x);
 
 template<typename METADATA>
 class VMATree {
 public:
   struct State { bool in; bool out; METADATA metadata; };
-  using VTreap = TreapNode<size_t, State, addr_cmp, wyhash64, node_malloc, os::free>;
+  using VTreap = TreapNode<size_t, State, addr_cmp, prng_next, node_malloc, os::free>;
   VTreap* tree;
   VMATree()
   : tree(nullptr) {
   }
 
-  void register_mapping(size_t A, size_t B, bool in_use, Metadata& metadata) {
+  void register_mapping(size_t A, size_t B, bool in_use, METADATA& metadata) {
     State stA{false, in_use, metadata};
     State stB{in_use, false, METADATA()};
 

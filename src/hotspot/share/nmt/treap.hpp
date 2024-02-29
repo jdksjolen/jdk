@@ -42,6 +42,7 @@ template<typename K, typename V, int(*CMP)(K,K), uint64_t(*RAND)(), void* (*ALLO
 class TreapNode {
   template<typename METADATA> // Has to mention the
   friend class VMATree;
+  friend class VirtualMemoryView;
 
   uint64_t priority;
   K key;
