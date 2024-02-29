@@ -100,20 +100,10 @@ public:
     CommittedRegionStorage committed_regions;
     // Summary tracking per PhysicalMemorySpace
     GrowableArrayCHeap<VirtualMemorySnapshot, mtNMT> summary;
-    VirtualMemory()
-      : reserved_regions(),
-        committed_regions(),
-        summary() {
-      committed_regions.push(VMATree<MetadataCommitted>());
-    }
-    VirtualMemory(const VirtualMemory& other) {
-      *this = other;
-    }
+    VirtualMemory();
+    VirtualMemory(const VirtualMemory& other);
     // Deep copying of VirtualMemory
-    VirtualMemory& operator=(const VirtualMemory& other) {
-      // TODO: Does not work.
-      return *this;
-    }
+    VirtualMemory& operator=(const VirtualMemory& other);
   };
 
 private:

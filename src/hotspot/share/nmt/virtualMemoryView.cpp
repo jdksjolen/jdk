@@ -122,3 +122,17 @@ void VirtualMemoryView::Interface::report(VirtualMemory& mem, outputStream* outp
 }
 void VirtualMemoryView::Interface::compute_summary_snapshot(VirtualMemory& vmem) {
 }
+VirtualMemoryView::VirtualMemory::VirtualMemory()
+  : reserved_regions(),
+    committed_regions(),
+    summary() {
+  committed_regions.push(VMATree<MetadataCommitted>());
+}
+VirtualMemoryView::VirtualMemory::VirtualMemory(const VirtualMemory& other) {
+  *this = other;
+}
+VirtualMemoryView::VirtualMemory&
+VirtualMemoryView::VirtualMemory::operator=(const VirtualMemory& other) {
+  // TODO: Does not work.
+  return *this;
+}
