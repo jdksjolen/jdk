@@ -207,7 +207,7 @@ public:
     register_mapping(from, to, false, mdata);
   }
 
-  // Visit all nodes between [from, to)
+  // Visit all nodes between [from, to) and call f on them.
   template<typename F>
   void visit(size_t from, size_t to, F f) {
     ResourceArea area(mtNMT);
@@ -222,17 +222,16 @@ public:
 
       int cmp_from = addr_cmp(head->key, from);
       int cmp_to = addr_cmp(head->key, to);
+      if (cmp_to >= 0) {
+        return;
+      }
       if (cmp_from >= 0) {
-        // Do it.
         if (cmp_to < 0) {
           f(head);
         }
-        // Go both left and right.
         to_visit.push(head->left);
         to_visit.push(head->right);
       } else {
-        // Don't do it.
-        // Go right.
         to_visit.push(head->right);
       }
     }

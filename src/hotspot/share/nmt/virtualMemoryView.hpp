@@ -92,7 +92,7 @@ public:
     // Reserved memory within this process' memory map.
     ReservedRegionStorage reserved_regions;
     // Committed memory per PhysicalMemorySpace
-    GrowableArrayCHeap<CommittedRegionStorage, mtNMT> committed_regions;
+    CommittedRegionStorage committed_regions;
     // Summary tracking per PhysicalMemorySpace
     GrowableArrayCHeap<VirtualMemorySnapshot, mtNMT> summary;
     VirtualMemory()

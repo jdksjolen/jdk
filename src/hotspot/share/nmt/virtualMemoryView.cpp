@@ -84,7 +84,7 @@ void VirtualMemoryView::add_view_into_space(const PhysicalMemorySpace& space, ad
 }
 void VirtualMemoryView::remove_view_into_space(const PhysicalMemorySpace& space, address base_addr,
                                                size_t size) {
-  _virt_mem.reserved_regions.change_metadata((size_t)base_addr, size, [&](auto x) {
+  _virt_mem.reserved_regions.visit((size_t)base_addr, size, [&](ReservedRegionStorage::VTreap* x) {
   });
 }
 
