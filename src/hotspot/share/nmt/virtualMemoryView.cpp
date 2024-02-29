@@ -91,7 +91,7 @@ void VirtualMemoryView::remove_view_into_space(const PhysicalMemorySpace& space,
 
 void VirtualMemoryView::Interface::reserve_memory(address base_addr, size_t size, MEMFLAGS flag,
                                                   const NativeCallStack& stack) {
-  _instance->reserve_memory(base_addr, size, flag, stack);
+  _instance->reserve_memory(_heap, base_addr, size, flag, stack);
 }
 void VirtualMemoryView::Interface::release_memory(address base_addr, size_t size) {
   _instance->release_memory(base_addr, size);
