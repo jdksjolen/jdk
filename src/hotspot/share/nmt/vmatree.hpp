@@ -128,7 +128,7 @@ public:
     GrowableArrayCHeap<VTreap*, mtNMT> to_visit;
       to_visit.push(tree);
       VTreap* head = nullptr;
-      while (!to_visit.empty()) {
+      while (!to_visit.is_empty()) {
         head = to_visit.top();
         to_visit.pop();
         if (head == nullptr) continue;
@@ -195,7 +195,7 @@ public:
     GrowableArray<VTreap*> to_visit(&area, 16, 0, nullptr);
     to_visit.push(tree);
     VTreap* head = nullptr;
-    while (!to_visit.empty()) {
+    while (!to_visit.is_empty()) {
       head = to_visit.top();
       to_visit.pop();
       if (head == nullptr) continue;
