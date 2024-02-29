@@ -34,7 +34,9 @@ public:
   }
 
   static void test_summary_computation() {
-
+    r(0, 100);
+    r(100, 200);
+    r(200, 300);
   }
 
   static void test_reserve_commit_release() {
@@ -46,6 +48,7 @@ VirtualMemoryView::PhysicalMemorySpace VirtualMemoryViewTest::space{0}; // Doesn
 TEST_VM_F(VirtualMemoryViewTest, TestReserveCommitRelease) {
   VirtualMemoryViewTest::test_reserve_commit_release();
 }
+
 TEST_VM_F(VirtualMemoryViewTest, TestSummaryComputation) {
   VirtualMemoryViewTest::test_summary_computation();
 }

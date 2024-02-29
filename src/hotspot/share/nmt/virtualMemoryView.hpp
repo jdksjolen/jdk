@@ -120,10 +120,10 @@ private:
                            NativeCallStackStorage::StackIndex b) {
     return a.index() == b.index() && a.chunk() == b.chunk();
   }
-private:
   // Data and API
   VirtualMemory _virt_mem;
   NativeCallStackStorage _stack_storage;
+public:
   void initialize(bool is_detailed_mode);
 
   void reserve_memory(PhysicalMemorySpace space, address base_addr, size_t size, MEMFLAGS flag,
