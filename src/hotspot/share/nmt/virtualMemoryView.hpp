@@ -70,6 +70,11 @@ public:
     MEMFLAGS flag;
     PhysicalMemorySpace pid; // Physical device it points into.
     size_t physical_address; // Offset into the physical device.
+    MetadataReserved()
+    : stack_idx(0, 0),
+      flag(mtNone),
+      pid(),
+      physical_address() {}
     MetadataReserved(size_t base_addr)
     : stack_idx(0, 0),
         flag(mtNone),

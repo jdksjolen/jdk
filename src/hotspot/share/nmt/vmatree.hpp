@@ -48,6 +48,7 @@ public:
 
   void register_mapping(size_t A, size_t B, bool in_use, METADATA& metadata) {
     State stA{false, in_use, metadata};
+    // Ends do not need any METADATA.
     State stB{in_use, false, METADATA()};
 
     // First handle A.

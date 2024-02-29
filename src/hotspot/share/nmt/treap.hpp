@@ -40,7 +40,7 @@
 // There is an imperative equivalent of these two, if needed. https://www2.hawaii.edu/~nodari/teaching/f19/scribes/notes07.pdf
 template<typename K, typename V, int(*CMP)(K,K), uint64_t(*RAND)(), void* (*ALLOC)(size_t), void (*FREE)(void*)>
 class TreapNode {
-  template<typename METADATA> // Has to mention the
+  template<typename METADATA> // Has to mention the template parameter
   friend class VMATree;
   friend class VirtualMemoryView;
 
