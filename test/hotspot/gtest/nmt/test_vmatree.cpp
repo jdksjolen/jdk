@@ -15,5 +15,5 @@ TEST_VM(VMATreeTest, AdjacentAreMerged) {
   tree.visit(0, 300, [&](VMATree<Nothing>::VTreap* x) {
     count++;
   });
-  ASSERT_EQ(count, 1);
+  ASSERT_EQ(count, 2) << "Expected two nodes: one for the start of the range and one for the end.";
 }
