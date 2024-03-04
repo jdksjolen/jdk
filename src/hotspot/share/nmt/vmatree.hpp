@@ -60,6 +60,7 @@ public:
     State stA{InOut::Released, in_use, metadata};
     // Ends do not need any METADATA.
     State stB{in_use, InOut::Released, METADATA()};
+    bool B_inherits_metadata = false;
 
     // First handle A.
     // Find first node LEQ A
@@ -94,7 +95,7 @@ public:
       // We must also ineherit the metadata now.
       stB.out = leqA_n->value.out;
       stB.metadata = leqA_n->value.metadata;
-
+      B_inherits_metadata = true;
       // Direct address match.
       if (leqA_n->key == A) {
         // Take over in state from old address.
@@ -185,9 +186,8 @@ public:
     }
     // Insert B node if needed
     if (B_needs_insert    && // Was not already inserted
-        !is_noop(stB)     && // The operation is differing
-        !EquivalentMetadata(stB.metadata, METADATA{}) // The metadata was changed from empty
-        ) {
+        (!is_noop(stB)     || // The operation is differing
+         B_inherits_metadata)) {
       tree.upsert(B, stB);
     }
 
@@ -200,7 +200,7 @@ public:
   }
 
   void reserve_mapping(size_t from, size_t sz, METADATA& metadata) {
-    register_mapping(from, from+sz, InOut::Reserved, metadata);
+    register_mapping(from, from + sz, InOut::Reserved, metadata);
   }
   void commit_mapping(size_t from, size_t sz, METADATA& metadata) {
     register_mapping(from, from + sz, InOut::Committed, metadata);
