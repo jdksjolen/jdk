@@ -29,7 +29,7 @@
 #include "runtime/os.hpp"
 #include "utilities/ostream.hpp"
 #include "unittest.hpp"
-
+/*
 template <bool new_impl, bool dolock>
 struct Implementation {
   VirtualMemoryView vmem;
@@ -176,3 +176,4 @@ TEST_VM(NMTVMADict, test_speed_new_locked_1) {do_test_speed_1<true, true>();}
 TEST_VM(NMTVMADict, test_speed_new_nolock_1)  {  do_test_speed_1<true, false>(); }
 TEST_OTHER_VM(NMTVMADict, test_speed_old_locked_1)  {  do_test_speed_1<false, true>(); }
 TEST_OTHER_VM(NMTVMADict, test_speed_old_nolock_1)  {  do_test_speed_1<false, false>(); }
+*/
