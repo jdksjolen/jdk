@@ -10,7 +10,7 @@ TEST_VM(VMATreeTest, AdjacentAreMerged) {
   Nothing nothing;
   VMATree<Nothing> tree;
   tree.register_mapping(0, 100, true, nothing);
-  tree.register_mapping(101, 200, true, nothing);
+  tree.register_mapping(100, 200, true, nothing);
   int count = 0;
   tree.visit(0, 300, [&](VMATree<Nothing>::VTreap* x) {
     count++;
