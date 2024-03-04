@@ -168,7 +168,7 @@ public:
 
 template<typename K, typename V, int(*CMP)(K,K)>
 class TreapCHeap {
-  template<typename METADATA>
+  template<typename METADATA, bool(*EquivalentMetadata)(const METADATA&, const METADATA&)>
   friend class VMATree;
   using CTreap = TreapNode<K, V, CMP>;
   CTreap* tree;
