@@ -67,12 +67,12 @@ void VirtualMemoryView::release_memory(address base_addr, size_t size) {
 void VirtualMemoryView::commit_memory_into_space(const PhysicalMemorySpace space, address offset,
                                                  size_t size, const NativeCallStack& stack) {
   NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
-  MetadataCommitted md{idx};
+  MetadataOtherSpace md{idx};
   _virt_mem.committed_regions.at(space.id).register_new_mapping((size_t)offset, (size_t)offset+size, md);
 }
 void VirtualMemoryView::uncommit_memory_into_space(const PhysicalMemorySpace& space, address offset,
                                                    size_t size) {
-  MetadataCommitted md;
+  MetadataOtherSpace md;
   _virt_mem.committed_regions.at(space.id).register_unmapping((size_t)offset, (size_t)offset+size, md);
 }
 void VirtualMemoryView::add_view_into_space(const PhysicalMemorySpace& space, address base_addr,
@@ -126,7 +126,7 @@ VirtualMemoryView::VirtualMemory::VirtualMemory()
   : reserved_regions(),
     committed_regions(),
     summary() {
-  committed_regions.push(VMATree<MetadataCommitted>());
+  committed_regions.push(VMATree<MetadataOtherSpace>());
 }
 VirtualMemoryView::VirtualMemory::VirtualMemory(const VirtualMemory& other) {
   *this = other;

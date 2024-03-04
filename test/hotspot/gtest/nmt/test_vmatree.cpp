@@ -5,14 +5,19 @@
 #include "runtime/os.hpp"
 #include "unittest.hpp"
 
+struct Nothing {
+  static bool equals(const Nothing& a, const Nothing& b) {
+    return true;
+  }
+};
 TEST_VM(VMATreeTest, Basics) {
-  struct Nothing{};
   Nothing nothing;
-  using Node = VMATree<Nothing>::VTreap;
+  using Tree = VMATree<Nothing, Nothing::equals>;
+  using Node = Tree::VTreap;
   {
-    VMATree<Nothing> tree;
-    tree.register_mapping(0, 100, true, nothing);
-    tree.register_mapping(100, 200, true, nothing);
+    Tree tree;
+    tree.reserve_mapping(0, 100, nothing);
+    tree.reserve_mapping(100, 100, nothing);
     int count = 0;
     tree.visit(0, 300, [&](Node* x) {
       count++;
@@ -20,12 +25,12 @@ TEST_VM(VMATreeTest, Basics) {
     EXPECT_EQ(count, 2) << "Expected two nodes: one for the start of the range and one for the end.";
   }
   {
-    VMATree<Nothing> tree;
-    tree.register_mapping(0, 100, true, nothing);
-    tree.register_mapping(0, 100, false, nothing);
+    Tree tree;
+    tree.reserve_mapping(0, 100, nothing);
+    tree.release_mapping(0, 100);
     tree.visit(0, 300, [&](Node* x) {
-      VMATree<Nothing>::State v = x->val();
-      EXPECT_TRUE(v.in == false && v.out == false) << "No in/out should be true when all ranges have been removed";
+      Tree::State v = x->val();
+      EXPECT_TRUE(v.in == Tree::InOut::Released && v.out == Tree::InOut::Released) << "No in/out should be reserved when all ranges have been removed";
     });
   }
 }

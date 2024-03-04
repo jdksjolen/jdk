@@ -51,11 +51,14 @@ public:
     StackIndex(uint16_t chunk, uint16_t index)
     : _chunk(chunk), _index(index) {
     }
-    uint16_t chunk() {
+    uint16_t chunk() const {
       return _chunk;
     }
-    uint16_t index() {
+    uint16_t index() const {
       return _index;
+    }
+    static bool equals(const StackIndex& a, const StackIndex& b) {
+      return a.chunk() == b.chunk() && a.index() == b.index();
     }
   };
 

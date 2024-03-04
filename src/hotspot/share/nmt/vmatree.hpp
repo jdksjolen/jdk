@@ -33,7 +33,7 @@
 
 int addr_cmp(size_t a, size_t b);
 
-template<typename METADATA>
+template<typename METADATA, bool(*EquivalentMetadata)(const METADATA&, const METADATA&)>
 class VMATree {
 public:
   enum class InOut {
@@ -56,8 +56,7 @@ public:
   : tree() {
   }
 
-  template<typename EquivalentMetadata>
-  void register_mapping(size_t A, size_t B, bool in_use, METADATA& metadata, EquivalentMetadata equiv_meta) {
+  void register_mapping(size_t A, size_t B, InOut in_use, METADATA& metadata) {
     State stA{InOut::Released, in_use, metadata};
     // Ends do not need any METADATA.
     State stB{in_use, InOut::Released, METADATA()};
@@ -107,7 +106,7 @@ public:
         // and the result should be a larger area, [x1, x3). In that case, the middle node (A and le_n)
         // is not needed anymore. So we just remove the old node.
         // We can only do this merge if the metadata is considered equivalent.
-        if (is_noop(stA.in) && equiv_meta(stA.metadata, leqA_n->value.metadata)) {
+        if (is_noop(stA.in) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
           // invalidates le_n
           tree.remove(leqA_n->key);
         } else {
@@ -123,7 +122,7 @@ public:
         // state change, we just omit the node.
         // That happens, for example, when reserving within an already reserved region with identical metadata.
         stA.in = leqA_n->value.out; // .. and the region's prior state is the incoming state
-        if (is_noop(stA.in) && equiv_meta(stA.metadata, leqA_n->value.metadata)) {
+        if (is_noop(stA.in) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
           // Nothing to do.
         } else {
           // Add new node.
@@ -166,7 +165,7 @@ public:
           } else if (cmp_B == 0) {
             // Re-purpose B node, unless it would result in a noop node, in
             // which case delete old node at B.
-            if (is_noop(stB) && equiv_meta(stB.metadata, head->value.metadata)) {
+            if (is_noop(stB) && EquivalentMetadata(stB.metadata, head->value.metadata)) {
               to_be_deleted.push(B);
             } else {
               head->value = stB;
@@ -187,7 +186,7 @@ public:
     // Insert B node if needed
     if (B_needs_insert    && // Was not already inserted
         !is_noop(stB,stB) && // The operation is differing
-        !equiv_meta(stB.metadata, METADATA{}) // The metadata was changed from empty
+        !EquivalentMetadata(stB.metadata, METADATA{}) // The metadata was changed from empty
         ) {
       tree.upsert(B, stB);
     }
@@ -200,11 +199,14 @@ public:
     }
   }
 
-  void register_new_mapping(size_t from, size_t to, METADATA& mdata) {
-    register_mapping(from, to, true, mdata);
+  void reserve_mapping(size_t from, size_t sz, METADATA& metadata) {
+    register_mapping(from, from+sz, InOut::Reserved, metadata);
   }
-  void register_unmapping(size_t from, size_t to, METADATA& mdata) {
-    register_mapping(from, to, false, mdata);
+  void commit_mapping(size_t from, size_t sz, METADATA& metadata) {
+    register_mapping(from, from + sz, InOut::Committed, metadata);
+  }
+  void release_mapping(size_t from, size_t sz) {
+    register_mapping(from, from + sz, InOut::Released, METADATA());
   }
 
   // Visit all nodes between [from, to) and call f on them.

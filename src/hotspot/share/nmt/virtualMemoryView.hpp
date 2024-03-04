@@ -57,41 +57,60 @@ public:
     }
   };
 
-  struct MetadataCommitted {
+  struct MetadataOtherSpace {
     NativeCallStackStorage::StackIndex stack_idx;
-    MetadataCommitted() : stack_idx(0,0) {
+    MEMFLAGS flag;
+    MetadataOtherSpace() : stack_idx(0,0), flag(mtNone) {
     }
-    MetadataCommitted(NativeCallStackStorage::StackIndex stack_idx) : stack_idx(stack_idx) {
+    MetadataOtherSpace(NativeCallStackStorage::StackIndex stack_idx, MEMFLAGS flag) : stack_idx(stack_idx), flag(flag) {
     }
+    static bool equals(const MetadataOtherSpace& a, const MetadataOtherSpace& b) {
+      return NativeCallStackStorage::StackIndex::equals(a.stack_idx, b.stack_idx) && a.flag == b.flag;
+    }
+  };
+
+  struct Offset {
+    PhysicalMemorySpace pid;
+    size_t physical_address;
+  };
+
+  enum class RangeType {
+    Reserved, Committed, Mapped
+  };
+  struct MetadataRange {
+    RangeType type;
+    Offset offset;
   };
 
   struct MetadataReserved {
     NativeCallStackStorage::StackIndex stack_idx;
     MEMFLAGS flag;
-    PhysicalMemorySpace pid; // Physical device it points into.
-    size_t physical_address; // Offset into the physical device.
+    RangeType type;
+    Offset offset;  // Only present if RangeType == Mapped
     MetadataReserved()
     : stack_idx(0, 0),
       flag(mtNone),
-      pid(),
-      physical_address() {}
+      offset() {}
     MetadataReserved(size_t base_addr)
     : stack_idx(0, 0),
         flag(mtNone),
-        pid(),
-        physical_address(base_addr) {
+        offset(){
     }
     MetadataReserved(NativeCallStackStorage::StackIndex stack_idx, MEMFLAGS flag,
                      PhysicalMemorySpace pid, size_t physical_address)
       : stack_idx(stack_idx),
         flag(flag),
-        pid(pid),
-        physical_address(physical_address) {
+        offset{pid, physical_address} {
     }
+    static bool equals(const MetadataReserved& a, const MetadataReserved& b) {
+      return (NativeCallStackStorage::StackIndex::equals(a.stack_idx,b.stack_idx) &&
+              (a.flag == b.flag));
+    };
   };
 
-  using ReservedRegionStorage = VMATree<MetadataReserved>;
-  using CommittedRegionStorage = GrowableArrayCHeap<VMATree<MetadataCommitted>, mtNMT>;
+  using ReservedRegionStorage = VMATree<MetadataReserved, MetadataReserved::equals>;
+  using CommittedRegionStorage = GrowableArrayCHeap<VMATree<MetadataOtherSpace, MetadataOtherSpace::equals>,
+                                                    mtNMT>;
 
   struct VirtualMemory : public CHeapObj<mtNMT> {
     // Reserved memory within this process' memory map.
@@ -107,10 +126,6 @@ public:
   };
 
 private:
-  static bool equal_stacks(NativeCallStackStorage::StackIndex a,
-                           NativeCallStackStorage::StackIndex b) {
-    return a.index() == b.index() && a.chunk() == b.chunk();
-  }
   // Data and API
   VirtualMemory _virt_mem;
   NativeCallStackStorage _stack_storage;
