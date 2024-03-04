@@ -36,40 +36,54 @@ int addr_cmp(size_t a, size_t b);
 template<typename METADATA>
 class VMATree {
 public:
-  struct State { bool in; bool out; METADATA metadata; };
+  enum class InOut {
+    Reserved,
+    Committed,
+    Released
+  };
+  struct State {
+    InOut in; // Previous node active
+    InOut out; // This node active with metadata
+    METADATA metadata;
+  };
+  bool is_noop(State st) {
+    return st.in == st.out;
+  }
+
   using VTreap = TreapNode<size_t, State, addr_cmp>;
   TreapCHeap<size_t, State, addr_cmp> tree;
   VMATree()
   : tree() {
   }
 
-  void register_mapping(size_t A, size_t B, bool in_use, METADATA& metadata) {
-    State stA{false, in_use, metadata};
+  template<typename EquivalentMetadata>
+  void register_mapping(size_t A, size_t B, bool in_use, METADATA& metadata, EquivalentMetadata equiv_meta) {
+    State stA{InOut::Released, in_use, metadata};
     // Ends do not need any METADATA.
-    State stB{in_use, false, METADATA()};
+    State stB{in_use, InOut::Released, METADATA()};
 
     // First handle A.
     // Find first node LEQ A
-    VTreap* le_n = nullptr;
+    VTreap* leqA_n = nullptr;
     { // LE search
       VTreap* head = tree.tree;
       while (head != nullptr) {
         int cmp_r = addr_cmp(head->key, A);
         if (cmp_r == 0) { // Exact match
-          le_n = head;
+          leqA_n = head;
         }
         if (cmp_r < 0) {
           // Found a match, try to find a better one.
-          le_n = head;
+          leqA_n = head;
           head = head->right;
         } else {
           head = head->left;
         }
       }
     }
-    if (le_n == nullptr) {
-      // NO match.
-      if (stA.in == stA.out) {
+    if (leqA_n == nullptr) {
+      // No match.
+      if (is_noop(stA)) {
         // nothing to do.
       } else {
         // Add new node.
@@ -77,34 +91,39 @@ public:
       }
     } else {
       // Unless we know better, let B's outgoing state be the outgoing state of the node at or preceding A.
-      stB.out = le_n->value.out;
+      // Consider the case where the found node is the start of a region enclosing [A,B)
+      // We must also ineherit the metadata now.
+      stB.out = leqA_n->value.out;
+      stB.metadata = leqA_n->value.metadata;
 
       // Direct address match.
-      if (le_n->key == A) {
+      if (leqA_n->key == A) {
         // Take over in state from old address.
-        stA.in = le_n->value.in;
+        stA.in = leqA_n->value.in;
 
         // But we may now be able to merge two regions:
         // If the node's old state matches the new, it becomes a noop. That happens, for example,
-        //  when expanding a committed area: commit [x1, x2); ... commit [x2, x3)
-        //  and the result should be a larger area, [x1..x3). In that case, the middle node (x2)
-        //  is not needed anymore.
-        // So we just remove the old node.
-        if (stA.in == stA.out) {
+        // when expanding a committed area: commit [x1, A); ... commit [A, x3)
+        // and the result should be a larger area, [x1, x3). In that case, the middle node (A and le_n)
+        // is not needed anymore. So we just remove the old node.
+        // We can only do this merge if the metadata is considered equivalent.
+        if (is_noop(stA.in) && equiv_meta(stA.metadata, leqA_n->value.metadata)) {
           // invalidates le_n
-          tree.remove(le_n->key);
+          tree.remove(leqA_n->key);
         } else {
-          // re-use existing node
-          le_n->value = stA;
+          // If the state is not matching then we have different operations, such as:
+          // reserve [x1, A); ... commit [A, x2)
+          // Or we have diffing metadata, then we re-use the existing out node, overwriting its old metadata.
+          leqA_n->value = stA;
         }
       } else {
         // The address must be smaller.
 
         // We add a new node, but only if there would be a state change. If there would not be a
         // state change, we just omit the node.
-        // That happens, for example, when reserving within an already reserved region.
-        stA.in = le_n->value.out; // .. and the region's prior state is the incoming state
-        if (stA.in == stA.out) {
+        // That happens, for example, when reserving within an already reserved region with identical metadata.
+        stA.in = leqA_n->value.out; // .. and the region's prior state is the incoming state
+        if (is_noop(stA.in) && equiv_meta(stA.metadata, leqA_n->value.metadata)) {
           // Nothing to do.
         } else {
           // Add new node.
@@ -122,7 +141,7 @@ public:
 
     // Find all nodes between (A, B] and record their addresses. Also update B's
     // outgoing state.
-    { // Iterate over each node who is larger than A
+    { // Iterate over each node which is larger than A
     GrowableArrayCHeap<VTreap*, mtNMT> to_visit;
       to_visit.push(tree.tree);
       VTreap* head = nullptr;
@@ -147,7 +166,7 @@ public:
           } else if (cmp_B == 0) {
             // Re-purpose B node, unless it would result in a noop node, in
             // which case delete old node at B.
-            if (stB.in == stB.out) {
+            if (is_noop(stB) && equiv_meta(stB.metadata, head->value.metadata)) {
               to_be_deleted.push(B);
             } else {
               head->value = stB;
@@ -166,7 +185,10 @@ public:
       }
     }
     // Insert B node if needed
-    if (B_needs_insert && !(stB.in == stB.out)) {
+    if (B_needs_insert    && // Was not already inserted
+        !is_noop(stB,stB) && // The operation is differing
+        !equiv_meta(stB.metadata, METADATA{}) // The metadata was changed from empty
+        ) {
       tree.upsert(B, stB);
     }
 
