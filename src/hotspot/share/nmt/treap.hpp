@@ -51,9 +51,9 @@ class TreapNode {
   template<typename METADATA, bool(*EquivalentMetadata)(const METADATA&, const METADATA&)>
   friend class VMATree;
 
-  uint64_t priority;
-  K key;
-  V value;
+  uint64_t _priority;
+  K _key;
+  V _value;
   using Nd = TreapNode<K,V,CMP>;
   TreapNode<K, V, CMP>* left;
   TreapNode<K, V, CMP>* right;
@@ -74,8 +74,8 @@ class TreapNode {
     if (head == nullptr) {
       return {nullptr, nullptr};
     }
-    if ( (CMP(head->key, key) <= 0 && mode == LEQ) ||
-         (CMP(head->key, key) < 0 && mode == LT) ) {
+    if ( (CMP(head->_key, key) <= 0 && mode == LEQ) ||
+         (CMP(head->_key, key) < 0 && mode == LT) ) {
       auto p = split(head->right, key, mode);
       head->right = p.left;
       return {head, p.right};
@@ -91,7 +91,7 @@ class TreapNode {
     if (left == nullptr) return right;
     if (right == nullptr) return left;
 
-    if (left->priority > right->priority) {
+    if (left->_priority > right->_priority) {
       // We need
       //      LEFT
       //         |
@@ -112,22 +112,25 @@ class TreapNode {
 
 public:
   TreapNode(const K& k, const V& v, uint64_t p)
-  : priority(p), key(k), value(v), left(nullptr), right(nullptr) {
+  : _priority(p), _key(k), _value(v), left(nullptr), right(nullptr) {
   }
 
+  const K& key() {
+    return _key;
+  }
   const V& val() {
-    return value;
+    return _value;
   }
 
   static Nd* find(Nd* node, const K& k) {
     if (node == nullptr) {
       return nullptr;
     }
-    if (CMP(node->key, k) == 0) { // EQ
+    if (CMP(node->_key, k) == 0) { // EQ
       return node;
     }
 
-    if (CMP(node->key, k) <= 0) { // LEQ
+    if (CMP(node->_key, k) <= 0) { // LEQ
       return find(node->left, k);
     } else {
       return find(node->right, k);
@@ -141,7 +144,7 @@ public:
     Nd* found = find(split.left, k);
     if (found != nullptr) {
       // Already exists, update value.
-      found->value = v;
+      found->_value = v;
       return merge(split.left, split.right);
     }
     // Doesn't exist, make node
