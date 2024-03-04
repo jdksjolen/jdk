@@ -194,7 +194,7 @@ public:
 
   void remove(const K& k) {
     tree = CTreap::remove(tree, k, [](void* ptr) {
-      os:free(ptr);
+      os::free(ptr);
     });
   }
 };
