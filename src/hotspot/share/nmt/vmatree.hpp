@@ -122,7 +122,7 @@ public:
         // state change, we just omit the node.
         // That happens, for example, when reserving within an already reserved region with identical metadata.
         stA.in = leqA_n->value.out; // .. and the region's prior state is the incoming state
-        if (is_noop(stA.in) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
+        if (is_noop(stA) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
           // Nothing to do.
         } else {
           // Add new node.
@@ -206,7 +206,8 @@ public:
     register_mapping(from, from + sz, InOut::Committed, metadata);
   }
   void release_mapping(size_t from, size_t sz) {
-    register_mapping(from, from + sz, InOut::Released, METADATA());
+    METADATA empty;
+    register_mapping(from, from + sz, InOut::Released, empty);
   }
 
   // Visit all nodes between [from, to) and call f on them.
