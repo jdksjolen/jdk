@@ -48,7 +48,7 @@ class TreapNode {
   template<typename KK, typename VV, int(*CMPP)(KK,KK)> // Just need unique names
   friend class TreapCHeap;
 
-  template<typename METADATA>
+  template<typename METADATA, bool(*EquivalentMetadata)(const METADATA&, const METADATA&)>
   friend class VMATree;
 
   uint64_t priority;
