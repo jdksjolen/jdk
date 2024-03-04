@@ -40,7 +40,7 @@ public:
   using VTreap = TreapNode<size_t, State, addr_cmp>;
   TreapCHeap<size_t, State, addr_cmp> tree;
   VMATree()
-  : tree(nullptr) {
+  : tree() {
   }
 
   void register_mapping(size_t A, size_t B, bool in_use, METADATA& metadata) {

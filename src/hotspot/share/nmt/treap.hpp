@@ -168,7 +168,7 @@ class TreapCHeap {
   CTreap* tree;
   uint64_t prng_seed;
 public:
-  TreapCHeap() : tree(nullptr), prng_seed(1234) {
+  TreapCHeap(uint64_t seed = 1234) : tree(nullptr), prng_seed(seed) {
   }
 
   uint64_t prng_next() {
