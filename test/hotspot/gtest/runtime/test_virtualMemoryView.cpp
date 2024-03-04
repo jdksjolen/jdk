@@ -30,7 +30,7 @@ public:
   }
 
   static void v(size_t address, size_t size, size_t offs, MEMFLAGS flag = mtTest, const NativeCallStack& stack = CURRENT_PC) {
-    vmv.add_view_into_space(space, addr(address), size, addr(offs), flag, stack);
+    vmv.add_mapping_into_space(space, addr(address), size, addr(offs), flag, stack);
   }
 
   static void test_summary_computation() {

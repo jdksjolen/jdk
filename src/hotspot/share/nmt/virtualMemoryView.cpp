@@ -53,39 +53,46 @@ VirtualMemoryView::PhysicalMemorySpace VirtualMemoryView::Interface::register_sp
   return next_space;
 }
 
-void VirtualMemoryView::reserve_memory(PhysicalMemorySpace space, address base_addr, size_t size,
+void VirtualMemoryView::reserve_memory(address base_addr, size_t size,
                                        MEMFLAGS flag, const NativeCallStack& stack) {
-  //NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
-  //MetadataReserved md(idx, flag, space, (size_t)base_addr);
-  //_virt_mem.reserved_regions.register_new_mapping((size_t)base_addr, (size_t)base_addr+size, md);
+  NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
+  VirtualMemoryData md(idx, flag);
+  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md);
 }
+
+void VirtualMemoryView::commit_memory(address base_addr, size_t size, const NativeCallStack& stack) {
+  NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
+  VirtualMemoryData md(idx);
+  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md);
+}
+
 void VirtualMemoryView::release_memory(address base_addr, size_t size) {
-  // No-op metadata
-  //MetadataReserved md((size_t)base_addr);
-  //_virt_mem.reserved_regions.register_unmapping((size_t)base_addr, (size_t)base_addr+size, md);
+  _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size);
 }
-void VirtualMemoryView::commit_memory_into_space(const PhysicalMemorySpace space, address offset,
-                                                 size_t size, const NativeCallStack& stack) {
-  //NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
-  //MetadataOtherSpace md{idx};
-  //_virt_mem.committed_regions.at(space.id).register_new_mapping((size_t)offset, (size_t)offset+size, md);
+
+void VirtualMemoryView::allocate_memory_into_space(const PhysicalMemorySpace space, address offset,
+                                                 size_t size, MEMFLAGS flag, const NativeCallStack& stack) {
+  NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
+  PhysicalMemoryData md(idx, flag);
+  _virt_mem.physical_devices.at(space.id).reserve_mapping((size_t)offset, size, md);
 }
-void VirtualMemoryView::uncommit_memory_into_space(const PhysicalMemorySpace& space, address offset,
+
+void VirtualMemoryView::free_memory_into_space(const PhysicalMemorySpace& space, address offset,
                                                    size_t size) {
-  //MetadataOtherSpace md;
-  //_virt_mem.committed_regions.at(space.id).register_unmapping((size_t)offset, (size_t)offset+size, md);
+  _virt_mem.physical_devices.at(space.id).release_mapping((size_t)offset, size);
 }
-void VirtualMemoryView::add_view_into_space(const PhysicalMemorySpace& space, address base_addr,
+
+void VirtualMemoryView::add_mapping_into_space(const PhysicalMemorySpace& space, address base_addr,
                                             size_t size, address offset, MEMFLAGS flag,
                                             const NativeCallStack& stack) {
-  //NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
-  //MetadataReserved md{idx, flag, space, (size_t)offset};
-  //_virt_mem.reserved_regions.register_new_mapping((size_t)base_addr, (size_t)base_addr+size, md);
+  NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
+  VirtualMemoryData md{idx, flag, space.id};
+  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md);
 }
-void VirtualMemoryView::remove_view_into_space(const PhysicalMemorySpace& space, address base_addr,
+
+void VirtualMemoryView::remove_mapping_into_space(const PhysicalMemorySpace& space, address base_addr,
                                                size_t size) {
-  //MetadataReserved md;
-  //_virt_mem.reserved_regions.register_unmapping((size_t)base_addr, (size_t)base_addr+size, md);
+  _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size);
 }
 
 
@@ -111,28 +118,28 @@ void VirtualMemoryView::Interface::add_view_into_space(const PhysicalMemorySpace
 void VirtualMemoryView::Interface::remove_view_into_space(const PhysicalMemorySpace& space,
                                                           address base_addr, size_t size) {
 }
-void VirtualMemoryView::Interface::commit_memory_into_space(const PhysicalMemorySpace& space,
+void VirtualMemoryView::Interface::allocate_memory_into_space(const PhysicalMemorySpace& space,
                                                             address offset, size_t size,
                                                             const NativeCallStack& stack) {
 }
 void VirtualMemoryView::Interface::uncommit_memory_into_space(const PhysicalMemorySpace& space,
                                                               address offset, size_t size) {
 }
-void VirtualMemoryView::Interface::report(VirtualMemory& mem, outputStream* output, size_t scale) {
+void VirtualMemoryView::Interface::report(TrackedProcessMemory& mem, outputStream* output, size_t scale) {
 }
-void VirtualMemoryView::Interface::compute_summary_snapshot(VirtualMemory& vmem) {
+void VirtualMemoryView::Interface::compute_summary_snapshot(TrackedProcessMemory& vmem) {
 }
-VirtualMemoryView::VirtualMemory::VirtualMemory()
-  : reserved_regions(),
-    committed_regions(),
+VirtualMemoryView::TrackedProcessMemory::TrackedProcessMemory()
+  : virtual_regions(),
+    physical_devices(),
     summary() {
   //committed_regions.push(VMATree<MetadataOtherSpace>());
 }
-VirtualMemoryView::VirtualMemory::VirtualMemory(const VirtualMemory& other) {
+VirtualMemoryView::TrackedProcessMemory::TrackedProcessMemory(const TrackedProcessMemory& other) {
   *this = other;
 }
-VirtualMemoryView::VirtualMemory&
-VirtualMemoryView::VirtualMemory::operator=(const VirtualMemory& other) {
+VirtualMemoryView::TrackedProcessMemory&
+VirtualMemoryView::TrackedProcessMemory::operator=(const TrackedProcessMemory& other) {
   // TODO: Does not work.
   return *this;
 }

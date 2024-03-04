@@ -219,7 +219,7 @@ class MemTracker : AllStatic {
     assert_post_init();
     if (!enabled()) return;
     ThreadCritical tc;
-    VMVI::commit_memory_into_space(space, offset, size, stack);
+    VMVI::allocate_memory_into_space(space, offset, size, stack);
   }
   static inline void uncommit_memory_into_space(const VMV::PhysicalMemorySpace space, address offset, size_t size) {
     assert_post_init();

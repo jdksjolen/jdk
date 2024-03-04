@@ -60,9 +60,9 @@ struct Implementation {
     if (new_impl) {
       if (dolock) {
         ThreadCritical tc;
-        vmem.commit_memory_into_space(space, addr, size, CALLER_PC);
+        vmem.allocate_memory_into_space(space, addr, size, CALLER_PC);
       } else {
-        vmem.commit_memory_into_space(space, addr, size, CALLER_PC);
+        vmem.allocate_memory_into_space(space, addr, size, CALLER_PC);
       }
     } else {
       if (dolock) {
@@ -78,9 +78,9 @@ struct Implementation {
     if (new_impl) {
       if (dolock) {
         ThreadCritical tc;
-        vmem.uncommit_memory_into_space(space, addr, size);
+        vmem.free_memory_into_space(space, addr, size);
       } else {
-        vmem.uncommit_memory_into_space(space, addr, size);
+        vmem.free_memory_into_space(space, addr, size);
       }
     } else {
       if (dolock) {

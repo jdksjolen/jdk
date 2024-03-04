@@ -1,6 +1,7 @@
 #include "precompiled.hpp"
 #include "memory/allocation.hpp"
 #include "nmt/vmatree.hpp"
+#include "nmt/virtualMemoryView.hpp"
 #include "nmt/memTracker.hpp"
 #include "runtime/os.hpp"
 #include "unittest.hpp"
@@ -10,7 +11,8 @@ struct Nothing {
     return true;
   }
 };
-TEST_VM(VMATreeTest, Basics) {
+
+TEST_VM(VMATreeTest, EmptyMetadata) {
   Nothing nothing;
   using Tree = VMATree<Nothing, Nothing::equals>;
   using Node = Tree::VTreap;

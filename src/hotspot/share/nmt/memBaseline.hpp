@@ -74,7 +74,7 @@ class MemBaseline {
   // All virtual memory allocations
   LinkedListImpl<ReservedMemoryRegion>        _virtual_memory_allocations;
   // All data from the VirtualMemoryView.
-  VirtualMemoryView::VirtualMemory _vmemview_data;
+  VirtualMemoryView::TrackedProcessMemory _vmemview_data;
 
   // Virtual memory allocations by allocation sites, always in by_address
   // order
@@ -100,7 +100,7 @@ class MemBaseline {
     _baseline_type(Not_baselined) {
   }
 
-  VirtualMemoryView::VirtualMemory& vmemview() {
+  VirtualMemoryView::TrackedProcessMemory& vmemview() {
     return _vmemview_data;
   }
 
