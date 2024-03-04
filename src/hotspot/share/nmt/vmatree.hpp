@@ -67,7 +67,7 @@ public:
     { // LE search
       VTreap* head = tree.tree;
       while (head != nullptr) {
-        int cmp_r = addr_cmp(head->key, A);
+        int cmp_r = addr_cmp(head->key(), A);
         if (cmp_r == 0) { // Exact match
           leqA_n = head;
         }
@@ -92,13 +92,13 @@ public:
       // Unless we know better, let B's outgoing state be the outgoing state of the node at or preceding A.
       // Consider the case where the found node is the start of a region enclosing [A,B)
       // We must also ineherit the metadata now.
-      stB.out = leqA_n->value.out;
-      stB.metadata = leqA_n->value.metadata;
+      stB.out = leqA_n->val().out;
+      stB.metadata = leqA_n->val().metadata;
 
       // Direct address match.
-      if (leqA_n->key == A) {
+      if (leqA_n->key() == A) {
         // Take over in state from old address.
-        stA.in = leqA_n->value.in;
+        stA.in = leqA_n->val().in;
 
         // But we may now be able to merge two regions:
         // If the node's old state matches the new, it becomes a noop. That happens, for example,
@@ -106,14 +106,14 @@ public:
         // and the result should be a larger area, [x1, x3). In that case, the middle node (A and le_n)
         // is not needed anymore. So we just remove the old node.
         // We can only do this merge if the metadata is considered equivalent.
-        if (is_noop(stA) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
+        if (is_noop(stA) && EquivalentMetadata(stA.metadata, leqA_n->val().metadata)) {
           // invalidates le_n
-          tree.remove(leqA_n->key);
+          tree.remove(leqA_n->key());
         } else {
           // If the state is not matching then we have different operations, such as:
           // reserve [x1, A); ... commit [A, x2)
           // Or we have diffing metadata, then we re-use the existing out node, overwriting its old metadata.
-          leqA_n->value = stA;
+          leqA_n->_value = stA;
         }
       } else {
         // The address must be smaller.
@@ -121,8 +121,8 @@ public:
         // We add a new node, but only if there would be a state change. If there would not be a
         // state change, we just omit the node.
         // That happens, for example, when reserving within an already reserved region with identical metadata.
-        stA.in = leqA_n->value.out; // .. and the region's prior state is the incoming state
-        if (is_noop(stA) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
+        stA.in = leqA_n->val().out; // .. and the region's prior state is the incoming state
+        if (is_noop(stA) && EquivalentMetadata(stA.metadata, leqA_n->val().metadata)) {
           // Nothing to do.
         } else {
           // Add new node.
@@ -149,26 +149,26 @@ public:
         to_visit.pop();
         if (head == nullptr) continue;
 
-        int cmp_A = addr_cmp(head->key, A);
-        int cmp_B = addr_cmp(head->key, B);
+        int cmp_A = addr_cmp(head->key(), A);
+        int cmp_B = addr_cmp(head->key(), B);
         if (cmp_B > 0) {
           // B's node didnt exist, we must match the next node's in value.
           if (B_needs_insert) {
-            stB.out = head->value.in;
+            stB.out = head->val().in;
           }
           break; // Exit the loop.
         } else if (cmp_A > 0 && cmp_B <= 0) {
-          stB.out = head->value.out;
+          stB.out = head->val().out;
           if (cmp_B < 0) {
             // Delete all nodes preceding B.
-            to_be_deleted.push(head->key);
+            to_be_deleted.push(head->key());
           } else if (cmp_B == 0) {
             // Re-purpose B node, unless it would result in a noop node, in
             // which case delete old node at B.
-            if (is_noop(stB) && EquivalentMetadata(stB.metadata, head->value.metadata)) {
+            if (is_noop(stB) && EquivalentMetadata(stB.metadata, head->val().metadata)) {
               to_be_deleted.push(B);
             } else {
-              head->value = stB;
+              head->val() = stB;
             }
             B_needs_insert = false;
           } else { /* Unreachable */}
@@ -223,8 +223,8 @@ public:
       to_visit.pop();
       if (head == nullptr) continue;
 
-      int cmp_from = addr_cmp(head->key, from);
-      int cmp_to = addr_cmp(head->key, to);
+      int cmp_from = addr_cmp(head->key(), from);
+      int cmp_to = addr_cmp(head->key(), to);
       if (cmp_to >= 0) {
         return;
       }
