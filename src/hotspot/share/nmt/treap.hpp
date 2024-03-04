@@ -57,7 +57,7 @@ class TreapNode {
   using Nd = TreapNode<K,V,CMP>;
   TreapNode<K, V, CMP>* left;
   TreapNode<K, V, CMP>* right;
-private:
+
   struct pair {
     Nd* left;
     Nd* right;
@@ -113,6 +113,10 @@ private:
 public:
   TreapNode(const K& k, const V& v, uint64_t p)
   : priority(p), key(k), value(v), left(nullptr), right(nullptr) {
+  }
+
+  const V& val() {
+    return value;
   }
 
   static Nd* find(Nd* node, const K& k) {
