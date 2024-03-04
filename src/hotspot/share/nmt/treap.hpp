@@ -184,7 +184,7 @@ public:
   }
 
   void upsert(const K& k, const V& v) {
-    tree = CTreap::upsert(tree, k, v, [&]() {
+    tree = CTreap::upsert(tree, k, v, [&](const K& k, const V& v) {
       uint64_t rand = this->prng_next();
       void* place = os::malloc(sizeof(CTreap), mtNMT);
       new (place) CTreap(k, v, rand);
