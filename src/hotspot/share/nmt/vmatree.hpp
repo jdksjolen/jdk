@@ -32,16 +32,13 @@
 #include "utilities/growableArray.hpp"
 
 int addr_cmp(size_t a, size_t b);
-uint64_t prng_next();
-
-void* node_malloc(size_t x);
 
 template<typename METADATA>
 class VMATree {
 public:
   struct State { bool in; bool out; METADATA metadata; };
-  using VTreap = TreapNode<size_t, State, addr_cmp, prng_next, node_malloc, os::free>;
-  VTreap* tree;
+  using VTreap = TreapNode<size_t, State, addr_cmp>;
+  TreapCHeap<size_t, State, addr_cmp> tree;
   VMATree()
   : tree(nullptr) {
   }
@@ -55,7 +52,7 @@ public:
     // Find first node LEQ A
     VTreap* le_n = nullptr;
     { // LE search
-      VTreap* head = tree;
+      VTreap* head = tree.tree;
       while (head != nullptr) {
         int cmp_r = addr_cmp(head->key, A);
         if (cmp_r == 0) { // Exact match
@@ -76,7 +73,7 @@ public:
         // nothing to do.
       } else {
         // Add new node.
-        tree = VTreap::upsert(tree, A, stA);
+        tree.upsert(A, stA);
       }
     } else {
       // Unless we know better, let B's outgoing state be the outgoing state of the node at or preceding A.
@@ -95,7 +92,7 @@ public:
         // So we just remove the old node.
         if (stA.in == stA.out) {
           // invalidates le_n
-          tree = VTreap::remove(tree, le_n->key);
+          tree.remove(le_n->key);
         } else {
           // re-use existing node
           le_n->value = stA;
@@ -111,7 +108,7 @@ public:
           // Nothing to do.
         } else {
           // Add new node.
-          tree = VTreap::upsert(tree, A, stA);
+          tree.upsert(A, stA);
         }
       }
     }
@@ -127,7 +124,7 @@ public:
     // outgoing state.
     { // Iterate over each node who is larger than A
     GrowableArrayCHeap<VTreap*, mtNMT> to_visit;
-      to_visit.push(tree);
+      to_visit.push(tree.tree);
       VTreap* head = nullptr;
       while (!to_visit.is_empty()) {
         head = to_visit.top();
@@ -170,14 +167,14 @@ public:
     }
     // Insert B node if needed
     if (B_needs_insert && !(stB.in == stB.out)) {
-      tree = VTreap::upsert(tree, B, stB);
+      tree.upsert(B, stB);
     }
 
     // Finally, if needed, delete all nodes between (A, B)
     while (to_be_deleted.length() > 0) {
       const size_t delete_me = to_be_deleted.top();
       to_be_deleted.pop();
-      tree = VTreap::remove(tree, delete_me);
+      tree.remove(delete_me);
     }
   }
 
@@ -194,7 +191,7 @@ public:
     ResourceArea area(mtNMT);
     ResourceMark rm(&area);
     GrowableArray<VTreap*> to_visit(&area, 16, 0, nullptr);
-    to_visit.push(tree);
+    to_visit.push(tree.tree);
     VTreap* head = nullptr;
     while (!to_visit.is_empty()) {
       head = to_visit.top();

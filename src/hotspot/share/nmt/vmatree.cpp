@@ -24,18 +24,6 @@
 
 #include "nmt/vmatree.hpp"
 
-void* node_malloc(size_t x) {
-  return os::malloc(x, mtNMT);
-}
-uint64_t prng_seed = 12345;
-uint64_t prng_next() {
-  static const uint64_t PrngMult = 0x5DEECE66DLL;
-  static const uint64_t PrngAdd = 0xB;
-  static const uint64_t PrngModPower = 48;
-  static const uint64_t PrngModMask = (static_cast<uint64_t>(1) << PrngModPower) - 1;
-  prng_seed =  (PrngMult * prng_seed + PrngAdd) & PrngModMask;
-  return prng_seed;
-}
 int addr_cmp(size_t a, size_t b) {
   if (a < b) return -1;
   if (a == b) return 0;

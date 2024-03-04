@@ -162,13 +162,17 @@ public:
 
 template<typename K, typename V, int(*CMP)(K,K)>
 class TreapCHeap {
+  template<typename METADATA>
+  friend class VMATree;
   using CTreap = TreapNode<K, V, CMP>;
   CTreap* tree;
   uint64_t prng_seed;
 public:
   TreapCHeap() : tree(nullptr), prng_seed(1234) {
   }
+
   uint64_t prng_next() {
+    // Taken directly off of JFRPrng
     static const uint64_t PrngMult = 0x5DEECE66DLL;
     static const uint64_t PrngAdd = 0xB;
     static const uint64_t PrngModPower = 48;
