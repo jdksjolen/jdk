@@ -43,7 +43,6 @@
 // There is an imperative equivalent of these two, if needed. https://www2.hawaii.edu/~nodari/teaching/f19/scribes/notes07.pdf
 template<typename K, typename V, int(*CMP)(K,K)>
 class TreapNode {
-  template<typename METADATA> // Has to mention the template parameter
   friend class VirtualMemoryView;
 
   template<typename KK, typename VV, int(*CMPP)(KK,KK)> // Just need unique names
