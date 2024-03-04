@@ -106,7 +106,7 @@ public:
         // and the result should be a larger area, [x1, x3). In that case, the middle node (A and le_n)
         // is not needed anymore. So we just remove the old node.
         // We can only do this merge if the metadata is considered equivalent.
-        if (is_noop(stA.in) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
+        if (is_noop(stA) && EquivalentMetadata(stA.metadata, leqA_n->value.metadata)) {
           // invalidates le_n
           tree.remove(leqA_n->key);
         } else {
@@ -185,7 +185,7 @@ public:
     }
     // Insert B node if needed
     if (B_needs_insert    && // Was not already inserted
-        !is_noop(stB,stB) && // The operation is differing
+        !is_noop(stB)     && // The operation is differing
         !EquivalentMetadata(stB.metadata, METADATA{}) // The metadata was changed from empty
         ) {
       tree.upsert(B, stB);
