@@ -168,7 +168,7 @@ public:
             if (is_noop(stB) && EquivalentMetadata(stB.metadata, head->val().metadata)) {
               to_be_deleted.push(B);
             } else {
-              head->val() = stB;
+              head->_value = stB;
             }
             B_needs_insert = false;
           } else { /* Unreachable */}
