@@ -97,8 +97,10 @@ public:
     };
   };
 
+  using VirtTree = VMATree<VirtualMemoryData, VirtualMemoryData::equals>;
   using VirtualRegionStorage = VMATree<VirtualMemoryData, VirtualMemoryData::equals>;
-  using PhysicalRegionStorage = GrowableArrayCHeap<VMATree<PhysicalMemoryData, PhysicalMemoryData::equals>,
+  using PhysTree = VMATree<PhysicalMemoryData, PhysicalMemoryData::equals>;
+  using PhysicalRegionStorage = GrowableArrayCHeap<PhysTree,
                                                     mtNMT>;
 
   struct TrackedProcessMemory : public CHeapObj<mtNMT> {

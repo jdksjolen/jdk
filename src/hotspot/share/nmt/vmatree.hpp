@@ -56,7 +56,8 @@ public:
   : tree() {
   }
 
-  void register_mapping(size_t A, size_t B, InOut in_use, METADATA& metadata) {
+  template<typename Merge>
+  void register_mapping(size_t A, size_t B, InOut in_use, METADATA& metadata, Merge merge) {
     State stA{InOut::Released, in_use, metadata};
     // Ends do not need any METADATA.
     State stB{in_use, InOut::Released, METADATA()};
@@ -113,6 +114,8 @@ public:
           // If the state is not matching then we have different operations, such as:
           // reserve [x1, A); ... commit [A, x2)
           // Or we have diffing metadata, then we re-use the existing out node, overwriting its old metadata.
+          // TODO: Accept a merge strategy for these cases. In commit_memory we want the memory flag to be kept, for example, but not in release_memory.
+          stA.metadata = merge(stA.metadata, leqA_n->_value.metadata);
           leqA_n->_value = stA;
         }
       } else {
@@ -168,6 +171,8 @@ public:
             if (is_noop(stB) && EquivalentMetadata(stB.metadata, head->val().metadata)) {
               to_be_deleted.push(B);
             } else {
+              // TODO: Implement a metadata merge strategy
+              stB.metadata = merge(stB.metadata, head->_value.metadata);
               head->_value = stB;
             }
             B_needs_insert = false;
@@ -185,12 +190,13 @@ public:
     }
     // Insert B node if needed
     if (B_needs_insert    && // Was not already inserted
-        (!is_noop(stB)     || // The operation is differing
-         !EquivalentMetadata(stB.metadata, METADATA{})) // The metadata was changed from empty
+        (!is_noop(stB)     || // The operation is differing Or
+         !EquivalentMetadata(stB.metadata, METADATA{})) // The metadata was changed from empty earlier
         ) {
       tree.upsert(B, stB);
     }
 
+    // TODO: Annotate this with its in/out and you know the summary diff here.
     // Finally, if needed, delete all nodes between (A, B)
     while (to_be_deleted.length() > 0) {
       const size_t delete_me = to_be_deleted.top();
@@ -199,13 +205,20 @@ public:
     }
   }
 
-  void reserve_mapping(size_t from, size_t sz, METADATA& metadata) {
-    register_mapping(from, from + sz, InOut::Reserved, metadata);
+  static METADATA no_merge(METADATA& a, METADATA& b) {
+    return a;
   }
-  void commit_mapping(size_t from, size_t sz, METADATA& metadata) {
-    register_mapping(from, from + sz, InOut::Committed, metadata);
+
+  template<typename Merge>
+  void reserve_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge = no_merge) {
+    register_mapping(from, from + sz, InOut::Reserved, metadata, merge);
   }
-  void release_mapping(size_t from, size_t sz) {
+  template<typename Merge>
+  void commit_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge = no_merge) {
+    register_mapping(from, from + sz, InOut::Committed, metadata, merge);
+  }
+  template<typename Merge>
+  void release_mapping(size_t from, size_t sz, Merge merge = no_merge) {
     METADATA empty;
     register_mapping(from, from + sz, InOut::Released, empty);
   }

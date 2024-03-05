@@ -62,3 +62,7 @@ TEST_VM(VMATreeTest, EmptyMetadata) {
     EXPECT_TRUE(exists(found[2]));
   }
 }
+
+TEST_VM(VMATreeTest, VMV) {
+  
+}

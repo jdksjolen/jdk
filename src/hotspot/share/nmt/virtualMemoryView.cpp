@@ -57,29 +57,33 @@ void VirtualMemoryView::reserve_memory(address base_addr, size_t size,
                                        MEMFLAGS flag, const NativeCallStack& stack) {
   NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
   VirtualMemoryData md(idx, flag);
-  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md);
+  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md, VirtualRegionStorage::no_merge);
 }
 
 void VirtualMemoryView::commit_memory(address base_addr, size_t size, const NativeCallStack& stack) {
   NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
   VirtualMemoryData md(idx);
-  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md);
+  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md, [](VirtualMemoryData& to_insert, VirtualMemoryData& original) {
+    VirtualMemoryData md = to_insert;
+    md.flag = original.flag;
+    return md;
+  });
 }
 
 void VirtualMemoryView::release_memory(address base_addr, size_t size) {
-  _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size);
+  _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size, VirtualRegionStorage::no_merge);
 }
 
 void VirtualMemoryView::allocate_memory_into_space(const PhysicalMemorySpace space, address offset,
                                                  size_t size, MEMFLAGS flag, const NativeCallStack& stack) {
   NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
   PhysicalMemoryData md(idx, flag);
-  _virt_mem.physical_devices.at(space.id).reserve_mapping((size_t)offset, size, md);
+  _virt_mem.physical_devices.at(space.id).reserve_mapping((size_t)offset, size, md, PhysTree::no_merge);
 }
 
 void VirtualMemoryView::free_memory_into_space(const PhysicalMemorySpace& space, address offset,
                                                    size_t size) {
-  _virt_mem.physical_devices.at(space.id).release_mapping((size_t)offset, size);
+  _virt_mem.physical_devices.at(space.id).release_mapping((size_t)offset, size, PhysTree::no_merge);
 }
 
 void VirtualMemoryView::add_mapping_into_space(const PhysicalMemorySpace& space, address base_addr,
@@ -87,12 +91,12 @@ void VirtualMemoryView::add_mapping_into_space(const PhysicalMemorySpace& space,
                                             const NativeCallStack& stack) {
   NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
   VirtualMemoryData md{idx, flag, space.id};
-  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md);
+  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md, VirtTree::no_merge);
 }
 
 void VirtualMemoryView::remove_mapping_into_space(const PhysicalMemorySpace& space, address base_addr,
                                                size_t size) {
-  _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size);
+  _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size, VirtTree::no_merge);
 }
 
 
