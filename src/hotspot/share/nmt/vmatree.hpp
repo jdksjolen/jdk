@@ -56,6 +56,7 @@ public:
   : tree() {
   }
 
+  // TODO: Account for MEMFLAGS.
   struct SummaryDiff {
     int64_t reserve;
     int64_t commit;
