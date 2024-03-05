@@ -141,7 +141,7 @@ public:
 
     // Now we handle B.
     // We first search all nodes that are between A and B. All of these nodes
-    // need to be deleted. The last node before B determines B's outgoing state.
+    // need to be deleted and summary accounted for. The last node before B determines B's outgoing state.
     // If there is no node between A and B, its A's incoming state.
     struct SizeType {
       size_t address;
@@ -236,17 +236,17 @@ public:
   }
 
   template<typename Merge>
-  void reserve_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge_strategy) {
-    register_mapping(from, from + sz, InOut::Reserved, metadata, merge_strategy);
+  SummaryDiff reserve_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge_strategy) {
+    return register_mapping(from, from + sz, InOut::Reserved, metadata, merge_strategy);
   }
   template<typename Merge>
-  void commit_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge_strategy) {
-    register_mapping(from, from + sz, InOut::Committed, metadata, merge_strategy);
+  SummaryDiff commit_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge_strategy) {
+    return register_mapping(from, from + sz, InOut::Committed, metadata, merge_strategy);
   }
   template<typename Merge>
-  void release_mapping(size_t from, size_t sz, Merge merge_strategy) {
+  SummaryDiff release_mapping(size_t from, size_t sz, Merge merge_strategy) {
     METADATA empty;
-    register_mapping(from, from + sz, InOut::Released, empty);
+    return register_mapping(from, from + sz, InOut::Released, empty);
   }
 
   // Visit all nodes between [from, to) and call f on them.
