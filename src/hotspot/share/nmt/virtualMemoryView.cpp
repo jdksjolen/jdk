@@ -57,21 +57,25 @@ void VirtualMemoryView::reserve_memory(address base_addr, size_t size,
                                        MEMFLAGS flag, const NativeCallStack& stack) {
   NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
   VirtualMemoryData md(idx, flag);
-  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md, VirtualRegionStorage::no_merge);
+  const VirtTree::SummaryDiff diff = _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md,
+                                                               VirtualRegionStorage::no_merge);
 }
 
 void VirtualMemoryView::commit_memory(address base_addr, size_t size, const NativeCallStack& stack) {
   NativeCallStackStorage::StackIndex idx = _stack_storage.push(stack);
   VirtualMemoryData md(idx);
-  _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr, size, md, [](VirtualMemoryData& to_insert, VirtualMemoryData& original) {
-    VirtualMemoryData md = to_insert;
-    md.flag = original.flag;
-    return md;
-  });
+  const VirtTree::SummaryDiff diff =
+    _virt_mem.virtual_regions.reserve_mapping((size_t)base_addr,
+                                              size, md,
+                                              [](VirtualMemoryData& to_insert, VirtualMemoryData& original) {
+                                                VirtualMemoryData md = to_insert;
+                                                md.flag = original.flag;
+                                                return md;
+                                              });
 }
 
 void VirtualMemoryView::release_memory(address base_addr, size_t size) {
-  _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size, VirtualRegionStorage::no_merge);
+  const VirtTree::SummaryDiff diff = _virt_mem.virtual_regions.release_mapping((size_t)base_addr, size, VirtualRegionStorage::no_merge);
 }
 
 void VirtualMemoryView::allocate_memory_into_space(const PhysicalMemorySpace space, address offset,
