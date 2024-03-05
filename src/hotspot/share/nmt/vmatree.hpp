@@ -56,8 +56,13 @@ public:
   : tree() {
   }
 
+  struct SummaryDiff {
+    int64_t reserve;
+    int64_t commit;
+  };
+
   template<typename Merge>
-  void register_mapping(size_t A, size_t B, InOut state, METADATA& metadata, Merge merge) {
+  SummaryDiff register_mapping(size_t A, size_t B, InOut state, METADATA& metadata, Merge merge) {
     State stA{InOut::Released, state, metadata};
     // Ends do not need any METADATA.
     State stB{state, InOut::Released, METADATA()};
@@ -204,24 +209,26 @@ public:
     // Finally, if needed, delete all nodes between (A, B)
     // Performing accounting of the changed nodes so that summary accounting can be done online.
     size_t prev = A;
-    int64_t reserve_diff = 0;
-    int64_t commit_diff = 0;
+    SummaryDiff diff{0,0};
     while (to_be_deleted.length() > 0) {
       const SizeType delete_me = to_be_deleted.top();
       to_be_deleted.pop();
       tree.remove(delete_me.address);
       if (delete_me.in == InOut::Reserved) {
-        reserve_diff -= delete_me.address - prev;
+        diff.reserve -= delete_me.address - prev;
       } else if (delete_me.in == InOut::Committed) {
-        commit_diff -= delete_me.address - prev;
+        diff.commit -= delete_me.address - prev;
+        diff.reserve -= delete_me.address - prev;
       }
       prev = delete_me.address;
     }
     if (state == InOut::Reserved) {
-      reserve_diff += B-A;
+      diff.reserve += B-A;
     } else if(state == InOut::Committed) {
-      commit_diff += B-A;
+      diff.commit += B-A;
+      diff.reserve += B-A;
     }
+    return diff;
   }
 
   static METADATA no_merge(METADATA& a, METADATA& b) {
