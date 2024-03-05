@@ -30,6 +30,6 @@ int addr_cmp(size_t a, size_t b) {
   if (a > b) return 1;
   else {
     // Can't happen
-    return -1337;
+    ShouldNotReachHere();
   }
 }

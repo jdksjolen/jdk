@@ -57,10 +57,10 @@ public:
   }
 
   template<typename Merge>
-  void register_mapping(size_t A, size_t B, InOut in_use, METADATA& metadata, Merge merge) {
-    State stA{InOut::Released, in_use, metadata};
+  void register_mapping(size_t A, size_t B, InOut state, METADATA& metadata, Merge merge) {
+    State stA{InOut::Released, state, metadata};
     // Ends do not need any METADATA.
-    State stB{in_use, InOut::Released, METADATA()};
+    State stB{state, InOut::Released, METADATA()};
 
     // First handle A.
     // Find first node LEQ A
@@ -138,7 +138,12 @@ public:
     // We first search all nodes that are between A and B. All of these nodes
     // need to be deleted. The last node before B determines B's outgoing state.
     // If there is no node between A and B, its A's incoming state.
-    GrowableArrayCHeap<size_t, mtNMT> to_be_deleted;
+    struct SizeType {
+      size_t address;
+      InOut in;
+      InOut out;
+    };
+    GrowableArrayCHeap<SizeType, mtNMT> to_be_deleted;
     bool B_needs_insert = true;
 
     // Find all nodes between (A, B] and record their addresses. Also update B's
@@ -164,12 +169,12 @@ public:
           stB.out = head->val().out;
           if (cmp_B < 0) {
             // Delete all nodes preceding B.
-            to_be_deleted.push(head->key());
+            to_be_deleted.push({head->key(), head->val().out, head->val().out });
           } else if (cmp_B == 0) {
             // Re-purpose B node, unless it would result in a noop node, in
             // which case delete old node at B.
             if (is_noop(stB) && EquivalentMetadata(stB.metadata, head->val().metadata)) {
-              to_be_deleted.push(B);
+              to_be_deleted.push({B, stB.in, stB.out});
             } else {
               // TODO: Implement a metadata merge strategy
               stB.metadata = merge(stB.metadata, head->_value.metadata);
@@ -196,12 +201,26 @@ public:
       tree.upsert(B, stB);
     }
 
-    // TODO: Annotate this with its in/out and you know the summary diff here.
     // Finally, if needed, delete all nodes between (A, B)
+    // Performing accounting of the changed nodes so that summary accounting can be done online.
+    size_t prev = A;
+    int64_t reserve_diff = 0;
+    int64_t commit_diff = 0;
     while (to_be_deleted.length() > 0) {
-      const size_t delete_me = to_be_deleted.top();
+      const SizeType delete_me = to_be_deleted.top();
       to_be_deleted.pop();
-      tree.remove(delete_me);
+      tree.remove(delete_me.address);
+      if (delete_me.in == InOut::Reserved) {
+        reserve_diff -= delete_me.address - prev;
+      } else if (delete_me.in == InOut::Committed) {
+        commit_diff -= delete_me.address - prev;
+      }
+      prev = delete_me.address;
+    }
+    if (state == InOut::Reserved) {
+      reserve_diff += B-A;
+    } else if(state == InOut::Committed) {
+      commit_diff += B-A;
     }
   }
 
@@ -210,15 +229,15 @@ public:
   }
 
   template<typename Merge>
-  void reserve_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge = no_merge) {
-    register_mapping(from, from + sz, InOut::Reserved, metadata, merge);
+  void reserve_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge_strategy) {
+    register_mapping(from, from + sz, InOut::Reserved, metadata, merge_strategy);
   }
   template<typename Merge>
-  void commit_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge = no_merge) {
-    register_mapping(from, from + sz, InOut::Committed, metadata, merge);
+  void commit_mapping(size_t from, size_t sz, METADATA& metadata, Merge merge_strategy) {
+    register_mapping(from, from + sz, InOut::Committed, metadata, merge_strategy);
   }
   template<typename Merge>
-  void release_mapping(size_t from, size_t sz, Merge merge = no_merge) {
+  void release_mapping(size_t from, size_t sz, Merge merge_strategy) {
     METADATA empty;
     register_mapping(from, from + sz, InOut::Released, empty);
   }
