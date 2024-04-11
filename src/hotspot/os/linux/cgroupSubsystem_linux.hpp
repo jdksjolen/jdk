@@ -114,13 +114,13 @@ template <typename T> int subsystem_file_line_contents(CgroupController* c,
     log_debug(os, container)("Open of file %s failed, %s", absolute_path, os::strerror(errno));
     return OSCONTAINER_ERROR;
   }
+  finally([&fp]() { fclose(fp); });
 
   const int buf_len = MAXPATHLEN+1;
   char buf[buf_len];
   char* line = fgets(buf, buf_len, fp);
   if (line == nullptr) {
     log_debug(os, container)("Empty file %s", absolute_path);
-    fclose(fp);
     return OSCONTAINER_ERROR;
   }
 
@@ -149,7 +149,7 @@ template <typename T> int subsystem_file_line_contents(CgroupController* c,
       }
     }
   }
-  fclose(fp);
+
   if (found_match) {
     return 0;
   }

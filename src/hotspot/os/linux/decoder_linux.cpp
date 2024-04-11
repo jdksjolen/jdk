@@ -26,6 +26,7 @@
 #include "runtime/os.hpp"
 #include "utilities/decoder_elf.hpp"
 #include "utilities/elfFile.hpp"
+#include "utilities/finally.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 #include <cxxabi.h>
@@ -62,6 +63,7 @@ bool ElfFile::specifies_noexecstack(const char* filepath) {
 
   FILE* file = os::fopen(filepath, "r");
   if (file == nullptr)  return true;
+  finally([&file]() { fclose(file); });
 
   // AARCH64 defaults to noexecstack. All others default to execstack.
   bool result = AARCH64_ONLY(true) NOT_AARCH64(false);
@@ -85,6 +87,5 @@ bool ElfFile::specifies_noexecstack(const char* filepath) {
       }
     }
   }
-  fclose(file);
   return result;
 }
