@@ -29,6 +29,7 @@
 #include "runtime/os.hpp"
 #include "logging/log.hpp"
 #include "utilities/globalDefinitions.hpp"
+#include "utilities/finally.hpp"
 #include "utilities/macros.hpp"
 #include "osContainer_linux.hpp"
 
