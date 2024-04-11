@@ -26,6 +26,7 @@
 #include "logging/logSelectionList.hpp"
 #include "logging/logTagSet.hpp"
 #include "runtime/os.hpp"
+#include "utilities/finally.hpp"
 
 static const char* DefaultExpressionString = "all";
 
@@ -60,6 +61,7 @@ bool LogSelectionList::parse(const char* str, outputStream* errstream) {
     str = DefaultExpressionString;
   }
   char* copy = os::strdup_check_oom(str, mtLogging);
+  finally([&copy]() { os::free(copy); });
   // Split string on commas
   for (char *comma_pos = copy, *cur = copy; success && comma_pos != nullptr; cur = comma_pos + 1) {
     if (_nselections == MaxSelections) {
@@ -84,7 +86,6 @@ bool LogSelectionList::parse(const char* str, outputStream* errstream) {
     _selections[_nselections++] = selection;
   }
 
-  os::free(copy);
   return success;
 }
 

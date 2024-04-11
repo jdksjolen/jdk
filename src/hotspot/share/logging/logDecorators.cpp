@@ -24,6 +24,7 @@
 #include "precompiled.hpp"
 #include "logging/logDecorators.hpp"
 #include "runtime/os.hpp"
+#include "utilities/finally.hpp"
 
 template <LogDecorators::Decorator d>
 struct AllBitmask {
@@ -69,6 +70,7 @@ bool LogDecorators::parse(const char* decorator_args, outputStream* errstream) {
   bool result = true;
   uint tmp_decorators = 0;
   char* args_copy = os::strdup_check_oom(decorator_args, mtLogging);
+  finally([&args_copy]() { os::free(args_copy); });
   char* token = args_copy;
   char* comma_pos;
   do {
@@ -87,7 +89,7 @@ bool LogDecorators::parse(const char* decorator_args, outputStream* errstream) {
     tmp_decorators |= mask(d);
     token = comma_pos + 1;
   } while (comma_pos != nullptr);
-  os::free(args_copy);
+
   if (result) {
     _decorators = tmp_decorators;
   }

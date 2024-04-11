@@ -38,6 +38,7 @@
 #include "memory/resourceArea.hpp"
 #include "runtime/os.hpp"
 #include "runtime/semaphore.hpp"
+#include "utilities/finally.hpp"
 #include "utilities/globalDefinitions.hpp"
 
 LogOutput** LogConfiguration::_outputs = nullptr;
@@ -367,7 +368,7 @@ void LogConfiguration::configure_stdout(LogLevelType level, int exact_match, ...
 
 bool LogConfiguration::parse_command_line_arguments(const char* opts) {
   char* copy = os::strdup_check_oom(opts, mtLogging);
-
+  finally([&copy]() { os::free(copy); });
   // Split the option string to its colon separated components.
   char* str = copy;
   char* substrings[4] = {0};
@@ -389,7 +390,6 @@ bool LogConfiguration::parse_command_line_arguments(const char* opts) {
       char* end_quote = strchr(next + 1, '"');
       if (end_quote == nullptr) {
         log_error(logging)("Missing terminating quote in -Xlog option '%s'", str);
-        os::free(copy);
         return false;
       }
       // Keep searching after the quoted substring
@@ -472,7 +472,6 @@ bool LogConfiguration::parse_command_line_arguments(const char* opts) {
     } while (end != nullptr);
   }
 
-  os::free(copy);
   return success;
 }
 

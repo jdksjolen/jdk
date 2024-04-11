@@ -31,6 +31,7 @@
 #include "memory/allocation.inline.hpp"
 #include "runtime/mutexLocker.hpp"
 #include "runtime/os.hpp"
+#include "utilities/finally.hpp"
 
 void LogOutput::describe(outputStream *out) {
   out->print("%s ", name());
@@ -328,7 +329,7 @@ bool LogOutput::parse_options(const char* options, outputStream* errstream) {
   }
   bool success = true;
   char* opts = os::strdup_check_oom(options, mtLogging);
-
+  finally([&opts]() { os::free(opts); });
   char* comma_pos;
   char* pos = opts;
   do {
@@ -357,6 +358,5 @@ bool LogOutput::parse_options(const char* options, outputStream* errstream) {
     pos = comma_pos + 1;
   } while (comma_pos != nullptr);
 
-  os::free(opts);
   return success;
 }

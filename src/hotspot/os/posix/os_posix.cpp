@@ -46,6 +46,7 @@
 #include "utilities/debug.hpp"
 #include "utilities/defaultStream.hpp"
 #include "utilities/events.hpp"
+#include "utilities/finally.hpp"
 #include "utilities/formatBuffer.hpp"
 #include "utilities/globalDefinitions.hpp"
 #include "utilities/macros.hpp"
@@ -222,6 +223,8 @@ int os::create_file_for_heap(const char* dir) {
       vm_exit_during_initialization(err_msg("Malloc failed during creation of backing file for heap (%s)", os::strerror(errno)));
       return -1;
     }
+    finally([&fullname]() { os::free(fullname); });
+
     int n = snprintf(fullname, fullname_len + 1, "%s%s", dir, name_template);
     assert((size_t)n == fullname_len, "Unexpected number of characters in string");
 
@@ -232,15 +235,12 @@ int os::create_file_for_heap(const char* dir) {
 
     if (fd < 0) {
       warning("Could not create file for heap with template %s", fullname);
-      os::free(fullname);
       return -1;
     } else {
       // delete the name from the filesystem. When 'fd' is closed, the file (and space) will be deleted.
       int ret = unlink(fullname);
       assert_with_errno(ret == 0, "unlink returned error");
     }
-
-    os::free(fullname);
   }
 
   return fd;
