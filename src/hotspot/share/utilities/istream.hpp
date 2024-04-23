@@ -315,7 +315,6 @@ class inputStream : public CHeapObjBase {
   void dump(const char* what = nullptr) { }
 #endif
 
-
   // Block-oriented input, which treats all bytes equally.
   class Input : public CHeapObjBase {
   public:
@@ -323,24 +322,6 @@ class inputStream : public CHeapObjBase {
     // If there are no more, return zero, otherwise return non-zero.
     // It must be OK to call read even after it returns zero.
     virtual size_t read(char* buf, size_t size) = 0;
-    // Example: read(b,s) { return fread(b, 1, s, _my_fp); }
-    // Example: read(b,s) { return 0; } // never more than the initial buffer
-
-    // Give the current number of bytes already produced by the source.
-    // Give (size_t)-1 if this source does have a tracked position.
-    // A tracked position increments by the result of every call to read.
-    virtual size_t position() { return -1; }
-
-    // Give the remaining number of bytes which might be produced in the future.
-    // Give (size_t)-1 if this source does not keep track of that number.
-    virtual size_t remaining() { return -1; }
-
-    // Rewind so that the position appears to be the given one.
-    // Return the new position, or else (size_t)-1 if the request fails.
-    virtual size_t set_position(size_t position) { return -1; }
-
-    // If it is backed by a resource that needs closing, do so.
-    virtual void close() { }
   };
 };
 
@@ -360,42 +341,21 @@ class FileInput : public inputStream::Input {
   NONCOPYABLE(FileInput);
 
  protected:
-  fileStream& _fs;
-  fileStream _private_fs;
-
-  // it does not seem likely there are such file streams around
-  FileInput(fileStream& fs)
-    : _fs(fs)
-  { }
-
+  fileStream _fs;
  public:
   // just forward all the constructor arguments to the wrapped line-input class
   template<typename... Arg>
   FileInput(Arg... arg)
-    : _fs(_private_fs), _private_fs(arg...)
-  { }
+    : _fs(arg...) {}
 
   FileInput(const char* file_name)
-    : FileInput(file_name, "rt")
-  { }
+    : FileInput(file_name, "rt") {}
 
   bool is_open() const { return _fs.is_open(); }
 
  protected:
-  virtual size_t read(char* buf, size_t size) {
+  size_t read(char* buf, size_t size) override {
     return _fs.read(buf, size);
-  }
-  virtual size_t position() {
-    return _fs.position();
-  }
-  virtual size_t remaining() {
-    return _fs.remaining();
-  }
-  virtual size_t set_position(size_t position) {
-    return _fs.set_position(position);
-  }
-  virtual void close() {
-    _fs.close();
   }
 };
 
@@ -403,23 +363,19 @@ class MemoryInput : public inputStream::Input {
   const void* _base;
   const size_t _limit;
   size_t      _offset;
-  const void* _must_free;  // unless null, a malloc pointer which we must free
 
  public:
   MemoryInput(const void* base, size_t size,
               bool must_free = false,
               size_t offset = 0)
-    : _base(base), _limit(size), _offset(offset)
-  {
-    _must_free = must_free ? base : nullptr;
-  }
+  : _base(base), _limit(size), _offset(offset) {}
 
   MemoryInput(const char* start)
     : MemoryInput(start, 0, strlen(start))
   { }
 
  protected:
-  virtual size_t read(char* buf, size_t size) {
+  size_t read(char* buf, size_t size) override {
     size_t nr = size;
     if (nr > _limit - _offset) {
       nr = _limit - _offset;
@@ -429,20 +385,6 @@ class MemoryInput : public inputStream::Input {
       _offset += nr;
     }
     return nr;
-  }
-  virtual size_t position() {
-    return _offset;
-  }
-  virtual size_t remaining() {
-    return _limit - _offset;
-  }
-  virtual size_t set_position(size_t position) {
-    if (position <= _limit) {
-      _offset = position;
-    } else {
-      position = (size_t)-1;
-    }
-    return position;
   }
 };
 
