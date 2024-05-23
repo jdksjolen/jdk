@@ -39,39 +39,7 @@
 
 // The CircularMapping is a struct that provides
 // an interface for writing and reading bytes in a circular buffer
-// correctly. This indirection is necessary because there are two
-// underlying implementations: Linux, and all others.
-#ifdef LINUX
-// Implements a circular buffer by using the virtual memory mapping facilities of the OS.
-// Specifically, it reserves virtual memory with twice the size of the requested buffer.
-// The latter half of this buffer is then mapped back to the start of the first buffer.
-// This allows for write_bytes and read_bytes to consist of a single memcpy, as the
-// wrap-around is dealt with by the virtual memory system.
-struct CircularMapping {
-  FILE* file;
-  char* buffer;
-  size_t size;
-
-  CircularMapping()
-  : file(nullptr), buffer(nullptr), size(0) {
-  };
-
-  CircularMapping(size_t size);
-  ~CircularMapping() {
-    ::munmap(buffer, size * 2);
-    ::fclose(file);
-  }
-
-  void write_bytes(size_t at, const char* bytes, size_t size) {
-    ::memcpy(&buffer[at], bytes, size);
-  }
-
-  void read_bytes(size_t at, char* out, size_t size) {
-    ::memcpy(out, &buffer[at], size);
-  }
-};
-#else
-// On other platforms we resort to a double memcpy.
+// correctly.
 struct CircularMapping {
   char* buffer;
   size_t size;
@@ -100,7 +68,6 @@ struct CircularMapping {
     os::release_memory(buffer, size);
   }
 };
-#endif
 
 class CircularStringBuffer {
   friend class AsyncLogTest;
