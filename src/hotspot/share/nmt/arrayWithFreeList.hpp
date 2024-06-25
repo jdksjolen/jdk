@@ -167,6 +167,7 @@ public:
     } else {
       // There are no free elements, allocate a new one.
       i = _backing_storage.append();
+      if (i == nil) return i;
       be = _backing_storage.adr_at(i);
     }
 
