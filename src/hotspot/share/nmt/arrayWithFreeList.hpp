@@ -75,7 +75,7 @@ private:
         return false;
       }
       I next_cap = next_power_of_2(cap);
-      void* next_array = os::realloc(data, next_cap, flag);
+      void* next_array = os::realloc(data, next_cap * sizeof(BackingElement), flag);
       if (next_array == nullptr) {
         return false;
       }
