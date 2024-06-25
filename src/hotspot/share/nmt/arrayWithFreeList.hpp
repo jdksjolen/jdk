@@ -26,6 +26,7 @@
 #define SHARE_NMT_ARRAYWITHFREELIST_HPP
 
 #include "nmt/memflags.hpp"
+#include <limits>
 #include <type_traits>
 #include "runtime/os.hpp"
 #include "utilities/align.hpp"
@@ -61,6 +62,7 @@ private:
   };
 
   // A minimal resizable array backed by C-Heap storing BackingElement with smaller len and cap.
+  // May also be fixed, without growing.
   class resizable_array {
     bool fixed_size;
     I len;
@@ -97,6 +99,7 @@ private:
       data(nullptr) {
       assert(is_aligned(data, alignof(BackingElement)), "must be");
       assert(is_aligned(size, sizeof(BackingElement)), "must be");
+      assert(std::numeric_limits<I>::max >= (size / sizeof(BackingElement)), "array element size too small");
       cap = size / sizeof(BackingElement); // TODO: Check overflow
       data = (BackingElement*)data;
     }

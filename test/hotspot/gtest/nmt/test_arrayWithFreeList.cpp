@@ -51,3 +51,32 @@ TEST_VM_F(ArrayWithFreeListTest, FreeingInTheMiddleWorks) {
   A::I i3 = alloc.allocate(0);
   EXPECT_EQ(p1, &alloc.at(i3));
 }
+
+TEST_VM_F(ArrayWithFreeListTest, MakeVerySmallArray) {
+  using SmallArray = ArrayWithFreeList<int, mtTest, uint8_t>;
+  SmallArray array;
+
+  int success_count = 0;
+  int failure_count = 0;
+  for (int i = 0; i < 255; i++) {
+    SmallArray::I x = array.allocate(0);
+    if (x != SmallArray::nil) {
+      success_count++;
+    } else {
+      failure_count++;
+    }
+  }
+  EXPECT_EQ(0, failure_count);
+  EXPECT_EQ(256, success_count);
+
+  for (int i = 0; i < 255; i++) {
+    SmallArray::I x = array.allocate(0);
+    if (x != SmallArray::nil) {
+      success_count++;
+    } else {
+      failure_count++;
+    }
+  }
+  EXPECT_EQ(256, failure_count);
+  EXPECT_EQ(256, success_count);
+}
