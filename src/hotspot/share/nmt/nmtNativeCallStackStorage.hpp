@@ -65,6 +65,8 @@ private:
   struct TableEntry {
     TableEntryIndex next;
     StackIndex stack;
+    TableEntry(TableEntryIndex next, StackIndex stack)
+    : next(next), stack(stack) {}
   };
 
   StackIndex put(const NativeCallStack& value);

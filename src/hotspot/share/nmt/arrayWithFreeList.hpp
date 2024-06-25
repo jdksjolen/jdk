@@ -25,13 +25,15 @@
 #ifndef SHARE_NMT_ARRAYWITHFREELIST_HPP
 #define SHARE_NMT_ARRAYWITHFREELIST_HPP
 
-#include "utilities/growableArray.hpp"
+#include "nmt/memflags.hpp"
 #include <type_traits>
+#include "runtime/os.hpp"
+#include "utilities/align.hpp"
 
 // A flat array of elements E, backed by C-heap, growing on-demand. It allows for
 // returning arbitrary elements and keeps them in a freelist. Elements can be uniquely
 // identified via array index.
-template<typename E, MEMFLAGS flag>
+template<typename E, MEMFLAGS flag, typename II = int32_t>
 class ArrayWithFreeList {
 
   // An E must be trivially copyable and destructible, but it may be constructed
@@ -39,20 +41,103 @@ class ArrayWithFreeList {
   constexpr void static_assert_E_satisfies_type_requirements() const {
     static_assert(std::is_trivially_copyable<E>::value && std::is_trivially_destructible<E>::value, "must be");
   }
-
 public:
-  using I = int32_t;
-  static constexpr const I nil = -1;
+  using I = II;
+  static constexpr const I nil = std::numeric_limits<I>::max();
+  static constexpr const I max = nil - 1;
 
 private:
-  // A free list allocator element is either a link to the next free space
-  // or an actual element.
-  union BackingElement {
+
+  union UnusedBackingElement {
     I link;
     E e;
   };
 
-  GrowableArrayCHeap<BackingElement, flag> _backing_storage;
+  // A free list allocator element is either a link to the next free space
+  // Or an actual element.
+  union alignas(UnusedBackingElement) BackingElement {
+    I link;
+    char e[sizeof(E)];
+  };
+
+  // A minimal resizable array backed by C-Heap storing BackingElement with smaller len and cap.
+  class resizable_array {
+    bool fixed_size;
+    I len;
+    I cap;
+    BackingElement* data;
+
+    bool grow() {
+      // overflow check
+      if (max - cap < cap) {
+        return false;
+      }
+      I next_cap = next_power_of_2(cap);
+      void* next_array = os::realloc(data, next_cap, flag);
+      if (next_array == nullptr) {
+        return false;
+      }
+      data = static_cast<BackingElement*>(next_array);
+      cap = next_cap;
+      return true;
+    }
+
+  public:
+    resizable_array(I initial_cap)
+    : fixed_size(false),
+      len(0),
+      cap(initial_cap),
+      data(static_cast<BackingElement*>(os::malloc(initial_cap * sizeof(BackingElement), flag))) {
+    }
+
+    resizable_array(void* data, size_t size)
+    : fixed_size(true),
+      len(0),
+      cap(0),
+      data(nullptr) {
+      assert(is_aligned(data, alignof(BackingElement)), "must be");
+      assert(is_aligned(size, sizeof(BackingElement)), "must be");
+      cap = size / sizeof(BackingElement); // TODO: Check overflow
+      data = (BackingElement*)data;
+    }
+
+    ~resizable_array() {
+      if (!fixed_size) {
+        os::free(data);
+      }
+    }
+
+    I length() {
+      return len;
+    }
+
+    BackingElement& at(I i) {
+      assert(i < len, "oob");
+      return data[i];
+    }
+
+    BackingElement* adr_at(I i) {
+      return &at(i);
+    }
+
+    I append() {
+      if (len == cap) {
+        if (fixed_size) return nil;
+        if (!grow()) {
+          return nil;
+        }
+      }
+      I idx = len++;
+      return idx;
+    }
+
+    void remove_last() {
+      I idx = len - 1;
+      --len;
+    }
+  };
+
+  resizable_array _backing_storage;
   I _free_start;
 
   bool is_in_bounds(I i) {
@@ -60,7 +145,7 @@ private:
   }
 
 public:
-  NONCOPYABLE(ArrayWithFreeList<E COMMA flag>);
+  NONCOPYABLE(ArrayWithFreeList<E COMMA flag COMMA I>);
 
   ArrayWithFreeList(int initial_capacity = 8)
     : _backing_storage(initial_capacity),
@@ -73,12 +158,12 @@ public:
     I i;
     if (_free_start != nil) {
       // Must point to already existing index
-      be = &_backing_storage.at(_free_start);
+      be = _backing_storage.adr_at(_free_start);
       i = _free_start;
       _free_start = be->link;
     } else {
       // There are no free elements, allocate a new one.
-      i = _backing_storage.append(BackingElement());
+      i = _backing_storage.append();
       be = _backing_storage.adr_at(i);
     }
 
@@ -90,16 +175,20 @@ public:
     static_assert_E_satisfies_type_requirements();
     assert(i == nil || is_in_bounds(i), "out of bounds free");
     if (i == nil) return;
-    BackingElement& be_freed = _backing_storage.at(i);
-    be_freed.link = _free_start;
-    _free_start = i;
+    if (i == _backing_storage.length()) {
+      _backing_storage.remove_last();
+    } else {
+      BackingElement& be_freed = _backing_storage.at(i);
+      be_freed.link = _free_start;
+      _free_start = i;
+    }
   }
 
   E& at(I i) {
     static_assert_E_satisfies_type_requirements();
     assert(i != nil, "null pointer dereference");
     assert(is_in_bounds(i), "out of bounds dereference");
-    return _backing_storage.at(i).e;
+    return reinterpret_cast<E&>(_backing_storage.at(i).e);
   }
 };
 
