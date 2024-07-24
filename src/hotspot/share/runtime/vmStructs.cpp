@@ -489,8 +489,8 @@
   /* GrowableArrays  */                                                                                                              \
   /*******************/                                                                                                              \
                                                                                                                                      \
-  nonstatic_field(GrowableArrayBase,           _len,                                          int)                                   \
-  nonstatic_field(GrowableArrayBase,           _capacity,                                     int)                                   \
+  nonstatic_field(GrowableArrayBase<int>,      _len,                                          int)                                   \
+  nonstatic_field(GrowableArrayBase<int>,      _capacity,                                     int)                                   \
   nonstatic_field(GrowableArray<int>,          _data,                                         int*)                                  \
                                                                                                                                      \
   /********************************/                                                                                                 \

@@ -102,6 +102,7 @@ public class HotSpotTypeDataBase extends BasicTypeDataBase {
     if (fieldType == null && cTypeName.endsWith(" const")) {
         fieldType = (BasicType)lookupType(cTypeName.substring(0, cTypeName.length() - 6), false);
     }
+
     if (fieldType == null) {
       if (cTypeName.startsWith("GrowableArray<") && cTypeName.endsWith(">")) {
         String ttype = cTypeName.substring("GrowableArray<".length(),
@@ -117,7 +118,7 @@ public class HotSpotTypeDataBase extends BasicTypeDataBase {
         BasicType basicTargetType = createBasicType(cTypeName, false, false, false);
 
         // transfer fields from GrowableArrayBase to template instance
-        BasicType generic = lookupOrFail("GrowableArrayBase");
+        BasicType generic = lookupOrFail("GrowableArrayBase<int>");
         BasicType specific = lookupOrFail("GrowableArray<int>");
         basicTargetType.setSize(specific.getSize());
         Iterator fields = generic.getFields();
