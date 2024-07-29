@@ -58,6 +58,7 @@
   f(mtMetaspace,      "Metaspace")                                                   \
   f(mtStringDedup,    "String Deduplication")                                        \
   f(mtObjectMonitor,  "Object Monitors")                                             \
+  f(mtNativeLibrary,  "Native Libraries")                                             \
   f(mtNone,           "Unknown")                                                     \
   //end
 

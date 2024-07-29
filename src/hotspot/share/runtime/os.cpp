@@ -2457,3 +2457,12 @@ jint os::set_minimum_stack_sizes() {
   }
   return JNI_OK;
 }
+
+extern "C" {
+  __attribute__((visibility("default"))) void* hs_nmt_malloc(size_t sz) {
+    return os::malloc(sz, mtNativeLibrary);
+  }
+  __attribute__((visibility("default"))) void hs_nmt_free(void* p) {
+    os::free(p);
+  }
+}

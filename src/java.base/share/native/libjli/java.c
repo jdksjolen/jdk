@@ -55,6 +55,7 @@
 
 #include "java.h"
 #include "jni.h"
+#include "nmtlibrary.h"
 
 /*
  * A NOTE TO DEVELOPERS: For performance reasons it is important that
@@ -286,6 +287,7 @@ JLI_Launch(int argc, char ** argv,              /* main argc, argv */
                                jvmpath, sizeof(jvmpath),
                                jvmcfg,  sizeof(jvmcfg));
 
+    nmt_init_library(jvmpath);
     ifn.CreateJavaVM = 0;
     ifn.GetDefaultJavaVMInitArgs = 0;
 
