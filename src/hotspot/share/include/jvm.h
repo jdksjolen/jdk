@@ -393,8 +393,22 @@ JVM_SetPrimitiveArrayElement(JNIEnv *env, jobject arr, jint index, jvalue v,
 JNIEXPORT jobject JNICALL
 JVM_NewArray(JNIEnv *env, jclass eltClass, jint length);
 
-JNIEXPORT jobject JNICALL
-JVM_NewMultiArray(JNIEnv *env, jclass eltClass, jintArray dim);
+JNIEXPORT jobject JNICALL JVM_NewMultiArray(JNIEnv *env, jclass eltClass, jintArray dim);
+
+
+/*
+ * Native memory allocation via NMT.
+ */
+
+typedef struct {
+  int32_t allocator_info_handle;
+} arena_t;
+
+JNIEXPORT arena_t JNICALL JVM_MakeArena(const char *name);
+JNIEXPORT void *JNICALL JVM_ArenaAlloc(size_t size, arena_t a);
+JNIEXPORT void *JNICALL JVM_ArenaRealloc(void *p, size_t size, arena_t a);
+JNIEXPORT void *JNICALL JVM_ArenaCalloc(size_t numelems, size_t elemsize, arena_t a);
+JNIEXPORT void JNICALL JVM_ArenaFree(void* ptr);
 
 
 /*

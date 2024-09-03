@@ -78,6 +78,16 @@ static jint INITIAL_META_COUNT = 2;   /* initial number of entries in meta name 
 DEF_STATIC_JNI_OnLoad
 #endif
 
+    /* Zip Arena */
+arena_t zip_arena = {.allocator_info_handle = -1 };
+const char* arena_name = "java.util.zip";
+arena_t arena() {
+  if (zip_arena.allocator_info_handle == -1) {
+    zip_arena = JVM_MakeArena(arena_name);
+  }
+  return zip_arena;
+}
+
 /*
  * The ZFILE_* functions exist to provide some platform-independence with
  * respect to file access needs.
@@ -95,6 +105,7 @@ DEF_STATIC_JNI_OnLoad
 static ZFILE
 ZFILE_Open(const char *fname, int flags) {
 #ifdef WIN32
+    arena_t a = arena();
     WCHAR *wfname, *wprefixed_fname;
     size_t fname_length;
     jlong fhandle;
@@ -136,12 +147,12 @@ ZFILE_Open(const char *fname, int flags) {
         if (wfname_len == 0) {
             return (jlong)INVALID_HANDLE_VALUE;
         }
-        if ((wfname = (WCHAR*)malloc(wfname_len * sizeof(WCHAR))) == NULL) {
+        if ((wfname = (WCHAR*)JVM_ArenaAlloc(wfname_len * sizeof(WCHAR), a)) == NULL) {
             return (jlong)INVALID_HANDLE_VALUE;
         }
         if (MultiByteToWideChar(CP_ACP, MB_ERR_INVALID_CHARS,
                                 fname, -1, wfname, wfname_len) == 0) {
-            free(wfname);
+            JVM_ArenaFree(wfname);
             return (jlong)INVALID_HANDLE_VALUE;
         }
         wprefixed_fname = getPrefixed(wfname, (int)fname_length);
@@ -153,8 +164,8 @@ ZFILE_Open(const char *fname, int flags) {
             disposition,        /* creation disposition */
             flagsAndAttributes, /* flags and attributes */
             NULL);
-        free(wfname);
-        free(wprefixed_fname);
+        JVM_ArenaFree(wfname);
+        JVM_ArenaFree(wprefixed_fname);
         return fhandle;
     }
 #else
@@ -253,11 +264,11 @@ readFullyAt(ZFILE zfd, void *buf, jlong len, jlong offset)
  * Allocates a new zip file object for the specified file name.
  * Returns the zip file object or NULL if not enough memory.
  */
-static jzfile *
-allocZip(const char *name)
+static jzfile *allocZip(const char *name)
 {
+    arena_t a = arena();
     jzfile *zip;
-    if (((zip = calloc(1, sizeof(jzfile))) != NULL) &&
+    if (((zip = JVM_ArenaCalloc(1, sizeof(jzfile), a)) != NULL) &&
         ((zip->name = strdup(name))        != NULL) &&
         ((zip->lock = MCREATE())           != NULL)) {
         zip->zfd = -1;
@@ -265,8 +276,8 @@ allocZip(const char *name)
     }
 
     if (zip != NULL) {
-        free(zip->name);
-        free(zip);
+        JVM_ArenaFree(zip->name);
+        JVM_ArenaFree(zip);
     }
     return NULL;
 }
@@ -280,7 +291,7 @@ freeZip(jzfile *zip)
     /* First free any cached jzentry */
     ZIP_FreeEntry(zip,0);
     if (zip->lock != NULL) MDESTROY(zip->lock);
-    free(zip->name);
+    JVM_ArenaFree(zip->name);
     freeCEN(zip);
 
 #ifdef USE_MMAP
@@ -290,12 +301,12 @@ freeZip(jzfile *zip)
     } else
 #endif
     {
-        free(zip->cencache.data);
+        JVM_ArenaFree(zip->cencache.data);
     }
     if (zip->comment != NULL)
-        free(zip->comment);
+        JVM_ArenaFree(zip->comment);
     if (zip->zfd != -1) ZFILE_Close(zip->zfd);
-    free(zip);
+    JVM_ArenaFree(zip);
 }
 
 /* The END header is followed by a variable length comment of size < 64k. */
@@ -330,6 +341,7 @@ static jboolean verifyEND(jzfile *zip, jlong endpos, char *endbuf) {
 static jlong
 findEND(jzfile *zip, void *endbuf)
 {
+    arena_t a = arena();
     char buf[READBLOCKSZ];
     jlong pos;
     const jlong len = zip->len;
@@ -366,13 +378,13 @@ findEND(jzfile *zip, void *endbuf)
 
                 clen = ENDCOM(endbuf);
                 if (clen != 0) {
-                    zip->comment = malloc(clen + 1);
+                    zip->comment = JVM_ArenaAlloc(clen + 1, a);
                     if (zip->comment == NULL) {
                         return -1;
                     }
                     if (readFullyAt(zfd, zip->comment, clen, pos + i + ENDHDR)
                         == -1) {
-                        free(zip->comment);
+                        JVM_ArenaFree(zip->comment);
                         zip->comment = NULL;
                         return -1;
                     }
@@ -496,10 +508,11 @@ growMetaNames(jzfile *zip)
 static int
 addMetaName(jzfile *zip, const char *name, int length)
 {
+    arena_t a = arena();
     jint i;
     if (zip->metanames == NULL) {
       zip->metacount = INITIAL_META_COUNT;
-      zip->metanames = calloc(zip->metacount, sizeof(zip->metanames[0]));
+      zip->metanames = JVM_ArenaCalloc(zip->metacount, sizeof(zip->metanames[0]), a);
       if (zip->metanames == NULL) return -1;
       zip->metacurrent = 0;
     }
@@ -508,7 +521,7 @@ addMetaName(jzfile *zip, const char *name, int length)
 
     /* current meta name array isn't full yet. */
     if (i < zip->metacount) {
-      zip->metanames[i] = (char *) malloc(length+1);
+      zip->metanames[i] = (char *) JVM_ArenaAlloc(length+1, a);
       if (zip->metanames[i] == NULL) return -1;
       memcpy(zip->metanames[i], name, length);
       zip->metanames[i][length] = '\0';
@@ -527,8 +540,8 @@ freeMetaNames(jzfile *zip)
     if (zip->metanames != NULL) {
         jint i;
         for (i = 0; i < zip->metacount; i++)
-            free(zip->metanames[i]);
-        free(zip->metanames);
+            JVM_ArenaFree(zip->metanames[i]);
+        JVM_ArenaFree(zip->metanames);
         zip->metanames = NULL;
     }
 }
@@ -537,8 +550,8 @@ freeMetaNames(jzfile *zip)
 static void
 freeCEN(jzfile *zip)
 {
-    free(zip->entries); zip->entries = NULL;
-    free(zip->table);   zip->table   = NULL;
+    JVM_ArenaFree(zip->entries); zip->entries = NULL;
+    JVM_ArenaFree(zip->table);   zip->table   = NULL;
     freeMetaNames(zip);
 }
 
@@ -750,7 +763,7 @@ readCEN(jzfile *zip, jint knownTotal)
 #ifdef USE_MMAP
     if (!zip->usemmap)
 #endif
-        free(cenbuf);
+        JVM_ArenaFree(cenbuf);
 
     return cenpos;
 }
@@ -968,7 +981,7 @@ readCENHeader(jzfile *zip, jlong cenpos, jint bufsize)
     return cen;
 
  Catch:
-    free(cen);
+    JVM_ArenaFree(cen);
     return NULL;
 }
 
@@ -989,7 +1002,7 @@ sequentialAccessReadCENHeader(jzfile *zip, jlong cenpos)
 
     if ((cen = readCENHeader(zip, cenpos, CENCACHE_PAGESIZE)) == NULL)
         return NULL;
-    free(cache->data);
+    JVM_ArenaFree(cache->data);
     cache->data = cen;
     cache->pos  = cenpos;
     return cen;
@@ -1098,17 +1111,17 @@ newEntry(jzfile *zip, jzcell *zc, AccessHint accessHint)
     goto Finally;
 
  Catch:
-    free(ze->name);
-    free(ze->extra);
-    free(ze->comment);
-    free(ze);
+    JVM_ArenaFree(ze->name);
+    JVM_ArenaFree(ze->extra);
+    JVM_ArenaFree(ze->comment);
+    JVM_ArenaFree(ze);
     ze = NULL;
 
  Finally:
 #ifdef USE_MMAP
     if (!zip->usemmap)
 #endif
-        if (cen != NULL && accessHint == ACCESS_RANDOM) free(cen);
+        if (cen != NULL && accessHint == ACCESS_RANDOM) JVM_ArenaFree(cen);
     return ze;
 }
 
@@ -1128,10 +1141,10 @@ ZIP_FreeEntry(jzfile *jz, jzentry *ze)
     ZIP_Unlock(jz);
     if (last != NULL) {
         /* Free the previously cached jzentry */
-        free(last->name);
-        free(last->extra);
-        free(last->comment);
-        free(last);
+        JVM_ArenaFree(last->name);
+        JVM_ArenaFree(last->extra);
+        JVM_ArenaFree(last->comment);
+        JVM_ArenaFree(last);
     }
 }
 
@@ -1588,13 +1601,14 @@ ZIP_InflateFully(void *inBuf, jlong inLen, void *outBuf, jlong outLen, char **pm
 }
 
 static voidpf tracking_zlib_alloc(voidpf opaque, uInt items, uInt size) {
+  arena_t a = arena();
   size_t* needed = (size_t*) opaque;
   *needed += (size_t) items * (size_t) size;
-  return (voidpf) calloc((size_t) items, (size_t) size);
+  return (voidpf) JVM_ArenaCalloc((size_t) items, (size_t) size, a);
 }
 
 static void tracking_zlib_free(voidpf opaque, voidpf address) {
-  free((void*) address);
+  JVM_ArenaFree((void*) address);
 }
 
 static voidpf zlib_block_alloc(voidpf opaque, uInt items, uInt size) {
