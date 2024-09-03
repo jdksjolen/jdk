@@ -32,6 +32,7 @@
 #include "nmt/memBaseline.hpp"
 #include "nmt/memReporter.hpp"
 #include "nmt/memTracker.hpp"
+#include "nmt/nativelibs.hpp"
 #include "nmt/nmtCommon.hpp"
 #include "nmt/nmtPreInit.hpp"
 #include "nmt/threadStackTracker.hpp"
@@ -65,6 +66,7 @@ void MemTracker::initialize() {
   // make sure that we don't overflow it.
   STATIC_ASSERT(mt_number_of_types <= max_jubyte);
 
+  nmt_native::nmt_native_initialize();
   if (level > NMT_off) {
     if (!MallocTracker::initialize(level) ||
         !MemoryFileTracker::Instance::initialize(level) ||

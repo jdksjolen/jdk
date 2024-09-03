@@ -31,6 +31,7 @@
 #define _ZIP_H_
 
 #include "jni.h"
+#include "jvm.h"
 
 /*
  * Header signatures
@@ -281,7 +282,6 @@ ZIP_FreeEntry(jzfile *zip, jzentry *ze);
 jlong ZIP_GetEntryDataOffset(jzfile *zip, jzentry *entry);
 jzentry * ZIP_GetEntry2(jzfile *zip, char *name, jint ulen, jboolean addSlash);
 
-JNIEXPORT jboolean
-ZIP_InflateFully(void *inBuf, jlong inLen, void *outBuf, jlong outLen, char **pmsg);
-
+JNIEXPORT jboolean ZIP_InflateFully(void *inBuf, jlong inLen, void *outBuf, jlong outLen,
+                                    char **pmsg);
 #endif /* !_ZIP_H_ */

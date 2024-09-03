@@ -35,14 +35,30 @@
 #include <zlib.h>
 
 #include "java_util_zip_Deflater.h"
+#include "jvm.h"
 
 #define DEF_MEM_LEVEL 8
+
+arena_t deflate_arena;
+
+/* Function prototypes must exactly match zalloc and zfree. */
+static voidpf local_allocation(voidpf opaque, uInt items, uInt size) {
+  return JVM_ArenaCalloc(items, size, deflate_arena);
+}
+
+static void local_deallocation(voidpf opaque, voidpf address) {
+  JVM_ArenaFree(address);
+}
 
 JNIEXPORT jlong JNICALL
 Java_java_util_zip_Deflater_init(JNIEnv *env, jclass cls, jint level,
                                  jint strategy, jboolean nowrap)
 {
-    z_stream *strm = calloc(1, sizeof(z_stream));
+    deflate_arena = JVM_MakeArena("java.util.zip.Deflater");
+    z_stream *strm = JVM_ArenaCalloc(1, sizeof(z_stream), deflate_arena);
+    strm->zalloc = local_allocation;
+    strm->zfree = local_deallocation;
+    strm->opaque = (voidpf) NULL;
 
     if (strm == 0) {
         JNU_ThrowOutOfMemoryError(env, 0);
@@ -56,11 +72,11 @@ Java_java_util_zip_Deflater_init(JNIEnv *env, jclass cls, jint level,
           case Z_OK:
             return ptr_to_jlong(strm);
           case Z_MEM_ERROR:
-            free(strm);
+            JVM_ArenaFree(strm);
             JNU_ThrowOutOfMemoryError(env, 0);
             return jlong_zero;
           case Z_STREAM_ERROR:
-            free(strm);
+            JVM_ArenaFree(strm);
             JNU_ThrowIllegalArgumentException(env, 0);
             return jlong_zero;
           default:
@@ -69,7 +85,7 @@ Java_java_util_zip_Deflater_init(JNIEnv *env, jclass cls, jint level,
                    "zlib returned Z_VERSION_ERROR: "
                    "compile time and runtime zlib implementations differ" :
                    "unknown error initializing zlib library");
-            free(strm);
+            JVM_ArenaFree(strm);
             JNU_ThrowInternalError(env, msg);
             return jlong_zero;
         }
@@ -306,6 +322,6 @@ Java_java_util_zip_Deflater_end(JNIEnv *env, jclass cls, jlong addr)
     if (deflateEnd((z_stream *)jlong_to_ptr(addr)) == Z_STREAM_ERROR) {
         JNU_ThrowInternalError(env, "deflateEnd failed");
     } else {
-        free((z_stream *)jlong_to_ptr(addr));
+      JVM_ArenaFree((z_stream *)jlong_to_ptr(addr));
     }
 }

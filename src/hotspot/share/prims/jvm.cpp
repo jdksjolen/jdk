@@ -54,6 +54,7 @@
 #include "memory/referenceType.hpp"
 #include "memory/resourceArea.hpp"
 #include "memory/universe.hpp"
+#include "nmt/nativelibs.hpp"
 #include "oops/access.inline.hpp"
 #include "oops/constantPool.hpp"
 #include "oops/fieldStreams.inline.hpp"
@@ -104,6 +105,8 @@
 #include "utilities/macros.hpp"
 #include "utilities/utf8.hpp"
 #include "utilities/zipLibrary.hpp"
+#include <cstdint>
+#include <limits>
 #if INCLUDE_CDS
 #include "classfile/systemDictionaryShared.hpp"
 #endif
@@ -4003,3 +4006,34 @@ JVM_END
 JVM_LEAF(jboolean, JVM_PrintWarningAtDynamicAgentLoad(void))
   return (EnableDynamicAgentLoading && !FLAG_IS_CMDLINE(EnableDynamicAgentLoading)) ? JNI_TRUE : JNI_FALSE;
 JVM_END
+
+
+JNIEXPORT arena_t JNICALL
+JVM_MakeArena(const char *name) {
+  arena_t a{nmt_native::make_arena(name)};
+  return a;
+}
+
+JNIEXPORT void* JNICALL
+JVM_ArenaAlloc(size_t size, arena_t arena) {
+  return nmt_native::arena_alloc(arena.allocator_info_handle, size);
+}
+
+JNIEXPORT void* JNICALL
+JVM_ArenaRealloc(void *p, size_t size, arena_t a) {
+  return nullptr;
+}
+
+JNIEXPORT void* JNICALL
+JVM_ArenaCalloc(size_t numelems, size_t elemsize, arena_t a) {
+  if (std::numeric_limits<size_t>::max() / elemsize < numelems) {
+    return nullptr;
+  }
+  size_t total_size = numelems * elemsize;
+  return nmt_native::arena_alloc(a.allocator_info_handle, total_size);
+}
+
+JNIEXPORT void JNICALL
+JVM_ArenaFree(void* ptr) {
+  nmt_native::arena_free(ptr);
+}

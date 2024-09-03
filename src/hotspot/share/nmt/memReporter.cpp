@@ -29,6 +29,7 @@
 #include "nmt/memflags.hpp"
 #include "nmt/memReporter.hpp"
 #include "nmt/memoryFileTracker.hpp"
+#include "nmt/nativelibs.hpp"
 #include "nmt/threadStackTracker.hpp"
 #include "nmt/virtualMemoryTracker.hpp"
 #include "utilities/debug.hpp"
@@ -144,6 +145,11 @@ void MemReporterBase::print_virtual_memory_region(const char* type, address base
 
 void MemSummaryReporter::report() {
   outputStream* out = output();
+  auto m = nmt_native::nmt_native_map();
+  for (int i = 0; i < m->entries.length(); i++) {
+    auto e = m->entries.at(i);
+    out->print_cr("%s, " SIZE_FORMAT " " SIZE_FORMAT, e.name, e.counter.size(), e.counter.peak_size());
+  }
   const size_t total_malloced_bytes = _malloc_snapshot->total();
   const size_t total_mmap_reserved_bytes = _vm_snapshot->total_reserved();
   const size_t total_mmap_committed_bytes = _vm_snapshot->total_committed();
