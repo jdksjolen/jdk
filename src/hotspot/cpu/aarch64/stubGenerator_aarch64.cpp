@@ -2130,7 +2130,7 @@ class StubGenerator: public StubCodeGenerator {
     __ cbz(size, L_exit);
 
     // Set up bit pattern
-    __ andr(byte_value, byte_value, 0xFF); // Ensure only first 8 bits are set
+    __ andr(byte_value, byte_value, 0xFF); // Ensure we only have 1 byte in register.
     __ mov(wide_value, 0x0101010101010101ULL);
     __ mul(wide_value, wide_value, byte_value);
 
