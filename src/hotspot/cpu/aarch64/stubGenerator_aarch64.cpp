@@ -2163,7 +2163,17 @@ class StubGenerator: public StubCodeGenerator {
     unsigned int cacheline_size = 64;
     unsigned int cacheline_pow2 = 6;
 
-    auto generate_loop = [&](unsigned char store_size, auto store_fun) {
+    auto generate_loop = [&](unsigned char store_size) {
+       auto [&] store() {
+        if (store_size == 8) {
+          __ str(wide_value, Address(__ post(array, store_size)));
+        } else if (store_size == 4) {
+          __ strw(wide_value, Address(__ post(array, store_size)));
+        } else {
+          assert(store_size == 2, "must be");
+          __ strh(wide_value, Address(__ post(array, store_size)));
+        }
+      };
       Label L_loop;
       Label L_tailloop;
 
@@ -2177,12 +2187,12 @@ class StubGenerator: public StubCodeGenerator {
       __ br(Assembler::EQ, L_tailloop);
       // Generate a cacheline worth of stores
       for (unsigned int i = 0; i < cacheline_size/store_size; i++) {
-        store_fun(wide_value, Address(__ post(array, store_size)));
+        store();
       }
       __ b(L_loop);
 
       __ bind(L_tailloop);
-      store_fun(wide_value, Address(__ post(array, store_size)));
+      store();
       __ cmp(array, end_of_array);
       __ br(Assembler::NE, L_tailloop);
       __ b(L_exit);
@@ -2191,19 +2201,19 @@ class StubGenerator: public StubCodeGenerator {
     __ bind(L_8byte);
     {
       UnsafeMemoryAccessMark umam(this, true, true);
-      generate_loop(8, __ str);
+      generate_loop(8);
     }
     __ bind(L_4byte);
     {
       UnsafeMemoryAccessMark umam(this, true, true);
-      generate_loop(4, __ strw);
+      generate_loop(4);
     }
     __ bind(L_2byte);
     {
       UnsafeMemoryAccessMark umam(this, true, true);
       // Clear upper 16-bits of wide_value
       __ andr(wide_value, wide_value, 0xFFFF);
-      generate_loop(2, __ strh);
+      generate_loop(2);
     }
     __ bind(L_exit);
     __ leave();
