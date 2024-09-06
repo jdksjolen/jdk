@@ -2163,12 +2163,12 @@ class StubGenerator: public StubCodeGenerator {
     unsigned int cacheline_size = 64;
     unsigned int cacheline_pow2 = 6;
 
-    auto generate_loop = [&](unsigned char store_size, void (*store_fun)(const Register&, Address)) {
+    auto generate_loop = [&](unsigned char store_size, auto store_fun) {
       Label L_loop;
       Label L_tailloop;
 
       __ str(num_chunks, size);
-      __ lsr(num_chunks, cacheline_pow2);
+      __ lsr(num_chunks, num_chunks, cacheline_pow2);
       __ add(end_of_array, array, size);
 
       __ bind(L_loop);
