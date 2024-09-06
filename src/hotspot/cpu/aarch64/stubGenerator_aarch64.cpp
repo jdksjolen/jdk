@@ -2164,14 +2164,14 @@ class StubGenerator: public StubCodeGenerator {
     unsigned int cacheline_pow2 = 6;
 
     auto generate_loop = [&](unsigned char store_size) {
-       auto store = [&]() {
+      auto store = [&](unsigned char offset, bool post) {
         if (store_size == 8) {
-          __ str(wide_value, Address(__ post(array, store_size)));
+          __ str(wide_value, post ? Address(__ post(array, offset)) : Address(array,  offset));
         } else if (store_size == 4) {
-          __ strw(wide_value, Address(__ post(array, store_size)));
+          __ strw(wide_value, post ? Address(__ post(array, offset)) : Address(array,  offset));
         } else {
           assert(store_size == 2, "must be");
-          __ strh(wide_value, Address(__ post(array, store_size)));
+          __ strh(wide_value, post ? Address(__ post(array, offset)) : Address(array,  offset));
         }
       };
       Label L_loop;
@@ -2185,14 +2185,14 @@ class StubGenerator: public StubCodeGenerator {
       // Do we have at least a cacheline of stores worth?
       __ cmp(num_chunks, (unsigned char)0);
       __ br(Assembler::EQ, L_tailloop);
-      // Generate a cacheline worth of stores
+      // Generate a cacheline worth of independent stores
       for (unsigned int i = 0; i < cacheline_size/store_size; i++) {
-        store();
+        store(i*store_size, false);
       }
       __ b(L_loop);
 
       __ bind(L_tailloop);
-      store();
+      store(store_size, true);
       __ cmp(array, end_of_array);
       __ br(Assembler::NE, L_tailloop);
       __ b(L_exit);
