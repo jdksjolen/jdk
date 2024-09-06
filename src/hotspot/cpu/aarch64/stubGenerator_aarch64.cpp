@@ -2164,7 +2164,7 @@ class StubGenerator: public StubCodeGenerator {
     unsigned int cacheline_pow2 = 6;
 
     auto generate_loop = [&](unsigned char store_size) {
-       auto [&] store() {
+       auto store = [&]() {
         if (store_size == 8) {
           __ str(wide_value, Address(__ post(array, store_size)));
         } else if (store_size == 4) {
