@@ -2160,10 +2160,10 @@ class StubGenerator: public StubCodeGenerator {
     Register end_of_array = size;
     // We are done with the align_reg, it'll instead hold the number of 64-byte chunks
     Register num_chunks = align_reg;
-    const size_t cacheline_size = 64;
-    const size_t cacheline_pow2 = 6;
+    unsigned int cacheline_size = 64;
+    unsigned int cacheline_pow2 = 6;
 
-    auto generate_loop = [&](unsigned char store_size, void (*store_fun)(Register&, Address)) {
+    auto generate_loop = [&](unsigned char store_size, void (*store_fun)(const Register&, Address)) {
       Label L_loop;
       Label L_tailloop;
 
@@ -2176,7 +2176,7 @@ class StubGenerator: public StubCodeGenerator {
       __ cmp(num_chunks, (unsigned char)0);
       __ br(Assembler::EQ, L_tailloop);
       // Generate a cacheline worth of stores
-      for (int i = 0; i < cacheline_size/store_size; i++) {
+      for (unsigned int i = 0; i < cacheline_size/store_size; i++) {
         store_fun(wide_value, Address(__ post(array, store_size)));
       }
       __ b(L_loop);
