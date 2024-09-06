@@ -2145,6 +2145,7 @@ class StubGenerator: public StubCodeGenerator {
     __ tst(align_reg, 1);
     __ br(Assembler::EQ, L_2byte);
     // Single-byte fill
+    // TODO: Swap to _jbyte_fill as in x64 intrinsic
     {
       UnsafeMemoryAccessMark umam(this, true, true);
       Label L_loop;
@@ -2155,42 +2156,54 @@ class StubGenerator: public StubCodeGenerator {
       __ br(Assembler::NE, L_loop);
       __ b(L_exit);
     }
+    // We are done with the size register, it'll instead hold the end of array.
+    Register end_of_array = size;
+    // We are done with the align_reg, it'll instead hold the number of 64-byte chunks
+    Register num_chunks = align_reg;
+    const size_t cacheline_size = 64;
+    const size_t cacheline_pow2 = 6;
+
+    auto generate_loop = [&](size_t store_size, auto store_fun) {
+      Label L_loop;
+      Label L_tailloop;
+
+      __ str(num_chunks, size);
+      __ lsr(num_chunks, cacheline_pow2);
+      __ add(end_of_array, array, size);
+
+      __ bind(L_loop);
+      // Do we have at least a cacheline of stores worth?
+      __ cmp(num_chunks, 0);
+      __ br(Assembler::EQ, L_tailloop);
+      // Generate a cacheline worth of stores
+      for (int i = 0; i < cacheline_size/store_size; i++) {
+        store_fun(wide_value, Address(__ post(array, store_size)));
+      }
+      __ b(L_loop);
+
+      __ bind(L_tailloop);
+      store_fun(wide_value, Address(__ post(array, store_size)));
+      __ cmp(array, end_of_array);
+      __ br(Assembler::NE, L_tailloop);
+      __ b(L_exit);
+    };
 
     __ bind(L_8byte);
     {
       UnsafeMemoryAccessMark umam(this, true, true);
-      Label L_loop;
-      __ add(size, array, size); // Replace size with end of array
-      __ bind(L_loop);
-      // *array = wide_value; array += 8;
-      __ str(wide_value, Address(__ post(array, 8)));
-      __ cmp(array, size); // Are we at the end?
-      __ br(Assembler::NE, L_loop);
-      __ b(L_exit);
+      generate_loop(8, __ str);
     }
     __ bind(L_4byte);
     {
       UnsafeMemoryAccessMark umam(this, true, true);
-      Label L_loop;
-      __ add(size, array, size);
-      __ bind(L_loop);
-      __ strw(wide_value, Address(__ post(array, 4)));
-      __ cmp(array, size);
-      __ br(Assembler::NE, L_loop);
-      __ b(L_exit);
+      generate_loop(4, __ strw);
     }
     __ bind(L_2byte);
     {
       UnsafeMemoryAccessMark umam(this, true, true);
-      Label L_loop;
       // Clear upper 16-bits of wide_value
       __ andr(wide_value, wide_value, 0xFFFF);
-      __ add(size, array, size);
-      __ bind(L_loop);
-      __ strh(wide_value, Address(__ post(array, 2)));
-      __ cmp(array, size);
-      __ br(Assembler::NE, L_loop);
-      __ b(L_exit);
+      generate_loop(2, __ strh);
     }
     __ bind(L_exit);
     __ leave();
