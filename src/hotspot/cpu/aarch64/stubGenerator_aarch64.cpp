@@ -2163,7 +2163,7 @@ class StubGenerator: public StubCodeGenerator {
     const size_t cacheline_size = 64;
     const size_t cacheline_pow2 = 6;
 
-    auto generate_loop = [&](size_t store_size, auto store_fun) {
+    auto generate_loop = [&](unsigned char store_size, void (*store_fun)(Register&, Address)) {
       Label L_loop;
       Label L_tailloop;
 
@@ -2173,7 +2173,7 @@ class StubGenerator: public StubCodeGenerator {
 
       __ bind(L_loop);
       // Do we have at least a cacheline of stores worth?
-      __ cmp(num_chunks, 0);
+      __ cmp(num_chunks, (unsigned char)0);
       __ br(Assembler::EQ, L_tailloop);
       // Generate a cacheline worth of stores
       for (int i = 0; i < cacheline_size/store_size; i++) {
