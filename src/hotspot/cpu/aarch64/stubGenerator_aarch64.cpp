@@ -2156,9 +2156,14 @@ class StubGenerator: public StubCodeGenerator {
       assert(store_size == 2 || store_size == 4 || store_size == 8, "must be");
       // Unroll into 4 stores, first find size of each loop unrolling.
       unsigned int loop_unroll_size = 32; // number of bytes stored for each unrolled loop.
-      unsigned int loop_unroll_exponent = 5;  // log_2(64) = 6
-      if (store_size == 4) loop_unroll_size = 16; loop_unroll_exponent = 4;
-      if (store_size == 2) loop_unroll_size = 8; loop_unroll_exponent = 3;
+      unsigned int loop_unroll_exponent = 5;  // log_2(32) = 6
+      if (store_size == 4) {
+        loop_unroll_size = 16;
+        loop_unroll_exponent = 4;
+      } else if (store_size == 2) {
+        loop_unroll_size = 8;
+        loop_unroll_exponent = 3;
+      }
 
       // Generate a store depending on store_size provided to generate_loop.
       auto store = [&](Address address) {
