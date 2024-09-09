@@ -2183,7 +2183,7 @@ class StubGenerator: public StubCodeGenerator {
       Label L_loop;
       Label L_tailloop;
 
-      __ str(num_chunks, size);
+      __ mov(num_chunks, size);
       __ lsr(num_chunks, num_chunks, cacheline_pow2);
       __ add(end_of_array, array, size);
 
