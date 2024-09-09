@@ -2160,20 +2160,24 @@ class StubGenerator: public StubCodeGenerator {
     Register end_of_array = size;
     // We are done with the align_reg, it'll instead hold the number of 64-byte chunks
     Register num_chunks = align_reg;
-    unsigned int cacheline_size = 64;
-    unsigned int cacheline_pow2 = 6;
 
+    // Generate an unrolled loop plus tail loop depending on the number of bytes per store.
     auto generate_loop = [&](unsigned char store_size) {
-      auto store = [&](unsigned char offset, bool post) {
+      unsigned int cacheline_size = 64; // number of bytes in cache line
+      unsigned int cacheline_pow2 = 6;  // log_2(64) = 6
+
+      // Generate a store depending on store_size provided to generate_loop.
+      auto store = [&](Address address) {
         if (store_size == 8) {
-          __ str(wide_value, post ? Address(__ post(array, offset)) : Address(array,  offset));
+          __ str(wide_value, address);
         } else if (store_size == 4) {
-          __ strw(wide_value, post ? Address(__ post(array, offset)) : Address(array,  offset));
+          __ strw(wide_value, address);
         } else {
           assert(store_size == 2, "must be");
-          __ strh(wide_value, post ? Address(__ post(array, offset)) : Address(array,  offset));
+          __ strh(wide_value, address);
         }
       };
+
       Label L_loop;
       Label L_tailloop;
 
@@ -2181,21 +2185,26 @@ class StubGenerator: public StubCodeGenerator {
       __ lsr(num_chunks, num_chunks, cacheline_pow2);
       __ add(end_of_array, array, size);
 
-      __ bind(L_loop);
       // Do we have at least a cacheline of stores worth?
       __ cmp(num_chunks, (unsigned char)0);
       __ br(Assembler::EQ, L_tailloop);
+
+      __ bind(L_loop);
       // Generate a cacheline worth of independent stores
       for (unsigned int i = 0; i < cacheline_size/store_size; i++) {
-        store(i*store_size, false);
+        store(Address(array, i*store_size));
       }
+      __ add(array, array, cacheline_size);
+      __ sub(num_chunks, num_chunks, 1);
+      __ cmp(num_chunks, (unsigned char)0);
+      __ br(Assembler::EQ, L_tailloop);
       __ b(L_loop);
 
       __ bind(L_tailloop);
-      store(store_size, true);
       __ cmp(array, end_of_array);
-      __ br(Assembler::NE, L_tailloop);
-      __ b(L_exit);
+      __ br(Assembler::EQ, L_exit);
+      store(Address(__ post(array, store_size));
+      __ b(L_tailloop);
     };
 
     __ bind(L_8byte);
