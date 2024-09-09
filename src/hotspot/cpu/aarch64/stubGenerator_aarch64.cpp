@@ -2144,20 +2144,22 @@ class StubGenerator: public StubCodeGenerator {
     __ br(Assembler::EQ, L_4byte);
     __ tst(align_reg, 1);
     __ br(Assembler::EQ, L_2byte);
+
+    // We are done with the size register, it'll instead hold the end of array.
+    Register end_of_array = size;
+
     // Single-byte fill
     // TODO: Swap to _jbyte_fill as in x64 intrinsic
     {
       UnsafeMemoryAccessMark umam(this, true, true);
       Label L_loop;
-      __ add(size, size, array);
+      __ add(end_of_array, size, array);
       __ bind(L_loop);
       __ strb(wide_value, Address(__ post(array, 1)));
-      __ cmp(array, size); // Are we at the end?
+      __ cmp(array, end_of_array); // Are we at the end?
       __ br(Assembler::NE, L_loop);
       __ b(L_exit);
     }
-    // We are done with the size register, it'll instead hold the end of array.
-    Register end_of_array = size;
     // We are done with the align_reg, it'll instead hold the number of 64-byte chunks
     Register num_chunks = align_reg;
 
@@ -2224,6 +2226,7 @@ class StubGenerator: public StubCodeGenerator {
       __ andr(wide_value, wide_value, 0xFFFF);
       generate_loop(2);
     }
+
     __ bind(L_exit);
     __ leave();
     __ ret(lr);
