@@ -2203,7 +2203,7 @@ class StubGenerator: public StubCodeGenerator {
       __ bind(L_tailloop);
       __ cmp(array, end_of_array);
       __ br(Assembler::EQ, L_exit);
-      store(Address(__ post(array, store_size));
+      store(Address(__ post(array, store_size)));
       __ b(L_tailloop);
     };
 
