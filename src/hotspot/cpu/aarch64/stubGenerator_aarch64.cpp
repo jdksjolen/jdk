@@ -2176,9 +2176,10 @@ class StubGenerator: public StubCodeGenerator {
         }
       };
 
-      Label L_loop;
+      // Label L_loop;
       Label L_tailloop;
 
+      /*
       __ mov(num_chunks, size);
       __ lsr(num_chunks, num_chunks, loop_unroll_exponent);
       __ add(end_of_array, array, size);
@@ -2197,7 +2198,7 @@ class StubGenerator: public StubCodeGenerator {
       __ cmp(num_chunks, (unsigned char)0);
       __ br(Assembler::EQ, L_tailloop);
       __ b(L_loop);
-
+       */
       __ bind(L_tailloop);
       __ cmp(array, end_of_array);
       __ br(Assembler::EQ, L_exit);
