@@ -2148,27 +2148,61 @@ class StubGenerator: public StubCodeGenerator {
 
     // We are done with the size register, it'll instead hold the end of array.
     Register end_of_array = size;
+    // We are done with the align_reg, it'll instead hold the number of 64-byte chunks
+    Register num_chunks = align_reg;
 
     // Generate an unrolled loop plus tail loop depending on the number of bytes per store.
     auto generate_loop = [&](unsigned char store_size) {
       assert(store_size == 2 || store_size == 4 || store_size == 8, "must be");
+      // Unroll into 8 stores, first find size of each loop unrolling.
+      unsigned int loop_unroll_size = 8*8; // number of bytes stored for each unrolled loop.
+      unsigned int loop_unroll_exponent = 6;  // log_2(64) = 6
+      if (store_size == 4) {
+        loop_unroll_size = 32;
+        loop_unroll_exponent = 5;
+      } else if (store_size == 2) {
+        loop_unroll_size = 16;
+        loop_unroll_exponent = 4;
+      }
 
+      // Generate a store depending on store_size provided to generate_loop.
+      auto store = [&](Address address) {
+        if (store_size == 8) {
+          __ str(wide_value, address);
+        } else if (store_size == 4) {
+          __ strw(wide_value, address);
+        } else {
+          __ strh(wide_value, address);
+        }
+      };
 
       Label L_loop;
+      Label L_tailloop;
+
+      __ mov(num_chunks, size);
+      __ lsr(num_chunks, num_chunks, loop_unroll_exponent);
       __ add(end_of_array, array, size);
 
+      // Do we have at least 1 unrolled loop worth of stores?
+      __ cmp(num_chunks, (unsigned char)0);
+      __ br(Assembler::EQ, L_tailloop);
+
       __ bind(L_loop);
-      // Generate a store depending on store_size provided to generate_loop.
-      if (store_size == 8) {
-        __ str(wide_value, Address(__ post(array, store_size)));
-      } else if (store_size == 4) {
-        __ strw(wide_value, Address(__ post(array, store_size)));
-      } else {
-        __ strh(wide_value, Address(__ post(array, store_size)));
+
+      for (unsigned int i = 0; i < loop_unroll_size/store_size; i++) {
+        store(Address(array, i*store_size));
       }
+      __ add(array, array, loop_unroll_size);
+      __ sub(num_chunks, num_chunks, 1);
+      __ cmp(num_chunks, (unsigned char)0);
+      __ br(Assembler::EQ, L_tailloop);
+      __ b(L_loop);
+
+      __ bind(L_tailloop);
       __ cmp(array, end_of_array);
       __ br(Assembler::EQ, L_exit);
-      __ b(L_loop);
+      store(Address(__ post(array, store_size)));
+      __ b(L_tailloop);
     };
 
     __ bind(L_8byte);
@@ -2184,7 +2218,7 @@ class StubGenerator: public StubCodeGenerator {
     __ bind(L_2byte);
     {
       UnsafeMemoryAccessMark umam(this, true, true);
-      // Keep only 16 bits of the wide_value
+      // Clear upper 16-bits of wide_value
       __ andr(wide_value, wide_value, 0xFFFF);
       generate_loop(2);
     }
