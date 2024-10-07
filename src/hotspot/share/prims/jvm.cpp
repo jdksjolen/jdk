@@ -3432,7 +3432,6 @@ JVM_LEAF(void*, JVM_FindLibraryEntry(void* handle, const char* name))
 JVM_END
 
 
-
 // JNI version ///////////////////////////////////////////////////////////////////////////////
 
 JVM_LEAF(jboolean, JVM_IsSupportedJNIVersion(jint version))

@@ -39,10 +39,11 @@
 
 #define DEF_MEM_LEVEL 8
 
+arena_t deflate_arena;
+
 /* Function prototypes must exactly match zalloc and zfree. */
 static voidpf local_allocation(voidpf opaque, uInt items, uInt size) {
-  arena_t a = JVM_MakeArena("java.util.zip.Deflater");
-  return JVM_ArenaCalloc(items, size, a);
+  return JVM_ArenaCalloc(items, size, deflate_arena);
 }
 
 static void local_deallocation(voidpf opaque, voidpf address) {
@@ -53,8 +54,8 @@ JNIEXPORT jlong JNICALL
 Java_java_util_zip_Deflater_init(JNIEnv *env, jclass cls, jint level,
                                  jint strategy, jboolean nowrap)
 {
-    arena_t a = JVM_MakeArena("java.util.zip.Deflater");
-    z_stream *strm = JVM_ArenaCalloc(1, sizeof(z_stream), a);
+    deflate_arena = JVM_MakeArena("java.util.zip.Deflater");
+    z_stream *strm = JVM_ArenaCalloc(1, sizeof(z_stream), deflate_arena);
     strm->zalloc = local_allocation;
     strm->zfree = local_deallocation;
     strm->opaque = (voidpf) NULL;

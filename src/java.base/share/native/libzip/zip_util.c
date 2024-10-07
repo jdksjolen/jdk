@@ -78,7 +78,7 @@ static jint INITIAL_META_COUNT = 2;   /* initial number of entries in meta name 
 DEF_STATIC_JNI_OnLoad
 #endif
 
-    /* Zip Arena */
+/* Zip Arena */
 arena_t zip_arena = {.allocator_info_handle = -1 };
 const char* arena_name = "java.util.zip";
 arena_t arena() {

@@ -393,7 +393,8 @@ JVM_SetPrimitiveArrayElement(JNIEnv *env, jobject arr, jint index, jvalue v,
 JNIEXPORT jobject JNICALL
 JVM_NewArray(JNIEnv *env, jclass eltClass, jint length);
 
-JNIEXPORT jobject JNICALL JVM_NewMultiArray(JNIEnv *env, jclass eltClass, jintArray dim);
+JNIEXPORT jobject JNICALL
+JVM_NewMultiArray(JNIEnv *env, jclass eltClass, jintArray dim);
 
 
 /*
