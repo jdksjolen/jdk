@@ -22,7 +22,8 @@ arena_index make_arena(const char* name) {
 }
 void* arena_alloc(arena_index a, size_t size) {
   if (!initialized) return raw_malloc(size);
-  nmt_string_map::header* outer_ptr = (nmt_string_map::header*)nmt_native::raw_malloc(size + sizeof(nmt_string_map::header));
+  nmt_string_map::header* outer_ptr =
+      (nmt_string_map::header*)nmt_native::raw_malloc(size + sizeof(nmt_string_map::header));
   if (outer_ptr != nullptr) {
     nmt_string_map::entry& e = string_map->entries.at(a);
     e.counter.allocate(size);
