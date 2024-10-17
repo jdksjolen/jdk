@@ -64,7 +64,7 @@ void MemTracker::initialize() {
 
   // Memory type is encoded into tracking header as a byte field,
   // make sure that we don't overflow it.
-  STATIC_ASSERT(mt_number_of_types <= max_jubyte);
+  STATIC_ASSERT(mt_number_of_tags <= max_jubyte);
 
   nmt_native::nmt_native_initialize();
   if (level > NMT_off) {
