@@ -97,12 +97,6 @@ inline const MallocHeader* MallocHeader::resolve_checked(const void* memblock) {
   return MallocHeader::resolve_checked_impl<const void*, const MallocHeader*>(memblock);
 }
 
-
-// Used for debugging purposes only. Check header if it could constitute a valid header.
-inline bool MallocHeader::looks_valid() const {
-  return _size > 0 && _size < max_reasonable_malloc_size;
-}
-
 inline bool MallocHeader::check_block_integrity(char* msg, size_t msglen, address* p_corruption) const {
   // Note: if you modify the error messages here, make sure you
   // adapt the associated gtests too.

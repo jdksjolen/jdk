@@ -112,9 +112,6 @@ public:
     return FreeInfo{this->size(), this->mem_tag(), this->mst_marker()};
   }
 
-  // Used for debugging purposes only. Check header if it could constitute a valid header.
-  inline bool looks_valid() const;
-
   // If block is broken, fill in a short descriptive text in out,
   // an option pointer to the corruption in p_corruption, and return false.
   // Return true if block is fine.
