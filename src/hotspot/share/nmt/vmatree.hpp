@@ -27,6 +27,7 @@
 #define SHARE_NMT_VMATREE_HPP
 
 #include "nmt/memTag.hpp"
+#include "nmt/vmtCommon.hpp"
 #include "nmt/nmtNativeCallStackStorage.hpp"
 #include "nmt/nmtTreap.hpp"
 #include "runtime/os.hpp"
@@ -195,26 +196,26 @@ public:
   };
 
  private:
-  void register_mapping(position A, position B, StateType state, const RegionData& metadata, SummaryDiff& diff, bool use_tag_inplace = false);
+  void register_mapping(position A, position B, StateType state, const RegionData& metadata, VirtualMemorySnapshot& diff, bool use_tag_inplace = false);
 
  public:
-  void reserve_mapping(position from, position sz, const RegionData& metadata, SummaryDiff& diff) {
+  void reserve_mapping(position from, position sz, const RegionData& metadata, VirtualMemorySnapshot& diff) {
     register_mapping(from, from + sz, StateType::Reserved, metadata, diff, false);
   }
 
-  void commit_mapping(position from, position sz, const RegionData& metadata, SummaryDiff& diff, bool use_tag_inplace = false) {
+  void commit_mapping(position from, position sz, const RegionData& metadata, VirtualMemorySnapshot& diff, bool use_tag_inplace = false) {
     register_mapping(from, from + sz, StateType::Committed, metadata, diff, use_tag_inplace);
   }
 
-  void uncommit_mapping(position from, position sz, const RegionData& metadata, SummaryDiff& diff) {
+  void uncommit_mapping(position from, position sz, const RegionData& metadata, VirtualMemorySnapshot& diff) {
     register_mapping(from, from + sz, StateType::Reserved, metadata, diff, true);
   }
 
-  void release_mapping(position from, position sz, SummaryDiff& diff) {
+  void release_mapping(position from, position sz, VirtualMemorySnapshot& diff) {
     register_mapping(from, from + sz, StateType::Released, VMATree::empty_regiondata, diff);
   }
 
-  SummaryDiff set_tag(position from, size_t sz, MemTag mem_tag) {
+  void set_tag(position from, size_t sz, MemTag mem_tag, VirtualMemorySnapshot& diff) {
     VMATreap::Range rng = _tree.find_enclosing_range(from);
     assert(rng.start != nullptr && rng.end != nullptr,
            "Setting a flag must be done within existing range");
@@ -222,13 +223,12 @@ public:
     RegionData old_data = rng.start->val().out.regiondata();
     RegionData new_data = RegionData(old_data.stack_idx, mem_tag);
     position end = MIN2(from+sz, rng.end->key());
-    SummaryDiff diff;
     register_mapping(from, end, type, new_data, diff);
 
     if (end < from+sz) {
-      return diff.apply(set_tag(end, sz - (end - from), mem_tag));
+      return set_tag(end, sz - (end - from), mem_tag, diff);
     }  else {
-      return diff;
+      return;
     }
   }
 

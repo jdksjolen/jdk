@@ -23,6 +23,7 @@
  */
 #include "precompiled.hpp"
 #include "nmt/regionsTree.hpp"
+#include "nmt/vmtCommon.hpp"
 
 ReservedMemoryRegion RegionsTree::find_reserved_region(address addr) {
     ReservedMemoryRegion rmr;
@@ -37,11 +38,11 @@ ReservedMemoryRegion RegionsTree::find_reserved_region(address addr) {
     return rmr;
 }
 
-void RegionsTree::commit_region(address addr, size_t size, VMATree::SummaryDiff& diff, const NativeCallStack& stack) {
+void RegionsTree::commit_region(address addr, size_t size, VirtualMemorySnapshot& diff, const NativeCallStack& stack) {
   commit_mapping((VMATree::position)addr, size, make_region_data(stack, mtNone), diff, /*use tag inplace*/ true);
 }
 
-void RegionsTree::uncommit_region(address addr, size_t size, VMATree::SummaryDiff& diff) {
+void RegionsTree::uncommit_region(address addr, size_t size, VirtualMemorySnapshot& diff) {
   uncommit_mapping((VMATree::position)addr, size, make_region_data(NativeCallStack::empty_stack(), mtNone), diff);
 }
 
