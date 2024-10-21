@@ -34,13 +34,15 @@ const char* VMATree::statetype_strings[3] = {
   "reserved", "committed", "released",
 };
 
-VMATree::SummaryDiff VMATree::register_mapping(position A, position B, StateType state,
-                                               const RegionData& metadata, bool use_tag_inplace) {
+void VMATree::register_mapping(position A, position B, StateType state,
+                                               const RegionData& metadata,
+                                               VirtualMemorySummary& diff,
+                                               bool use_tag_inplace) {
   assert(!use_tag_inplace || metadata.mem_tag == mtNone,
          "If using use_tag_inplace, then the supplied tag should be mtNone, was instead: %s", NMTUtil::tag_to_name(metadata.mem_tag));
   if (A == B) {
     // A 0-sized mapping isn't worth recording.
-    return SummaryDiff();
+    return;
   }
 
   IntervalChange stA{
@@ -136,16 +138,15 @@ VMATree::SummaryDiff VMATree::register_mapping(position A, position B, StateType
   VMATreap::node_pair b = _tree.split(a.right, B, VMATreap::SplitMode::LT);
   TreapNode* a_b_range = b.left;
 
-  SummaryDiff diff;
   if (a_b_range == nullptr && LEQ_A_found) {
     // We must have smashed a hole in an existing region (or replaced it entirely).
     // LEQ_A < A < B <= C
-    SingleDiff& rescom = diff.tag[NMTUtil::tag_to_index(LEQ_A.out().mem_tag())];
+    VirtualMemory* rescom = diff.by_tag(LEQ_A.out().mem_tag());
     if (LEQ_A.out().type() == StateType::Reserved) {
-      rescom.reserve -= B - A;
+      rescom->release_memory(B - A);
     } else if (LEQ_A.out().type() == StateType::Committed) {
-      rescom.commit -= B - A;
-      rescom.reserve -= B - A;
+      rescom->uncommit_memory(B - A);
+      rescom->release_memory(B - A);
     }
   }
 
@@ -156,12 +157,12 @@ VMATree::SummaryDiff VMATree::register_mapping(position A, position B, StateType
   VMATreap::visit_in_order(a_b_range, _worklist, [&](TreapNode* head) {
     AddressState current{head->key(), head->val()};
     // Perform summary accounting
-    SingleDiff& rescom = diff.tag[NMTUtil::tag_to_index(current.in().mem_tag())];
+    VirtualMemory* rescom = diff.by_tag(current.in().mem_tag());
     if (current.in().type() == StateType::Reserved) {
-      rescom.reserve -= current.address - prev.address;
+      rescom->release_memory(current.address - prev.address);
     } else if (current.in().type() == StateType::Committed) {
-      rescom.commit -= current.address - prev.address;
-      rescom.reserve -= current.address - prev.address;
+      rescom->uncommit_memory(current.address - prev.address);
+      rescom->release_memory(current.address - prev.address);
     }
     prev = current;
     return true;
@@ -201,22 +202,22 @@ VMATree::SummaryDiff VMATree::register_mapping(position A, position B, StateType
     // A - prev - B - (some node >= B)
     // It might be that prev.address == B == (some node >= B), this is fine.
     if (prev.out().type() == StateType::Reserved) {
-      SingleDiff& rescom = diff.tag[NMTUtil::tag_to_index(prev.out().mem_tag())];
-      rescom.reserve -= B - prev.address;
+      VirtualMemory* rescom = diff.by_tag(prev.out().mem_tag());
+      rescom->release_memory(B - prev.address);
     } else if (prev.out().type() == StateType::Committed) {
-      SingleDiff& rescom = diff.tag[NMTUtil::tag_to_index(prev.out().mem_tag())];
-      rescom.commit -= B - prev.address;
-      rescom.reserve -= B - prev.address;
+      VirtualMemory* rescom = diff.by_tag(prev.out().mem_tag());
+      rescom->uncommit_memory(B - prev.address);
+      rescom->release_memory(B - prev.address);
     }
   }
 
   // Finally, we can register the new region [A, B)'s summary data.
-  SingleDiff& rescom = diff.tag[NMTUtil::tag_to_index(metadata.mem_tag)];
+  VirtualMemory* rescom = diff.by_tag(tag_to_change);
   if (state == StateType::Reserved) {
-    rescom.reserve += B - A;
+    rescom->reserve_memory(B - A);
   } else if (state == StateType::Committed) {
-    rescom.commit += B - A;
-    rescom.reserve += B - A;
+    rescom->reserve_memory(B - A);
+    rescom->commit_memory(B - A);
   }
   return diff;
 }
