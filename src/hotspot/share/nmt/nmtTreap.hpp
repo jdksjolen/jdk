@@ -97,6 +97,7 @@ private:
     return _prng_seed;
   }
 
+public:
   struct node_pair {
     TreapNode* left;
     TreapNode* right;
@@ -236,6 +237,10 @@ public:
     this->remove_all();
   }
 
+  TreapNode*& root() {
+    return _root;
+  }
+
   void upsert(const K& k, const V& v) {
     TreapNode* found = find(_root, k);
     if (found != nullptr) {
@@ -271,10 +276,9 @@ public:
   }
 
   // Delete all nodes.
-  void remove_all() {
-    _node_count = 0;
-    GrowableArrayCHeap<TreapNode*, mtNMT> to_delete;
-    to_delete.push(_root);
+  void remove_tree(TreapNode* root, GrowableArrayCHeap<TreapNode*, mtNMT>& to_delete) {
+    int nodes_removed = 0;
+    to_delete.push(root);
 
     while (!to_delete.is_empty()) {
       TreapNode* head = to_delete.pop();
@@ -282,8 +286,13 @@ public:
       to_delete.push(head->_left);
       to_delete.push(head->_right);
       _allocator.free(head);
+      nodes_removed++;
     }
-    _root = nullptr;
+    _node_count -= nodes_removed;
+  }
+  void remove_all() {
+    GrowableArrayCHeap<TreapNode*, mtNMT> to_delete;
+    remove_tree(_root, to_delete);
   }
 
   TreapNode* closest_leq(const K& key) {
@@ -333,12 +342,10 @@ public:
     return Range{start, end};
   }
 
-
-  // Visit all TreapNodes in ascending key order.
   template<typename F>
-  void visit_in_order(F f) const {
-    GrowableArrayCHeap<TreapNode*, mtNMT> to_visit;
-    TreapNode* head = _root;
+  static void visit_in_order(TreapNode* root, GrowableArrayCHeap<TreapNode*, mtNMT>& to_visit,
+                             F f) {
+    TreapNode* head = root;
     while (!to_visit.is_empty() || head != nullptr) {
       while (head != nullptr) {
         to_visit.push(head);
@@ -351,11 +358,17 @@ public:
     }
   }
 
+  // Visit all TreapNodes in ascending key order.
+  template<typename F>
+  void visit_in_order(F f) const {
+    GrowableArrayCHeap<TreapNode*, mtNMT> to_visit;
+    Treap::visit_in_order(_root, to_visit, f);
+  }
+
   // Visit all TreapNodes in ascending order whose keys are in range [from, to).
   template<typename F>
-  void visit_range_in_order(const K& from, const K& to, F f) {
+  void visit_range_in_order(GrowableArrayCHeap<TreapNode*, mtNMT>& to_visit, const K& from, const K& to, F f) {
     assert(COMPARATOR::cmp(from, to) <= 0, "from must be less or equal to to");
-    GrowableArrayCHeap<TreapNode*, mtNMT> to_visit;
     TreapNode* head = _root;
     while (!to_visit.is_empty() || head != nullptr) {
       while (head != nullptr) {
@@ -382,6 +395,11 @@ public:
         head = nullptr;
       }
     }
+  }
+  template<typename F>
+  void visit_range_in_order(const K& from, const K& to, F f) {
+    GrowableArrayCHeap<TreapNode*, mtNMT> to_visit;
+    visit_range_in_order(to_visit, from, to, f);
   }
 };
 

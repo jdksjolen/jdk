@@ -142,8 +142,6 @@ public:
   using TreapNode = VMATreap::TreapNode;
 
 private:
-  VMATreap _tree;
-
   // AddressState saves the necessary information for performing online summary accounting.
   struct AddressState {
     position address;
@@ -158,8 +156,12 @@ private:
     }
   };
 
+  // Keep a re-usable worklist to minimize constantly allocating/deallocating
+  GrowableArrayCHeap<TreapNode*, mtNMT> _worklist;
+  VMATreap _tree;
+
 public:
-  VMATree() : _tree() {}
+  VMATree() : _worklist(), _tree() {}
 
   struct SingleDiff {
     using delta = int64_t;
