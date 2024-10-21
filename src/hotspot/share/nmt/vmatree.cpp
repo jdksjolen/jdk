@@ -34,13 +34,13 @@ const char* VMATree::statetype_strings[4] = {
   "released","reserved", "only-committed", "committed",
 };
 
-VMATree::SummaryDiff VMATree::register_mapping(position A, position B, StateType state,
-                                               const RegionData& metadata, bool use_tag_inplace) {
+void VMATree::register_mapping(position A, position B, StateType state,
+                               const RegionData& metadata, SummaryDiff& diff, bool use_tag_inplace) {
   assert(!use_tag_inplace || metadata.mem_tag == mtNone,
          "If using use_tag_inplace, then the supplied tag should be mtNone, was instead: %s", NMTUtil::tag_to_name(metadata.mem_tag));
   if (A == B) {
     // A 0-sized mapping isn't worth recording.
-    return SummaryDiff();
+    return;
   }
 
   IntervalChange stA{
@@ -137,7 +137,6 @@ VMATree::SummaryDiff VMATree::register_mapping(position A, position B, StateType
   VMATreap::node_pair b = _tree.split(a.right, B, VMATreap::SplitMode::LT);
   TreapNode* a_b_range = b.left;
 
-  SummaryDiff diff;
   if (a_b_range == nullptr && LEQ_A_found) {
     // We must have smashed a hole in an existing region (or replaced it entirely).
     // LEQ_A < A < B <= C
@@ -220,5 +219,4 @@ VMATree::SummaryDiff VMATree::register_mapping(position A, position B, StateType
     rescom.reserve += B - A;
     rescom.commit += B - A;
   }
-  return diff;
 }

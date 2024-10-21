@@ -37,12 +37,12 @@ ReservedMemoryRegion RegionsTree::find_reserved_region(address addr) {
     return rmr;
 }
 
-VMATree::SummaryDiff RegionsTree::commit_region(address addr, size_t size, const NativeCallStack& stack) {
-  return commit_mapping((VMATree::position)addr, size, make_region_data(stack, mtNone), /*use tag inplace*/ true);
+void RegionsTree::commit_region(address addr, size_t size, VMATree::SummaryDiff& diff, const NativeCallStack& stack) {
+  commit_mapping((VMATree::position)addr, size, make_region_data(stack, mtNone), diff, /*use tag inplace*/ true);
 }
 
-VMATree::SummaryDiff RegionsTree::uncommit_region(address addr, size_t size) {
-  return uncommit_mapping((VMATree::position)addr, size, make_region_data(NativeCallStack::empty_stack(), mtNone));
+void RegionsTree::uncommit_region(address addr, size_t size, VMATree::SummaryDiff& diff) {
+  uncommit_mapping((VMATree::position)addr, size, make_region_data(NativeCallStack::empty_stack(), mtNone), diff);
 }
 
 

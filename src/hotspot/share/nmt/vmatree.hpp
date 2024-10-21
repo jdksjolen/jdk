@@ -195,23 +195,23 @@ public:
   };
 
  private:
-  SummaryDiff register_mapping(position A, position B, StateType state, const RegionData& metadata, bool use_tag_inplace = false);
+  void register_mapping(position A, position B, StateType state, const RegionData& metadata, SummaryDiff& diff, bool use_tag_inplace = false);
 
  public:
-  SummaryDiff reserve_mapping(position from, position sz, const RegionData& metadata) {
-    return register_mapping(from, from + sz, StateType::Reserved, metadata, false);
+  void reserve_mapping(position from, position sz, const RegionData& metadata, SummaryDiff& diff) {
+    register_mapping(from, from + sz, StateType::Reserved, metadata, diff, false);
   }
 
-  SummaryDiff commit_mapping(position from, position sz, const RegionData& metadata, bool use_tag_inplace = false) {
-    return register_mapping(from, from + sz, StateType::Committed, metadata, use_tag_inplace);
+  void commit_mapping(position from, position sz, const RegionData& metadata, SummaryDiff& diff, bool use_tag_inplace = false) {
+    register_mapping(from, from + sz, StateType::Committed, metadata, diff, use_tag_inplace);
   }
 
-  SummaryDiff uncommit_mapping(position from, position sz, const RegionData& metadata) {
-    return register_mapping(from, from + sz, StateType::Reserved, metadata, true);
+  void uncommit_mapping(position from, position sz, const RegionData& metadata, SummaryDiff& diff) {
+    register_mapping(from, from + sz, StateType::Reserved, metadata, diff, true);
   }
 
-  SummaryDiff release_mapping(position from, position sz) {
-    return register_mapping(from, from + sz, StateType::Released, VMATree::empty_regiondata);
+  void release_mapping(position from, position sz, SummaryDiff& diff) {
+    register_mapping(from, from + sz, StateType::Released, VMATree::empty_regiondata, diff);
   }
 
   SummaryDiff set_tag(position from, size_t sz, MemTag mem_tag) {
@@ -222,7 +222,8 @@ public:
     RegionData old_data = rng.start->val().out.regiondata();
     RegionData new_data = RegionData(old_data.stack_idx, mem_tag);
     position end = MIN2(from+sz, rng.end->key());
-    SummaryDiff diff = register_mapping(from, end, type, new_data);
+    SummaryDiff diff;
+    register_mapping(from, end, type, new_data, diff);
 
     if (end < from+sz) {
       return diff.apply(set_tag(end, sz - (end - from), mem_tag));
