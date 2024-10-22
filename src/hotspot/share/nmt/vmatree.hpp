@@ -242,7 +242,7 @@ public:
   VMATreap* tree() { return &_tree; }
   void print_self() {
     visit_in_order([&](TreapNode* current) {
-      tty->print("(%s) - %s - ", NMTUtil::tag_to_name(current->val().out.mem_tag()), statetype_to_string(current->val().out.type()));
+      tty->print(" " PRIuPTR "(%s) - %s - ", (address)current->key(), NMTUtil::tag_to_name(current->val().out.mem_tag()), statetype_to_string(current->val().out.type()));
       return true;
     });
     tty->cr();
