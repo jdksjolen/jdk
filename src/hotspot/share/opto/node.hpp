@@ -307,27 +307,29 @@ private:
 
 //----------------- input edge handling
 protected:
-  friend class PhaseCFG;        // Access to address of _in array elements
-  Node **_in;                   // Array of use-def references to Nodes
-  Node **_out;                  // Array of def-use references to Nodes
-
+  friend class PhaseCFG; // Access to address of _in array elements
   // Input edges are split into two categories.  Required edges are required
   // for semantic correctness; order is important and nulls are allowed.
   // Precedence edges are used to help determine execution order and are
   // added, e.g., for scheduling purposes.  They are unordered and not
   // duplicated; they have no embedded nulls.  Edges from 0 to _cnt-1
   // are required, from _cnt to _max-1 are precedence edges.
-  node_idx_t _cnt;              // Total number of required Node inputs.
-
-  node_idx_t _max;              // Actual length of input array.
+  Node **_in;                   // Array of use-def references to Nodes
+  node_idx_t _cnt; // Total number of required Node inputs.
+  node_idx_t _max; // Actual length of input array.
+  Node* sso_in[3];
 
   // Output edges are an unordered list of def-use edges which exactly
   // correspond to required input edges which point from other nodes
   // to this one.  Thus the count of the output edges is the number of
   // users of this node.
-  node_idx_t _outcnt;           // Total number of Node outputs.
+  Node **_out;                  // Array of def-use references to Nodes
+  node_idx_t _outcnt; // Total number of Node outputs.
+  node_idx_t _outmax; // Actual length of output array.
+  Node* sso_out[3];
 
-  node_idx_t _outmax;           // Actual length of output array.
+
+
 
   // Grow the actual input array to the next larger power-of-2 bigger than len.
   void grow( uint len );
