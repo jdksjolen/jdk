@@ -689,7 +689,7 @@ void Node::grow(uint len) {
 
   new_max = next_power_of_2(len);
   Node** new_in = (Node**)arena->Amalloc(new_max*sizeof(Node*));
-  ::memcpy(new_in, _in, _cnt*sizeof(Node*));
+  ::memcpy(new_in, _in, _max*sizeof(Node*));
   _in = new_in;
   _max = new_max;               // Record new max length
   // This assertion makes sure that Node::_max is wide enough to
@@ -704,6 +704,9 @@ void Node::out_grow(uint len) {
   if (new_max == 0 && len <= 3) {
     _outmax = 3;
     _out = sso_out;
+    _out[0] = nullptr;
+    _out[1] = nullptr;
+    _out[2] = nullptr;
     return;
   }
   Arena* arena = Compile::current()->node_arena();
@@ -711,7 +714,7 @@ void Node::out_grow(uint len) {
 
   assert(_out != nullptr && _out != NO_OUT_ARRAY, "out must have sensible value");
   Node** new_out = (Node**)arena->Amalloc(new_max * sizeof(Node*));
-  ::memcpy(new_out, _out, _outcnt * sizeof(Node*));
+  ::memcpy(new_out, _out, _outmax * sizeof(Node*));
   _out = new_out;
   _outmax = new_max;               // Record new max length
   // This assertion makes sure that Node::_outmax is wide enough to
