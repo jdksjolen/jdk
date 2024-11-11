@@ -702,7 +702,7 @@ void Node::grow(uint len) {
 
 //-----------------------------out_grow----------------------------------------
 // Grow the input array, making space for more edges
-void Node::out_grow( uint len ) {
+void Node::out_grow(uint len) {
   assert(!is_top(), "cannot grow a top node's out array");
   uint new_max = _outmax;
   if (new_max == 0 && len <= 3) {
@@ -716,7 +716,7 @@ void Node::out_grow( uint len ) {
   // Previously I was using only powers-of-2 which peaked at 128 edges.
   //if( new_max >= limit ) new_max = limit-1;
   assert(_out != nullptr && _out != NO_OUT_ARRAY, "out must have sensible value");
-  _out = (Node**)arena->AmallocWords(new_max*sizeof(Node*));
+  _out = (Node**)arena->Amalloc(new_max*sizeof(Node*));
   //Copy::zero_to_bytes(&_out[_outmax], (new_max-_outmax)*sizeof(Node*)); // null all new space
   _outmax = new_max;               // Record new max length
   // This assertion makes sure that Node::_max is wide enough to
