@@ -686,11 +686,8 @@ void Node::grow(uint len) {
     to[2] = nullptr;
     return;
   }
-
   new_max = next_power_of_2(len);
-  Node** new_in = (Node**)arena->Amalloc(new_max*sizeof(Node*));
-  ::memcpy(new_in, _in, _max*sizeof(Node*));
-  _in = new_in;
+  _in = (Node**)arena->Arealloc(_in, _max*sizeof(Node*), new_max*sizeof(Node*));
   Copy::zero_to_bytes(&_in[_max], (new_max-_max)*sizeof(Node*)); // null all new space
   _max = new_max;               // Record new max length
   // This assertion makes sure that Node::_max is wide enough to
@@ -701,6 +698,7 @@ void Node::grow(uint len) {
 // Grow the output array, making space for more edges
 void Node::out_grow(uint len) {
   assert(!is_top(), "cannot grow a top node's out array");
+  Arena* arena = Compile::current()->node_arena();
   uint new_max = _outmax;
   if (new_max == 0 && len <= 3) {
     _outmax = 3;
@@ -710,13 +708,9 @@ void Node::out_grow(uint len) {
     _out[2] = nullptr;
     return;
   }
-  Arena* arena = Compile::current()->node_arena();
   new_max = next_power_of_2(len);
-
   assert(_out != nullptr && _out != NO_OUT_ARRAY, "out must have sensible value");
-  Node** new_out = (Node**)arena->Amalloc(new_max * sizeof(Node*));
-  ::memcpy(new_out, _out, _outmax * sizeof(Node*));
-  _out = new_out;
+  _out = (Node**)arena->Arealloc(_out,_outmax*sizeof(Node*),new_max*sizeof(Node*));
   Copy::zero_to_bytes(&_out[_max], (new_max-_max)*sizeof(Node*)); // null all new space
   _outmax = new_max;               // Record new max length
   // This assertion makes sure that Node::_outmax is wide enough to
