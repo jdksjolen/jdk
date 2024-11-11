@@ -691,6 +691,7 @@ void Node::grow(uint len) {
   Node** new_in = (Node**)arena->Amalloc(new_max*sizeof(Node*));
   ::memcpy(new_in, _in, _max*sizeof(Node*));
   _in = new_in;
+  Copy::zero_to_bytes(&_in[_max], (new_max-_max)*sizeof(Node*)); // null all new space
   _max = new_max;               // Record new max length
   // This assertion makes sure that Node::_max is wide enough to
   // represent the numerical value of new_max.
@@ -716,6 +717,7 @@ void Node::out_grow(uint len) {
   Node** new_out = (Node**)arena->Amalloc(new_max * sizeof(Node*));
   ::memcpy(new_out, _out, _outmax * sizeof(Node*));
   _out = new_out;
+  Copy::zero_to_bytes(&_out[_max], (new_max-_max)*sizeof(Node*)); // null all new space
   _outmax = new_max;               // Record new max length
   // This assertion makes sure that Node::_outmax is wide enough to
   // represent the numerical value of new_max.
