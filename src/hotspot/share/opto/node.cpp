@@ -711,7 +711,6 @@ void Node::out_grow(uint len) {
   new_max = next_power_of_2(len);
   assert(_out != nullptr && _out != NO_OUT_ARRAY, "out must have sensible value");
   _out = (Node**)arena->Arealloc(_out,_outmax*sizeof(Node*),new_max*sizeof(Node*));
-  Copy::zero_to_bytes(&_out[_max], (new_max-_max)*sizeof(Node*)); // null all new space
   _outmax = new_max;               // Record new max length
   // This assertion makes sure that Node::_outmax is wide enough to
   // represent the numerical value of new_max.
