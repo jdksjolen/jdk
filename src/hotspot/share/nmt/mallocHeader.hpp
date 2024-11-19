@@ -60,7 +60,7 @@ class outputStream;
  *
  *           8        9        10       11       12       13       14       15          16 ++
  *       +--------+--------+--------+--------+--------+--------+--------+--------+  ------------------------
- *  ...  |   malloc site table marker        |  tags  |         unused           |  ... User payload ....
+ *  ...  |   malloc site table marker        |          memory tag               |  ... User payload ....
  *       +--------+--------+--------+--------+--------+--------+--------+--------+  ------------------------
  *
  * Layout on 32-bit:
@@ -72,7 +72,7 @@ class outputStream;
  *
  *           8        9        10       11       12       13       14       15          16 ++
  *       +--------+--------+--------+--------+--------+--------+--------+--------+  ------------------------
- *  ...  |   malloc site table marker        |  tags  |          unused          |  ... User payload ....
+ *  ...  |   malloc site table marker        |          memory tag               |  ... User payload ....
  *       +--------+--------+--------+--------+--------+--------+--------+--------+  ------------------------
  */
 
@@ -82,7 +82,6 @@ class MallocHeader {
   const size_t _size;
   const uint32_t _mst_marker;
   const MemTag _mem_tag;
-  const uint8_t _unused[3];
 
   // We discount sizes larger than these
   static const size_t max_reasonable_malloc_size = LP64_ONLY(256 * G) NOT_LP64(3500 * M);
