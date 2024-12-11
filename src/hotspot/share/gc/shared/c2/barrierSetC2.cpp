@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2018, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -109,6 +109,10 @@ Label* BarrierStubC2::continuation() {
   return &_continuation;
 }
 
+uint8_t BarrierStubC2::barrier_data() const {
+  return _node->barrier_data();
+}
+
 void BarrierStubC2::preserve(Register r) {
   const VMReg vm_reg = r->as_VMReg();
   assert(vm_reg->is_Register(), "r must be a general-purpose register");
@@ -152,8 +156,8 @@ Node* BarrierSetC2::store_at_resolved(C2Access& access, C2AccessValue& val) cons
     }
 
     store = kit->store_to_memory(kit->control(), access.addr().node(), val.node(), bt,
-                                 access.addr().type(), mo, requires_atomic_access, unaligned,
-                                 mismatched, unsafe, access.barrier_data());
+                                 mo, requires_atomic_access, unaligned, mismatched,
+                                 unsafe, access.barrier_data());
   } else {
     assert(access.is_opt_access(), "either parse or opt access");
     C2OptAccess& opt_access = static_cast<C2OptAccess&>(access);
@@ -213,7 +217,7 @@ Node* BarrierSetC2::load_at_resolved(C2Access& access, const Type* val_type) con
                             unaligned, mismatched, unsafe, access.barrier_data());
       load = kit->gvn().transform(load);
     } else {
-      load = kit->make_load(control, adr, val_type, access.type(), adr_type, mo,
+      load = kit->make_load(control, adr, val_type, access.type(), mo,
                             dep, requires_atomic_access, unaligned, mismatched, unsafe,
                             access.barrier_data());
     }
@@ -706,11 +710,12 @@ int BarrierSetC2::arraycopy_payload_base_offset(bool is_array) {
   int base_off = is_array ? arrayOopDesc::length_offset_in_bytes() :
                             instanceOopDesc::base_offset_in_bytes();
   // base_off:
-  // 8  - 32-bit VM
+  // 8  - 32-bit VM or 64-bit VM, compact headers
   // 12 - 64-bit VM, compressed klass
   // 16 - 64-bit VM, normal klass
   if (base_off % BytesPerLong != 0) {
     assert(UseCompressedClassPointers, "");
+    assert(!UseCompactObjectHeaders, "");
     if (is_array) {
       // Exclude length to copy by 8 bytes words.
       base_off += sizeof(int);
@@ -814,7 +819,57 @@ Node* BarrierSetC2::obj_allocate(PhaseMacroExpand* macro, Node* mem, Node* toobi
   return old_tlab_top;
 }
 
+static const TypeFunc* clone_type() {
+  // Create input type (domain)
+  int argcnt = NOT_LP64(3) LP64_ONLY(4);
+  const Type** const domain_fields = TypeTuple::fields(argcnt);
+  int argp = TypeFunc::Parms;
+  domain_fields[argp++] = TypeInstPtr::NOTNULL;  // src
+  domain_fields[argp++] = TypeInstPtr::NOTNULL;  // dst
+  domain_fields[argp++] = TypeX_X;               // size lower
+  LP64_ONLY(domain_fields[argp++] = Type::HALF); // size upper
+  assert(argp == TypeFunc::Parms+argcnt, "correct decoding");
+  const TypeTuple* const domain = TypeTuple::make(TypeFunc::Parms + argcnt, domain_fields);
+
+  // Create result type (range)
+  const Type** const range_fields = TypeTuple::fields(0);
+  const TypeTuple* const range = TypeTuple::make(TypeFunc::Parms + 0, range_fields);
+
+  return TypeFunc::make(domain, range);
+}
+
 #define XTOP LP64_ONLY(COMMA phase->top())
+
+void BarrierSetC2::clone_in_runtime(PhaseMacroExpand* phase, ArrayCopyNode* ac,
+                                    address clone_addr, const char* clone_name) const {
+  Node* const ctrl = ac->in(TypeFunc::Control);
+  Node* const mem  = ac->in(TypeFunc::Memory);
+  Node* const src  = ac->in(ArrayCopyNode::Src);
+  Node* const dst  = ac->in(ArrayCopyNode::Dest);
+  Node* const size = ac->in(ArrayCopyNode::Length);
+
+  assert(size->bottom_type()->base() == Type_X,
+         "Should be of object size type (int for 32 bits, long for 64 bits)");
+
+  // The native clone we are calling here expects the object size in words.
+  // Add header/offset size to payload size to get object size.
+  Node* const base_offset = phase->MakeConX(arraycopy_payload_base_offset(ac->is_clone_array()) >> LogBytesPerLong);
+  Node* const full_size = phase->transform_later(new AddXNode(size, base_offset));
+  // HeapAccess<>::clone expects size in heap words.
+  // For 64-bits platforms, this is a no-operation.
+  // For 32-bits platforms, we need to multiply full_size by HeapWordsPerLong (2).
+  Node* const full_size_in_heap_words = phase->transform_later(new LShiftXNode(full_size, phase->intcon(LogHeapWordsPerLong)));
+
+  Node* const call = phase->make_leaf_call(ctrl,
+                                           mem,
+                                           clone_type(),
+                                           clone_addr,
+                                           clone_name,
+                                           TypeRawPtr::BOTTOM,
+                                           src, dst, full_size_in_heap_words XTOP);
+  phase->transform_later(call);
+  phase->igvn().replace_node(ac, call);
+}
 
 void BarrierSetC2::clone_at_expansion(PhaseMacroExpand* phase, ArrayCopyNode* ac) const {
   Node* ctrl = ac->in(TypeFunc::Control);

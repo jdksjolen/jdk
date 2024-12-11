@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2001, 2018, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2001, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -43,7 +43,7 @@ void G1CardTable::verify_g1_young_region(MemRegion mr) {
 
 void G1CardTableChangedListener::on_commit(uint start_idx, size_t num_regions, bool zero_filled) {
   // Default value for a clean card on the card table is -1. So we cannot take advantage of the zero_filled parameter.
-  MemRegion mr(G1CollectedHeap::heap()->bottom_addr_for_region(start_idx), num_regions * HeapRegion::GrainWords);
+  MemRegion mr(G1CollectedHeap::heap()->bottom_addr_for_region(start_idx), num_regions * G1HeapRegion::GrainWords);
   _card_table->clear_MemRegion(mr);
 }
 

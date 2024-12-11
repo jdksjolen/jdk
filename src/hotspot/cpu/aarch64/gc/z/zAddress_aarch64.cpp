@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 2017, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -38,7 +38,7 @@
 
 // Default value if probing is not implemented for a certain platform
 // Max address bit is restricted by implicit assumptions in the code, for instance
-// the bit layout of XForwardingEntry or Partial array entry (see XMarkStackEntry) in mark stack
+// the bit layout of ZForwardingEntry or Partial array entry (see ZMarkStackEntry) in mark stack
 static const size_t DEFAULT_MAX_ADDRESS_BIT = 46;
 // Minimum value returned, if probing fail
 static const size_t MINIMUM_MAX_ADDRESS_BIT = 36;
@@ -93,7 +93,7 @@ static size_t probe_valid_max_address_bit() {
 }
 
 size_t ZPlatformAddressOffsetBits() {
-  const static size_t valid_max_address_offset_bits = probe_valid_max_address_bit() + 1;
+  static const size_t valid_max_address_offset_bits = probe_valid_max_address_bit() + 1;
   const size_t max_address_offset_bits = valid_max_address_offset_bits - 3;
   const size_t min_address_offset_bits = max_address_offset_bits - 2;
   const size_t address_offset = round_up_power_of_2(MaxHeapSize * ZVirtualToPhysicalRatio);

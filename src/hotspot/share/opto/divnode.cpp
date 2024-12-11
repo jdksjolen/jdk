@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1997, 2023, Oracle and/or its affiliates. All rights reserved.
+ * Copyright (c) 1997, 2024, Oracle and/or its affiliates. All rights reserved.
  * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
  * This code is free software; you can redistribute it and/or modify it
@@ -266,7 +266,6 @@ static Node* long_by_long_mulhi(PhaseGVN* phase, Node* dividend, jlong magic_con
   }
 
   // Taken from Hacker's Delight, Fig. 8-2. Multiply high signed.
-  // (http://www.hackersdelight.org/HDcode/mulhs.c)
   //
   // int mulhs(int u, int v) {
   //    unsigned u0, v0, w0;
@@ -1359,6 +1358,24 @@ DivModNode::DivModNode( Node *c, Node *dividend, Node *divisor ) : MultiNode(3) 
   init_req(0, c);
   init_req(1, dividend);
   init_req(2, divisor);
+}
+
+DivModNode* DivModNode::make(Node* div_or_mod, BasicType bt, bool is_unsigned) {
+  assert(bt == T_INT || bt == T_LONG, "only int or long input pattern accepted");
+
+  if (bt == T_INT) {
+    if (is_unsigned) {
+      return UDivModINode::make(div_or_mod);
+    } else {
+      return DivModINode::make(div_or_mod);
+    }
+  } else {
+    if (is_unsigned) {
+      return UDivModLNode::make(div_or_mod);
+    } else {
+      return DivModLNode::make(div_or_mod);
+    }
+  }
 }
 
 //------------------------------make------------------------------------------

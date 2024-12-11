@@ -23,7 +23,7 @@
  */
 #include "precompiled.hpp"
 #include "memory/guardedMemory.hpp"
-#include "nmt/memflags.hpp"
+#include "nmt/memTag.hpp"
 #include "runtime/os.hpp"
 
 void* GuardedMemory::wrap_copy(const void* ptr, const size_t len, const void* tag) {
@@ -32,7 +32,9 @@ void* GuardedMemory::wrap_copy(const void* ptr, const size_t len, const void* ta
   if (outerp != nullptr) {
     GuardedMemory guarded(outerp, len, tag);
     void* innerp = guarded.get_user_ptr();
-    memcpy(innerp, ptr, len);
+    if (ptr != nullptr) {
+      memcpy(innerp, ptr, len);
+    }
     return innerp;
   }
   return nullptr; // OOM
