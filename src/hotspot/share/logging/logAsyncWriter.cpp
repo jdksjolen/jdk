@@ -27,7 +27,6 @@
 #include "logging/logConfiguration.hpp"
 #include "logging/logFileOutput.hpp"
 #include "logging/logFileStreamOutput.hpp"
-#include "logging/logHandle.hpp"
 #include "memory/resourceArea.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/os.inline.hpp"
@@ -43,11 +42,10 @@ void AsyncLogWriter::enqueue(LogFileStreamOutput& output, LogMessageBuffer::Iter
   _circular_buffer.enqueue(output, msg_iterator);
 }
 
-AsyncLogWriter::AsyncLogWriter()
-:
-  _stats_lock(),
+AsyncLogWriter::AsyncLogWriter(bool stalling_enabled)
+: _stats_lock(),
   _stats(),
-  _circular_buffer(_stats, _stats_lock, align_up(AsyncLogBufferSize, os::vm_page_size())),
+  _circular_buffer(_stats, _stats_lock, align_up(AsyncLogBufferSize, os::vm_page_size()), stalling_enabled),
   _initialized(false) {
 
   log_info(logging)("AsyncLogBuffer estimates memory use: " SIZE_FORMAT " bytes", align_up(AsyncLogBufferSize, os::vm_page_size()));
@@ -80,16 +78,31 @@ bool AsyncLogWriter::write(AsyncLogMap<AnyObj::RESOURCE_AREA>& snapshot,
     }
   }
 
-  LogDecorations decorations(LogLevel::Warning, LogTagSetMapping<LogTag::__NO_TAG>::tagset(),
-                             LogDecorators::All);
-  snapshot.iterate([&](LogFileStreamOutput* output, uint32_t& counter) {
-    if (counter > 0) {
-      stringStream ss;
-      ss.print(UINT32_FORMAT_W(6) " messages dropped due to async logging", counter);
-      output->write_blocking(decorations, ss.freeze());
+  // If in stalling mode, then check for a stalled message
+  if (_circular_buffer.stalling_enabled()) {
+    CircularStringBuffer::Message* mptr = _circular_buffer.stalled_message();
+    if (mptr != nullptr) {
+      char* str = _circular_buffer.stalled_string();
+      assert(!mptr->is_token(), "must");
+      if (!mptr->is_token()) {
+        mptr->output->write_blocking(mptr->decorations, str);
+      }
+      os::free(mptr);
+      _circular_buffer.stall_finished();
     }
-    return true;
-  });
+
+  } else {
+    LogDecorations decorations(LogLevel::Warning, LogTagSetMapping<LogTag::__NO_TAG>::tagset(),
+                               LogDecorators::All);
+    snapshot.iterate([&](LogFileStreamOutput* output, uint32_t& counter) {
+      if (counter > 0) {
+        stringStream ss;
+        ss.print(UINT32_FORMAT_W(6) " messages dropped due to async logging", counter);
+        output->write_blocking(decorations, ss.freeze());
+      }
+      return true;
+    });
+  }
 
   if (req > 0) {
     assert(req == 1, "Only one token is allowed in queue. AsyncLogWriter::flush() is NOT MT-safe!");
@@ -138,7 +151,7 @@ void AsyncLogWriter::initialize() {
 
   assert(_instance == nullptr, "initialize() should only be invoked once.");
 
-  AsyncLogWriter* self = new AsyncLogWriter();
+  AsyncLogWriter* self = new AsyncLogWriter(LogConfiguration::async_mode() == LogConfiguration::AsyncMode::Stall);
   if (self->_initialized) {
     Atomic::release_store_fence(&AsyncLogWriter::_instance, self);
     // All readers of _instance after the fence see non-null.

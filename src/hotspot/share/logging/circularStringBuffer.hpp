@@ -25,6 +25,7 @@
 #ifndef SHARE_LOGGING_CIRCULARSTRINGBUFFER_HPP
 #define SHARE_LOGGING_CIRCULARSTRINGBUFFER_HPP
 #include "logging/logFileStreamOutput.hpp"
+#include "mutex_posix.hpp"
 #include "nmt/memTracker.hpp"
 #include "runtime/mutex.hpp"
 #include "runtime/os.inline.hpp"
@@ -76,6 +77,41 @@ public:
     // account for dropped messages
   using StatisticsMap = ResourceHashtable<LogFileStreamOutput*, uint32_t, 17, /*table_size*/
                                         AnyObj::C_HEAP, mtLogging>;
+
+  // Messsage is the header of a log line and contains its associated decorations and output.
+  // It is directly followed by the c-str of the log line. The log line is padded at the end
+  // to ensure correct alignment for the Message. A Message is considered to be a flush token
+  // when its output is null.
+  //
+  // Example layout:
+  // ---------------------------------------------
+  // |_output|_decorations|"a log line", |pad| <- Message aligned.
+  // |_output|_decorations|"yet another",|pad|
+  // ...
+  // |nullptr|_decorations|"",|pad| <- flush token
+  // |<- _pos
+  // ---------------------------------------------
+  struct Message {
+    size_t size; // Size of string following the Message envelope
+    LogFileStreamOutput* const output;
+    const LogDecorations decorations;
+    Message(size_t size, LogFileStreamOutput* output, const LogDecorations decorations)
+      : size(size),
+        output(output),
+        decorations(decorations) {
+    }
+
+    Message()
+      : size(0),
+        output(nullptr),
+        decorations(None) {
+    }
+
+    bool is_token() {
+      return output == nullptr;
+    }
+  };
+
 private:
   static const LogDecorations& None;
 
@@ -116,48 +152,22 @@ private:
   volatile size_t _tail; // Where new writes happen
   volatile size_t _head; // Where new reads happen
 
+  // Stalling mechanism:
+  volatile Message* _stalled_message;
+  Semaphore _stalling_sem;
+  bool _stalling_enabled;
+
   size_t allocated_bytes();
   size_t available_bytes();
   // How many bytes are needed to store a message of size sz?
   size_t calculate_bytes_needed(size_t sz);
-
-public:
-  // Messsage is the header of a log line and contains its associated decorations and output.
-  // It is directly followed by the c-str of the log line. The log line is padded at the end
-  // to ensure correct alignment for the Message. A Message is considered to be a flush token
-  // when its output is null.
-  //
-  // Example layout:
-  // ---------------------------------------------
-  // |_output|_decorations|"a log line", |pad| <- Message aligned.
-  // |_output|_decorations|"yet another",|pad|
-  // ...
-  // |nullptr|_decorations|"",|pad| <- flush token
-  // |<- _pos
-  // ---------------------------------------------
-  struct Message {
-    size_t size; // Size of string following the Message envelope
-    LogFileStreamOutput* const output;
-    const LogDecorations decorations;
-    Message(size_t size, LogFileStreamOutput* output, const LogDecorations decorations)
-    : size(size), output(output), decorations(decorations) {
-    }
-
-    Message()
-    : size(0), output(nullptr), decorations(None) {
-    }
-
-    bool is_token() {
-      return output == nullptr;
-    }
-  };
 
 private:
   void enqueue_locked(const char* msg, size_t size, LogFileStreamOutput* output, const LogDecorations decorations);
 
 public:
   NONCOPYABLE(CircularStringBuffer);
-  CircularStringBuffer(StatisticsMap& stats, PlatformMonitor& stats_lock, size_t size, bool should_stall = false);
+  CircularStringBuffer(StatisticsMap& stats, PlatformMonitor& stats_lock, size_t size, bool stalling_enabled);
 
   void enqueue(const char* msg, size_t size, LogFileStreamOutput* output,
                const LogDecorations decorations);
@@ -170,9 +180,16 @@ public:
   };
   DequeueResult dequeue(Message* out_message, char* out, size_t out_size);
 
-  // Await flushing, blocks until signal_flush() is called by the flusher.
+  // Flushing interface, blocks until signal_flush() is called by the flusher.
   void flush();
   void signal_flush();
+
+  // Stalling interface.
+  bool stalling_enabled() { return _stalling_enabled; }
+  void stall();
+  void stall_finished();
+  Message* stalled_message();
+  char* stalled_string();
 
   bool maybe_has_message();
   void await_message();

@@ -24,7 +24,6 @@
 
 #include "precompiled.hpp"
 #include "logging/circularStringBuffer.hpp"
-#include "runtime/interfaceSupport.inline.hpp"
 #include "runtime/os.inline.hpp"
 
 // LogDecorator::None applies to 'constant initialization' because of its constexpr constructor.
@@ -46,13 +45,15 @@ CircularMapping::CircularMapping(size_t size)
   }
 }
 
-CircularStringBuffer::CircularStringBuffer(StatisticsMap& map, PlatformMonitor& stats_lock, size_t size, bool should_stall)
-  : _should_stall(should_stall),
-    _stats(map),
+CircularStringBuffer::CircularStringBuffer(StatisticsMap& map, PlatformMonitor& stats_lock,
+                                           size_t size, bool stalling_enabled)
+  : _stats(map),
     _stats_lock(stats_lock),
     circular_mapping(size),
     _tail(0),
-    _head(0) {}
+    _head(0),
+    _stalling_enabled(stalling_enabled)
+    {}
 
 size_t CircularStringBuffer::allocated_bytes() {
   size_t h = Atomic::load(&_head);
@@ -63,6 +64,7 @@ size_t CircularStringBuffer::allocated_bytes() {
     return circular_mapping.size - (h - t);
   }
 }
+
 size_t CircularStringBuffer::available_bytes() {
   return circular_mapping.size - allocated_bytes();
 }
@@ -87,13 +89,25 @@ void CircularStringBuffer::enqueue_locked(const char* str, size_t size, LogFileS
   };
 
   if (not_enough_memory()) {
-    _stats_lock.lock();
-    bool p_created;
-    uint32_t* counter = _stats.put_if_absent(output, 0, &p_created);
-    *counter = *counter + 1;
-    _stats_lock.unlock();
-    return;
+    if (stalling_enabled()) {
+      Message* ptr = (Message*)os::malloc(size + sizeof(Message), mtLogging);
+      new (ptr) Message{required_memory, output, decorations};
+      ::memcpy((char*)(ptr + 1), str, size);
+
+      assert(_stalled_message == nullptr, "Should not have two stalled messages");
+      Atomic::store(&_stalled_message, ptr);
+      stall();
+      return;
+    } else {
+      _stats_lock.lock();
+      bool p_created;
+      uint32_t* counter = _stats.put_if_absent(output, 0, &p_created);
+      *counter = *counter + 1;
+      _stats_lock.unlock();
+      return;
+    }
   }
+
   // Load the tail.
   size_t t = _tail;
   // Write the Message
@@ -179,4 +193,22 @@ void CircularStringBuffer::await_message() {
     }
     break;
   }
+}
+
+void CircularStringBuffer::stall() {
+  _stalling_sem.wait();
+}
+
+void CircularStringBuffer::stall_finished() {
+  Atomic::store(&_stalled_message, (Message*)nullptr);
+  _stalling_sem.signal();
+}
+
+CircularStringBuffer::Message* CircularStringBuffer::stalled_message() {
+  return const_cast<Message*>(Atomic::load(&_stalled_message));
+}
+
+char* CircularStringBuffer::stalled_string() {
+  assert(_stalled_message != nullptr, "must exist");
+  return (char*)(_stalled_message + 1);
 }

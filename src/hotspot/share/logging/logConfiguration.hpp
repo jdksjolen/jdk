@@ -65,7 +65,7 @@ class LogConfiguration : public AllStatic {
 
  public:
   enum class AsyncMode {
-    Off, On
+    Off, Stall, Drop
   };
  private:
   static AsyncMode _async_mode;

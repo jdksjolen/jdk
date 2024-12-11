@@ -45,7 +45,7 @@ public:
   void test_asynclog_raw() {
     Log(logging) logger;
 #define LOG_LEVEL(level, name) logger.name("1" #level);
-    LOG_LEVEL_LIST
+LOG_LEVEL_LIST
 #undef LOG_LEVEL
 
     LogTarget(Trace, logging) t;
@@ -123,10 +123,11 @@ public:
           file_contains_substring(TestLogFileName, "messages dropped due to async logging"));
     }
   }
+
   void test_room_for_flush() {
     PlatformMonitor lock; // For statistics
     CircularStringBuffer::StatisticsMap map;
-    CircularStringBuffer cb(map, lock, os::vm_page_size());
+    CircularStringBuffer cb(map, lock, os::vm_page_size(), false);
     const size_t count = (cb.circular_mapping.size / (strlen(large_message)+1 + sizeof(CircularStringBuffer::Message))) - 1;
     stringStream ss;
     ss.print("file=%s", TestLogFileName);
