@@ -87,28 +87,12 @@ void CircularStringBuffer::enqueue_locked(const char* str, size_t size, LogFileS
   };
 
   if (not_enough_memory()) {
-    if (_should_stall) {
-      Thread* thread = Thread::current_or_null();
-      if (thread != nullptr && thread->is_Java_thread()) {
-        ThreadBlockInVM tbivm(JavaThread::cast(thread));
-        ConsumerLocker cl(this);
-        while (not_enough_memory()) {
-          _consumer_lock.wait(0);
-        }
-      } else {
-        ConsumerLocker cl(this);
-        while (not_enough_memory()) {
-          _consumer_lock.wait(0);
-        }
-      }
-    } else {
-      _stats_lock.lock();
-      bool p_created;
-      uint32_t* counter = _stats.put_if_absent(output, 0, &p_created);
-      *counter = *counter + 1;
-      _stats_lock.unlock();
-      return;
-    }
+    _stats_lock.lock();
+    bool p_created;
+    uint32_t* counter = _stats.put_if_absent(output, 0, &p_created);
+    *counter = *counter + 1;
+    _stats_lock.unlock();
+    return;
   }
   // Load the tail.
   size_t t = _tail;
@@ -168,7 +152,7 @@ CircularStringBuffer::DequeueResult CircularStringBuffer::dequeue(Message* out_m
   // Notify a producer that more memory is available
   _consumer_lock.notify();
   // Release the lock
-  return OK;
+  return Ok;
 }
 
 void CircularStringBuffer::flush() {

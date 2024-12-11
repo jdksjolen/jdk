@@ -76,7 +76,7 @@ class AsyncLogWriter : public NonJavaThread {
   static AsyncLogWriter* _instance;
   volatile bool _initialized;
 
-  AsyncLogWriter(bool should_stall);
+  AsyncLogWriter();
   void enqueue_locked(LogFileStreamOutput* output, const LogDecorations& decorations, const char* msg);
   bool write(AsyncLogMap<AnyObj::RESOURCE_AREA>& snapshot, char* write_buffer, size_t write_buffer_size);
   void run() override;

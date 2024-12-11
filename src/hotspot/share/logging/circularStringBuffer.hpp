@@ -78,7 +78,6 @@ public:
                                         AnyObj::C_HEAP, mtLogging>;
 private:
   static const LogDecorations& None;
-  const bool _should_stall; // Should a producer stall until a consumer has made room for its message?
 
   // Need to perform accounting of statistics under a separate lock.
   StatisticsMap& _stats;
@@ -167,7 +166,7 @@ public:
   enum DequeueResult {
     NoMessage, // There was no message in the buffer
     TooSmall,  // The provided out buffer is too small
-    OK         // A message was found and copied over to the out buffer and out_message.
+    Ok         // A message was found and copied over to the out buffer and out_message.
   };
   DequeueResult dequeue(Message* out_message, char* out, size_t out_size);
 

@@ -43,11 +43,11 @@ void AsyncLogWriter::enqueue(LogFileStreamOutput& output, LogMessageBuffer::Iter
   _circular_buffer.enqueue(output, msg_iterator);
 }
 
-AsyncLogWriter::AsyncLogWriter(bool should_stall)
+AsyncLogWriter::AsyncLogWriter()
 :
   _stats_lock(),
   _stats(),
-  _circular_buffer(_stats, _stats_lock, align_up(AsyncLogBufferSize, os::vm_page_size()), should_stall),
+  _circular_buffer(_stats, _stats_lock, align_up(AsyncLogBufferSize, os::vm_page_size())),
   _initialized(false) {
 
   log_info(logging)("AsyncLogBuffer estimates memory use: " SIZE_FORMAT " bytes", align_up(AsyncLogBufferSize, os::vm_page_size()));
@@ -99,7 +99,7 @@ bool AsyncLogWriter::write(AsyncLogMap<AnyObj::RESOURCE_AREA>& snapshot,
 }
 
 void AsyncLogWriter::run() {
-  // 16KiB ought to be enough.
+  // Pre-allocate 16KiB for moving messages from the circular buffer to the printing area.
   size_t write_buffer_size = 16 * 1024;
   char* write_buffer = NEW_C_HEAP_ARRAY(char, write_buffer_size, mtLogging);
 
@@ -138,7 +138,7 @@ void AsyncLogWriter::initialize() {
 
   assert(_instance == nullptr, "initialize() should only be invoked once.");
 
-  AsyncLogWriter* self = new AsyncLogWriter(LogConfiguration::async_mode() == LogConfiguration::AsyncMode::Stall);
+  AsyncLogWriter* self = new AsyncLogWriter();
   if (self->_initialized) {
     Atomic::release_store_fence(&AsyncLogWriter::_instance, self);
     // All readers of _instance after the fence see non-null.
