@@ -104,11 +104,10 @@ void CircularStringBuffer::enqueue_locked(const char* str, size_t size, LogFileS
       stall();
       return;
     } else {
-      _stats_lock.lock();
+      StatsLocker lock(this);
       bool p_created;
       uint32_t* counter = _stats.put_if_absent(output, 0, &p_created);
       *counter = *counter + 1;
-      _stats_lock.unlock();
       return;
     }
   }

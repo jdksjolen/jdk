@@ -119,6 +119,17 @@ private:
   StatisticsMap& _stats;
   PlatformMonitor& _stats_lock;
 
+  struct StatsLocker : public StackObj {
+    CircularStringBuffer* buf;
+    StatsLocker(CircularStringBuffer* buf)
+      : buf(buf) {
+      buf->_stats_lock.lock();
+    }
+    ~StatsLocker() {
+      buf->_stats_lock.unlock();
+    }
+  };
+
   // Can't use a Monitor here as we need a low-level API that can be used without Thread::current().
   // The consumer lock's condition variable is used for communicating when messages are produced and consumed.
   PlatformMonitor _consumer_lock;
