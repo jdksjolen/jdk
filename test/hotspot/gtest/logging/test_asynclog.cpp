@@ -128,7 +128,7 @@ LOG_LEVEL_LIST
     PlatformMonitor lock; // For statistics
     CircularStringBuffer::StatisticsMap map;
     CircularStringBuffer cb(map, lock, os::vm_page_size(), false);
-    const size_t count = (cb.circular_mapping.size / (strlen(large_message)+1 + sizeof(CircularStringBuffer::Message))) - 1;
+    const size_t count = (cb._circular_mapping.size / (strlen(large_message)+1 + sizeof(CircularStringBuffer::Message))) - 1;
     stringStream ss;
     ss.print("file=%s", TestLogFileName);
     LogFileOutput out(ss.freeze());

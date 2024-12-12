@@ -144,7 +144,7 @@ private:
     }
   };
   // Opaque circular mapping of our buffer.
-  CircularMapping circular_mapping;
+  CircularMapping _circular_mapping;
 
   // Shared memory:
   // Consumer reads tail, writes to head.
@@ -153,9 +153,9 @@ private:
   volatile size_t _head; // Where new reads happen
 
   // Stalling mechanism:
+  bool _stalling_enabled;
   volatile Message* _stalled_message;
   Semaphore _stalling_sem;
-  bool _stalling_enabled;
 
   size_t allocated_bytes();
   size_t available_bytes();

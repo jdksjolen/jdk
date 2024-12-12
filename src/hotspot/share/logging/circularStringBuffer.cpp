@@ -49,10 +49,15 @@ CircularStringBuffer::CircularStringBuffer(StatisticsMap& map, PlatformMonitor& 
                                            size_t size, bool stalling_enabled)
   : _stats(map),
     _stats_lock(stats_lock),
-    circular_mapping(size),
+    _consumer_lock(),
+    _producer_lock(),
+    _flush_sem(),
+    _circular_mapping(size),
     _tail(0),
     _head(0),
-    _stalling_enabled(stalling_enabled)
+    _stalling_enabled(stalling_enabled),
+    _stalled_message(nullptr),
+    _stalling_sem()
     {}
 
 size_t CircularStringBuffer::allocated_bytes() {
@@ -61,12 +66,12 @@ size_t CircularStringBuffer::allocated_bytes() {
   if (h <= t) {
     return t - h;
   } else {
-    return circular_mapping.size - (h - t);
+    return _circular_mapping.size - (h - t);
   }
 }
 
 size_t CircularStringBuffer::available_bytes() {
-  return circular_mapping.size - allocated_bytes();
+  return _circular_mapping.size - allocated_bytes();
 }
 
 size_t CircularStringBuffer::calculate_bytes_needed(size_t sz) {
@@ -112,13 +117,13 @@ void CircularStringBuffer::enqueue_locked(const char* str, size_t size, LogFileS
   size_t t = _tail;
   // Write the Message
   Message msg{required_memory, output, decorations};
-  circular_mapping.write_bytes(t, (char*)&msg, sizeof(Message));
+  _circular_mapping.write_bytes(t, (char*)&msg, sizeof(Message));
   // Move t forward
-  t = (t +  sizeof(Message)) % circular_mapping.size;
+  t = (t +  sizeof(Message)) % _circular_mapping.size;
   // Write the string
-  circular_mapping.write_bytes(t, str, size);
+  _circular_mapping.write_bytes(t, str, size);
   // Finally move the tail, making the message available for consumers.
-  Atomic::store(&_tail, (t + required_memory) % circular_mapping.size);
+  Atomic::store(&_tail, (t + required_memory) % _circular_mapping.size);
   // We're done, notify a potentially awaiting consumer.
   _consumer_lock.notify();
   return;
@@ -150,19 +155,19 @@ CircularStringBuffer::DequeueResult CircularStringBuffer::dequeue(Message* out_m
   }
 
   // Read the message
-  circular_mapping.read_bytes(h, (char*)out_msg, sizeof(Message));
+  _circular_mapping.read_bytes(h, (char*)out_msg, sizeof(Message));
   const size_t str_size = out_msg->size;
   if (str_size > out_size) {
     // Not enough space
     return TooSmall;
   }
   // Move h forward
-  h = (h + sizeof(Message)) % circular_mapping.size;
+  h = (h + sizeof(Message)) % _circular_mapping.size;
 
   // Now read the string
-  circular_mapping.read_bytes(h, out, str_size);
+  _circular_mapping.read_bytes(h, out, str_size);
   // Done, move the head forward
-  Atomic::store(&_head, (h + out_msg->size) % circular_mapping.size);
+  Atomic::store(&_head, (h + out_msg->size) % _circular_mapping.size);
   // Notify a producer that more memory is available
   _consumer_lock.notify();
   // Release the lock
