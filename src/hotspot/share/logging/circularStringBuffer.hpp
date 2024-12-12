@@ -34,9 +34,6 @@
 #include "utilities/resourceHash.hpp"
 
 #include <string.h>
-#ifdef LINUX
-#include <sys/mman.h>
-#endif
 
 // The CircularMapping is a struct that provides
 // an interface for writing and reading bytes in a circular buffer

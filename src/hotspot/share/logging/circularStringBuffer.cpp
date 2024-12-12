@@ -162,7 +162,6 @@ CircularStringBuffer::DequeueResult CircularStringBuffer::dequeue(Message* out_m
   }
   // Move h forward
   h = (h + sizeof(Message)) % _circular_mapping.size;
-
   // Now read the string
   _circular_mapping.read_bytes(h, out, str_size);
   // Done, move the head forward
