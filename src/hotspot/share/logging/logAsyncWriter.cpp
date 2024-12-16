@@ -23,6 +23,7 @@
  *
  */
 #include "precompiled.hpp"
+#include "logging/circularStringBuffer.hpp"
 #include "logging/logAsyncWriter.hpp"
 #include "logging/logConfiguration.hpp"
 #include "logging/logFileOutput.hpp"
@@ -57,17 +58,51 @@ AsyncLogWriter::AsyncLogWriter(bool stalling_enabled)
 }
 
 bool AsyncLogWriter::write(char* write_buffer, size_t write_buffer_size) {
+  // There is only one thread that calls this function, so this is safe.
+  // They are declared static to keep information across calls, in case writing fails because of a too-small write_buffer.
+  static bool stalling_enabled = _circular_buffer.stalling_enabled();
+  static bool stalled_message_seen = false;
+  static size_t bytes_to_write = 0;
+  static size_t bytes_written = 0;
   int req = 0;
   CircularStringBuffer::Message msg;
   while (_circular_buffer.maybe_has_message()) {
+    // Stalling mechanism.
+    if (stalling_enabled && _circular_buffer.stalled_message() != nullptr && !stalled_message_seen) {
+      // A stalled message has been seen from some thread T. We cannot break out of the loop immediately as T may
+      // have unwritten messages in the buffer already and we guarantee program-order of log message output.
+      // In order to not have to wait for the consumer to catch up to the producers, we make note of
+      // the number of allocated bytes at this moment. When the consumer has written at least that many bytes,
+      // we know that all previous messages by T must have been printed.
+      stalled_message_seen = true;
+      bytes_to_write = _circular_buffer.allocated_bytes();
+      bytes_written = 0;
+    }
+    if (stalled_message_seen && bytes_written > bytes_to_write) {
+      // Enough bytes seen, deal with the stalled message.
+      bytes_written = 0; bytes_to_write = 0; stalled_message_seen = false;
+      CircularStringBuffer::StallingLocker lock(&_circular_buffer);
+      const CircularStringBuffer::StalledMessage* mptr = _circular_buffer.stalled_message();
+      if (mptr != nullptr) {
+        const char* str = mptr->string;
+        assert(!mptr->msg.is_token(), "must");
+        if (!mptr->msg.is_token()) {
+          mptr->msg.output->write_blocking(mptr->msg.decorations, str);
+        }
+        _circular_buffer.printed_stalled_message();
+        _circular_buffer.stall_finished();
+      }
+    }
+
+    // Regular printing mechanism.
     using DequeueResult = CircularStringBuffer::DequeueResult;
     DequeueResult result = _circular_buffer.dequeue(&msg, write_buffer, write_buffer_size);
     assert(result != DequeueResult::NoMessage, "Race detected but there is only one reading thread");
     if (result == DequeueResult::TooSmall) {
-      // Need a larger buffer
+      // Need a larger buffer, so we bail.
       return false;
     }
-
+    bytes_written += _circular_buffer.calculate_bytes_needed(msg.size);
     if (!msg.is_token()) {
       msg.output->write_blocking(msg.decorations, write_buffer);
     } else {
@@ -77,22 +112,8 @@ bool AsyncLogWriter::write(char* write_buffer, size_t write_buffer_size) {
     }
   }
 
-  // If in stalling mode, then check for a stalled message
-  if (_circular_buffer.stalling_enabled()) {
-    {
-      CircularStringBuffer::StallingLocker lock(&_circular_buffer);
-      CircularStringBuffer::Message* mptr = _circular_buffer.stalled_message();
-      if (mptr != nullptr) {
-        char* str = _circular_buffer.stalled_string();
-        assert(!mptr->is_token(), "must");
-        if (!mptr->is_token()) {
-          mptr->output->write_blocking(mptr->decorations, str);
-        }
-        os::free(mptr);
-        _circular_buffer.stall_finished();
-      }
-    }
-  } else {
+  // Publish statistics of dropped messages.
+  if (!stalling_enabled) {
     ResourceMark rm;
     AsyncLogMap<AnyObj::RESOURCE_AREA> snapshot;
     // Move counters to snapshot and reset them.

@@ -106,9 +106,16 @@ public:
         decorations(None) {
     }
 
-    bool is_token() {
+    bool is_token() const {
       return output == nullptr;
     }
+  };
+
+  struct StalledMessage {
+    const Message msg;
+    const char* string;
+    StalledMessage(Message& msg, const char* string)
+    : msg(msg), string(string) {}
   };
 
 private:
@@ -153,15 +160,11 @@ private:
 
   // Stalling mechanism:
   bool _stalling_enabled; // Is stalling allowed?
-  volatile Message* _stalled_message; // Message, followed by string, that is stalled
+  volatile StalledMessage* _stalled_message; // Message, followed by string, that is stalled
+  volatile bool _stalled_message_printed;
   PlatformMonitor _stalling_lock; // Waiting/signalling mechanism for stalled thread.
 
   static PlatformMonitor* stalling_lock_getter(CircularStringBuffer* cb) { return &cb->_stalling_lock; }
-
-  size_t allocated_bytes();
-  size_t available_bytes();
-  // How many bytes are needed to store a message of size sz?
-  size_t calculate_bytes_needed(size_t sz);
 
   void enqueue_locked(const char* msg, size_t size, LogFileStreamOutput* output, const LogDecorations decorations);
 
@@ -182,6 +185,11 @@ public:
   };
   DequeueResult dequeue(Message* out_message, char* out, size_t out_size);
 
+  size_t allocated_bytes();
+  size_t available_bytes();
+  // How many bytes are needed to store a message of size sz?
+  size_t calculate_bytes_needed(size_t sz);
+
   // Flushing interface, blocks until signal_flush() is called by the flusher.
   void flush();
   void signal_flush();
@@ -190,8 +198,8 @@ public:
   bool stalling_enabled() { return _stalling_enabled; }
   void stall();
   void stall_finished();
-  Message* stalled_message();
-  char* stalled_string();
+  void printed_stalled_message() { Atomic::store(&_stalled_message_printed, true); };
+  StalledMessage* stalled_message();
 
   bool maybe_has_message();
   void await_message();

@@ -56,6 +56,7 @@ CircularStringBuffer::CircularStringBuffer(StatisticsMap& map, PlatformMonitor& 
     _head(0),
     _stalling_enabled(stalling_enabled),
     _stalled_message(nullptr),
+    _stalled_message_printed(false),
     _stalling_lock()
     {}
 
@@ -91,19 +92,29 @@ void CircularStringBuffer::enqueue_locked(const char* str, size_t size, LogFileS
   auto not_enough_memory = [&]() {
     return this->available_bytes() < (required_memory + sizeof(Message)*(output == nullptr ? 1 : 2));
   };
+  _producer_lock.lock();
 
   if (not_enough_memory()) {
+    _producer_lock.unlock();
     if (stalling_enabled()) {
-      Message* ptr = (Message*)os::malloc(size + sizeof(Message), mtLogging);
-      new (ptr) Message{required_memory, output, decorations};
-      ::memcpy((char*)(ptr + 1), str, size);
-      { StallingLocker lock(this);
-        assert(_stalled_message == nullptr, "Should never have more than one stalled message");
-        _stalled_message = ptr;
-        while (_stalled_message != nullptr) {
+      Message m(required_memory, output, decorations);
+      StalledMessage* ptr = (StalledMessage*)os::malloc(sizeof(StalledMessage), mtLogging);
+      new (ptr) StalledMessage(m, str);
+      {
+        StallingLocker lock(this);
+        while (Atomic::load(&_stalled_message) != nullptr) {
           stall();
         }
+        assert(_stalled_message == nullptr, "Should never have more than one stalled message");
+        Atomic::store(&_stalled_message, ptr);
+        while (!Atomic::load(&_stalled_message_printed)) {
+          stall();
+        }
+        Atomic::store(&_stalled_message_printed, false);
+        Atomic::store(&_stalled_message, (StalledMessage*)nullptr);
+        stall_finished();
       }
+      os::free(ptr);
     } else {
       StatsLocker lock(this);
       bool p_created;
@@ -126,17 +137,16 @@ void CircularStringBuffer::enqueue_locked(const char* str, size_t size, LogFileS
   Atomic::store(&_tail, (t + required_memory) % _circular_mapping.size());
   // We're done, notify a potentially awaiting consumer.
   _consumer_lock.notify();
+  _producer_lock.unlock();
   return;
 }
 
 void CircularStringBuffer::enqueue(const char* msg, size_t size, LogFileStreamOutput* output,
                                    const LogDecorations decorations) {
-  ProducerLocker pl(this);
   enqueue_locked(msg, size, output, decorations);
 }
 
 void CircularStringBuffer::enqueue(LogFileStreamOutput& output, LogMessageBuffer::Iterator msg_iterator) {
-  ProducerLocker pl(this);
   for (; !msg_iterator.is_at_end(); msg_iterator++) {
     const char* str = msg_iterator.message();
     size_t len = strlen(str);
@@ -204,15 +214,9 @@ void CircularStringBuffer::stall() {
 }
 
 void CircularStringBuffer::stall_finished() {
-  Atomic::store(&_stalled_message, (Message*)nullptr);
   _stalling_lock.notify();
 }
 
-CircularStringBuffer::Message* CircularStringBuffer::stalled_message() {
-  return const_cast<Message*>(Atomic::load(&_stalled_message));
-}
-
-char* CircularStringBuffer::stalled_string() {
-  assert(_stalled_message != nullptr, "must exist");
-  return (char*)(_stalled_message + 1);
+CircularStringBuffer::StalledMessage* CircularStringBuffer::stalled_message() {
+  return const_cast<StalledMessage*>(Atomic::load(&_stalled_message));
 }
