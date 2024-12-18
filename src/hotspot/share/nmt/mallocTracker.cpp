@@ -44,7 +44,7 @@
 #include "utilities/vmError.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-MallocMemorySnapshot MallocMemorySummary::_snapshot;
+MallocMemorySnapshot* MallocMemorySummary::_snapshot;
 
 void MemoryCounter::update_peak(size_t size, size_t cnt) {
   size_t peak_sz = peak_size();
@@ -60,10 +60,11 @@ void MemoryCounter::update_peak(size_t size, size_t cnt) {
   }
 }
 
-void MallocMemorySnapshot::copy_to(MallocMemorySnapshot* s) {
+void MallocMemorySnapshot::copy_to(MallocMemorySnapshot** result) {
   // Use ThreadCritical to make sure that mtChunks don't get deallocated while the
   // copy is going on, because their size is adjusted using this
   // buffer in make_adjustment().
+  MallocMemorySnapshot* s = new MallocMemorySnapshot(*this);
   ThreadCritical tc;
   s->_all_mallocs = _all_mallocs;
   size_t total_size = 0;
@@ -75,6 +76,7 @@ void MallocMemorySnapshot::copy_to(MallocMemorySnapshot* s) {
   }
   // malloc counters may be updated concurrently
   s->_all_mallocs.set_size_and_count(total_size, total_count);
+  *result = s;
 }
 
 // Total malloc'd memory used by arenas
@@ -90,14 +92,17 @@ size_t MallocMemorySnapshot::total_arena() const {
 // from total chunks to get total free chunk size
 void MallocMemorySnapshot::make_adjustment() {
   size_t arena_size = total_arena();
-  int chunk_idx = NMTUtil::tag_to_index(mtChunk);
-  _malloc[chunk_idx].record_free(arena_size);
+  _malloc[mtChunk].record_free(arena_size);
   _all_mallocs.deallocate(arena_size);
 }
 
-void MallocMemorySummary::initialize() {
-  // Uses placement new operator to initialize static area.
+bool MallocMemorySummary::initialize() {
+  _snapshot = new MallocMemorySnapshot();
+  if (!_snapshot->is_valid()) {
+    return false;
+  }
   MallocLimitHandler::initialize(MallocLimit);
+  return true;
 }
 
 bool MallocMemorySummary::total_limit_reached(size_t s, size_t so_far, const malloclimit* limit) {
@@ -156,7 +161,10 @@ bool MallocMemorySummary::category_limit_reached(MemTag mem_tag, size_t s, size_
 
 bool MallocTracker::initialize(NMT_TrackingLevel level) {
   if (level >= NMT_summary) {
-    MallocMemorySummary::initialize();
+    bool success = MallocMemorySummary::initialize();
+    if (!success) {
+      return false;
+    }
   }
 
   if (level == NMT_detail) {
