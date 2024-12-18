@@ -33,6 +33,7 @@
 #include "nmt/memTracker.hpp"
 #include "nmt/nmtCommon.hpp"
 #include "nmt/nmtPreInit.hpp"
+#include "nmt/memTagNameTable.hpp"
 #include "nmt/threadStackTracker.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/globals.hpp"
@@ -67,6 +68,7 @@ void MemTracker::initialize() {
   STATIC_ASSERT(mt_number_of_tags <= max_jubyte);
 
   if (level > NMT_off) {
+    MemTagNameTable::Instance::initialize();
     if (!MallocTracker::initialize(level) ||
         !MemoryFileTracker::Instance::initialize(level) ||
         !VirtualMemoryTracker::initialize(level)) {

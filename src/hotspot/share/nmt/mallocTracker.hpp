@@ -29,6 +29,7 @@
 #include "nmt/mallocHeader.hpp"
 #include "nmt/memTag.hpp"
 #include "nmt/nmtCommon.hpp"
+#include "nmt/contiguousAllocator.hpp"
 #include "runtime/atomic.hpp"
 #include "runtime/threadCritical.hpp"
 #include "utilities/nativeCallStack.hpp"
@@ -146,23 +147,51 @@ class MallocMemorySummary;
 
 // A snapshot of malloc'd memory, includes malloc memory
 // usage by types and memory used by tracking itself.
-class MallocMemorySnapshot {
+class MallocMemorySnapshot : public CHeapObj<mtNMT> {
   friend class MallocMemorySummary;
 
- private:
-  MallocMemory      _malloc[mt_number_of_tags];
-  MemoryCounter     _all_mallocs;
+private:
+  class MemTagArray {
+    ContiguousAllocator _allocator;
+    uint32_t _memtag_max_index;
 
+  public:
+    MemTagArray()
+    : _allocator(NMTMallocStatisticsSize, mtNMT), _memtag_max_index(0) {}
 
- public:
+    // Snapshotting constructor
+    MemTagArray(MemTagArray& original)
+    : _allocator(original._allocator), _memtag_max_index(original._memtag_max_index) {}
+
+    MallocMemory* at(uint32_t index);
+
+    MallocMemory& operator[](uint32_t i) { return *at(i); }
+    const MallocMemory& operator[](uint32_t i) const { return *const_cast<MemTagArray*>(this)->at(i); }
+    MallocMemory& operator[](MemTag i) { return *at(i); }
+    const MallocMemory& operator[](MemTag i) const { return *const_cast<MemTagArray*>(this)->at(i); }
+
+    MallocMemory* at(MemTag mem_tag) { return at((uint32_t)mem_tag); }
+    const MallocMemory* at(MemTag mem_tag) const { return const_cast<MemTagArray*>(this)->at((uint32_t)mem_tag); }
+
+    uint32_t max_index() { return _memtag_max_index; }
+  };
+
+  MemTagArray _malloc;
+  MemoryCounter _all_mallocs;
+
+public:
+  MallocMemorySnapshot()
+  : _malloc(), _all_mallocs() {}
+
+  MallocMemorySnapshot(MallocMemorySnapshot& snap)
+  : _malloc(snap._malloc), _all_mallocs() {}
+
   inline MallocMemory* by_type(MemTag mem_tag) {
-    int index = NMTUtil::tag_to_index(mem_tag);
-    return &_malloc[index];
+    return &_malloc[mem_tag];
   }
 
   inline const MallocMemory* by_type(MemTag mem_tag) const {
-    int index = NMTUtil::tag_to_index(mem_tag);
-    return &_malloc[index];
+    return &_malloc[mem_tag];
   }
 
   inline size_t malloc_overhead() const {
@@ -192,11 +221,18 @@ class MallocMemorySnapshot {
   // Total malloc'd memory used by arenas
   size_t total_arena() const;
 
-  void copy_to(MallocMemorySnapshot* s);
+  void copy_to(MallocMemorySnapshot** s);
 
   // Make adjustment by subtracting chunks used by arenas
   // from total chunks to get total free chunk size
   void make_adjustment();
+
+  // Get a new memory tag
+  MemTag new_tag() {
+    uint32_t x = _malloc.max_index() + 1;
+    _malloc.at(x); // Alloc
+    return (MemTag)x;
+  }
 };
 
 /*
@@ -205,7 +241,7 @@ class MallocMemorySnapshot {
 class MallocMemorySummary : AllStatic {
  private:
   // Reserve memory for placement of MallocMemorySnapshot object
-  static MallocMemorySnapshot _snapshot;
+  static MallocMemorySnapshot* _snapshot;
   static bool _have_limits;
 
   // Called when a total limit break was detected.
@@ -218,6 +254,10 @@ class MallocMemorySummary : AllStatic {
 
  public:
    static void initialize();
+
+  static MemTag new_tag() {
+    return _snapshot->new_tag();
+  }
 
    static inline void record_malloc(size_t size, MemTag mem_tag) {
      as_snapshot()->by_type(mem_tag)->record_malloc(size);
@@ -241,9 +281,9 @@ class MallocMemorySummary : AllStatic {
      as_snapshot()->by_type(mem_tag)->record_arena_size_change(size);
    }
 
-   static void snapshot(MallocMemorySnapshot* s) {
+   static void snapshot(MallocMemorySnapshot** s) {
      as_snapshot()->copy_to(s);
-     s->make_adjustment();
+     (*s)->make_adjustment();
    }
 
    // The memory used by malloc tracking headers
@@ -252,7 +292,7 @@ class MallocMemorySummary : AllStatic {
    }
 
   static MallocMemorySnapshot* as_snapshot() {
-    return &_snapshot;
+    return _snapshot;
   }
 
   // MallocLimit: returns true if allocating s bytes on f would trigger

@@ -44,7 +44,7 @@
 #include "utilities/vmError.hpp"
 #include "utilities/globalDefinitions.hpp"
 
-MallocMemorySnapshot MallocMemorySummary::_snapshot;
+MallocMemorySnapshot* MallocMemorySummary::_snapshot;
 
 void MemoryCounter::update_peak(size_t size, size_t cnt) {
   size_t peak_sz = peak_size();
@@ -60,10 +60,11 @@ void MemoryCounter::update_peak(size_t size, size_t cnt) {
   }
 }
 
-void MallocMemorySnapshot::copy_to(MallocMemorySnapshot* s) {
+void MallocMemorySnapshot::copy_to(MallocMemorySnapshot** result) {
   // Use ThreadCritical to make sure that mtChunks don't get deallocated while the
   // copy is going on, because their size is adjusted using this
   // buffer in make_adjustment().
+  MallocMemorySnapshot* s = new MallocMemorySnapshot(*this);
   ThreadCritical tc;
   s->_all_mallocs = _all_mallocs;
   size_t total_size = 0;
@@ -75,6 +76,7 @@ void MallocMemorySnapshot::copy_to(MallocMemorySnapshot* s) {
   }
   // malloc counters may be updated concurrently
   s->_all_mallocs.set_size_and_count(total_size, total_count);
+  *result = s;
 }
 
 // Total malloc'd memory used by arenas
@@ -90,13 +92,12 @@ size_t MallocMemorySnapshot::total_arena() const {
 // from total chunks to get total free chunk size
 void MallocMemorySnapshot::make_adjustment() {
   size_t arena_size = total_arena();
-  int chunk_idx = NMTUtil::tag_to_index(mtChunk);
-  _malloc[chunk_idx].record_free(arena_size);
+  _malloc[mtChunk].record_free(arena_size);
   _all_mallocs.deallocate(arena_size);
 }
 
 void MallocMemorySummary::initialize() {
-  // Uses placement new operator to initialize static area.
+  _snapshot = new MallocMemorySnapshot();
   MallocLimitHandler::initialize(MallocLimit);
 }
 
@@ -214,4 +215,16 @@ void MallocTracker::deaccount(MallocHeader::FreeInfo free_info) {
   if (MemTracker::tracking_level() == NMT_detail) {
     MallocSiteTable::deallocation_at(free_info.size, free_info.mst_marker);
   }
+}
+
+MallocMemory* MallocMemorySnapshot::MemTagArray::at(uint32_t index) {
+  if (_memtag_max_index < index) {
+    size_t number_of_indices_to_allocate = index - _memtag_max_index;
+    ContiguousAllocator::AllocationResult ret =
+        _allocator.alloc(number_of_indices_to_allocate * sizeof(MallocMemory));
+    if (ret.failed()) return nullptr;
+    _memtag_max_index += number_of_indices_to_allocate;
+  }
+  char* offset = _allocator.at_offset(sizeof(MallocMemory) * index);
+  return (MallocMemory*)offset;
 }

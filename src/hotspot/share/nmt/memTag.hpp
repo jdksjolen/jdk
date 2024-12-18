@@ -64,7 +64,7 @@
 #define MEMORY_TAG_DECLARE_ENUM(mem_tag, human_readable) \
 mem_tag,
 
-enum class MemTag : uint8_t  {
+enum class MemTag : uint32_t  {
   MEMORY_TAG_DO(MEMORY_TAG_DECLARE_ENUM)
   mt_number_of_tags    // number of memory tags (mtDontTrack
                        // is not included as validate tag)

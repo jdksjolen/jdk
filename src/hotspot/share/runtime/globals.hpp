@@ -581,6 +581,9 @@ const int ObjectAlignmentInBytes = 8;
   product(bool, PrintNMTStatistics, false, DIAGNOSTIC,                      \
           "Print native memory tracking summary data if it is on")          \
                                                                             \
+  product(size_t, NMTMallocStatisticsSize, NOT_LP64(32 * M) LP64_ONLY(256 * M)      \
+          "The maximum amount of memory used for storing summary malloc statistics") \
+                                                                            \
   product(bool, LogCompilation, false, DIAGNOSTIC,                          \
           "Log compilation activity in detail to LogFile")                  \
                                                                             \
