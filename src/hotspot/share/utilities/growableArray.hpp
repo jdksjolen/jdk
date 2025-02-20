@@ -377,14 +377,14 @@ public:
 // The allocator responsibility is delegated to the sub-class.
 //
 // Derived: The sub-class responsible for allocation / deallocation
-//  - E* Derived::allocate()       - member function responsible for allocation
+//  - E* Derived::allocate(AllocFailType)       - member function responsible for allocation
 //  - void Derived::deallocate(E*) - member function responsible for deallocation
 template <typename E, typename Derived>
 class GrowableArrayWithAllocator : public GrowableArrayView<E> {
   friend class VMStructs;
 
-  void expand_to(int j);
-  void grow(int j);
+  bool expand_to(int j, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
+  bool grow(int j, AllocFailType alloc_failmode = AllocFailStrategy::EXIT_OOM);
 
 protected:
   GrowableArrayWithAllocator(E* data, int capacity) :
@@ -413,6 +413,19 @@ public:
     int idx = this->_len++;
     this->_data[idx] = elem;
     return idx;
+  }
+
+  E* append_oom_safe(const E& elem) {
+    bool succesful_resize = true;
+    if (this->_len == this->_capacity) {
+      succesful_resize = grow(this->_len, AllocFailType::RETURN_NULL);
+    }
+    if (succesful_resize) {
+      int idx = this->_len++;
+      this->_data[idx] = elem;
+      return &this->_data[idx];
+    }
+    return nullptr;
   }
 
   bool append_if_missing(const E& elem) {
@@ -518,26 +531,31 @@ public:
 };
 
 template <typename E, typename Derived>
-void GrowableArrayWithAllocator<E, Derived>::expand_to(int new_capacity) {
+bool GrowableArrayWithAllocator<E, Derived>::expand_to(int new_capacity, AllocFailType failure_mode) {
   int old_capacity = this->_capacity;
   assert(new_capacity > old_capacity,
          "expected growth but %d <= %d", new_capacity, old_capacity);
   this->_capacity = new_capacity;
-  E* newData = static_cast<Derived*>(this)->allocate();
+  E* new_data = static_cast<Derived*>(this)->allocate(failure_mode);
+  if (new_data == nullptr) {
+    this->_capacity = old_capacity;
+    return false;
+  }
   int i = 0;
-  for (     ; i < this->_len; i++) ::new ((void*)&newData[i]) E(this->_data[i]);
-  for (     ; i < this->_capacity; i++) ::new ((void*)&newData[i]) E();
+  for (     ; i < this->_len; i++) ::new ((void*)&new_data[i]) E(this->_data[i]);
+  for (     ; i < this->_capacity; i++) ::new ((void*)&new_data[i]) E();
   for (i = 0; i < old_capacity; i++) this->_data[i].~E();
   if (this->_data != nullptr) {
     static_cast<Derived*>(this)->deallocate(this->_data);
   }
-  this->_data = newData;
+  this->_data = new_data;
+  return true;
 }
 
 template <typename E, typename Derived>
-void GrowableArrayWithAllocator<E, Derived>::grow(int j) {
+bool GrowableArrayWithAllocator<E, Derived>::grow(int j, AllocFailType failure_mode) {
   // grow the array by increasing _capacity to the first power of two larger than the size we need
-  expand_to(next_power_of_2(j));
+  return expand_to(next_power_of_2(j), failure_mode);
 }
 
 template <typename E, typename Derived>
@@ -563,7 +581,7 @@ void GrowableArrayWithAllocator<E, Derived>::shrink_to_fit() {
   E* new_data = nullptr;
   this->_capacity = len;        // Must preceed allocate().
   if (len > 0) {
-    new_data = static_cast<Derived*>(this)->allocate();
+    new_data = static_cast<Derived*>(this)->allocate(AllocFailType::EXIT_OOM);
     for (int i = 0; i < len; ++i) ::new (&new_data[i]) E(old_data[i]);
   }
   // Destroy contents of old data, and deallocate it.
@@ -595,7 +613,7 @@ public:
 // CHeap allocator
 class GrowableArrayCHeapAllocator {
 public:
-  static void* allocate(int max, int element_size, MemTag mem_tag);
+  static void* allocate(int max, int element_size, MemTag mem_tag, AllocFailType failure_mode);
   static void deallocate(void* mem);
 };
 
@@ -715,8 +733,8 @@ class GrowableArray : public GrowableArrayWithAllocator<E, GrowableArray<E>> {
     return (E*)GrowableArrayResourceAllocator::allocate(max, sizeof(E));
   }
 
-  static E* allocate(int max, MemTag mem_tag) {
-    return (E*)GrowableArrayCHeapAllocator::allocate(max, sizeof(E), mem_tag);
+  static E* allocate(int max, MemTag mem_tag, AllocFailType failure_mode = AllocFailType::EXIT_OOM) {
+    return (E*)GrowableArrayCHeapAllocator::allocate(max, sizeof(E), mem_tag, failure_mode);
   }
 
   static E* allocate(int max, Arena* arena) {
@@ -732,7 +750,8 @@ class GrowableArray : public GrowableArrayWithAllocator<E, GrowableArray<E>> {
   bool on_resource_area() const { return _metadata.on_resource_area(); }
   bool on_arena() const         { return _metadata.on_arena(); }
 
-  E* allocate() {
+  E* allocate(AllocFailType failure_mode) {
+    assert(failure_mode != AllocFailType::EXIT_OOM || on_C_heap(), "Only C-heap allows fallible allocations");
     if (on_resource_area()) {
       debug_only(_metadata.on_resource_area_alloc_check());
       return allocate(this->_capacity);
@@ -810,18 +829,18 @@ class GrowableArrayCHeap : public GrowableArrayWithAllocator<E, GrowableArrayCHe
 
   STATIC_ASSERT(MT != mtNone);
 
-  static E* allocate(int max, MemTag mem_tag) {
+  static E* allocate(int max, MemTag mem_tag, AllocFailType failure_mode = AllocFailType::EXIT_OOM) {
     if (max == 0) {
       return nullptr;
     }
 
-    return (E*)GrowableArrayCHeapAllocator::allocate(max, sizeof(E), mem_tag);
+    return (E*)GrowableArrayCHeapAllocator::allocate(max, sizeof(E), mem_tag, failure_mode);
   }
 
   NONCOPYABLE(GrowableArrayCHeap);
 
-  E* allocate() {
-    return allocate(this->_capacity, MT);
+  E* allocate(AllocFailType failure_mode = AllocFailType::EXIT_OOM) {
+    return allocate(this->_capacity, MT, failure_mode);
   }
 
   void deallocate(E* mem) {

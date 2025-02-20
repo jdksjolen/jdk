@@ -689,3 +689,33 @@ TEST(GrowableArrayCHeap, returning_references_works_as_expected) {
   EXPECT_EQ(5, first);
   EXPECT_EQ(5, last);
 }
+
+TEST_VM_F(GrowableArrayTest, OomSafeApiTest) {
+  // We shouldn't run out of memory when appending a few allocs.
+  { GrowableArrayCHeap<int, mtTest> arr(8, 8, -1);
+    for (int i = 0; i < 256; i++) {
+      int* success = arr.append_oom_safe(55);
+      EXPECT_NE(nullptr, success);
+    }
+  }
+  { GrowableArray<int> arr(0, mtTest);
+    for (int i = 0; i < 256; i++) {
+      int* success = arr.append_oom_safe(55);
+      EXPECT_NE(nullptr, success);
+    }
+  }
+
+  // An always failing allocator should also work
+  struct GrowableArrayFail : public GrowableArrayWithAllocator<int, GrowableArrayFail> {
+  public:
+    static int* allocate(AllocFailType failure_mode) {
+      return nullptr;
+    }
+    GrowableArrayFail()
+    : GrowableArrayWithAllocator<int, GrowableArrayFail>(nullptr, 0) {}
+  };
+  { GrowableArrayFail arr;
+    int* x = arr.append_oom_safe(1);
+    EXPECT_EQ(nullptr, x);
+  }
+}
