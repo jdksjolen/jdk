@@ -201,7 +201,9 @@ private:
     }
 #endif
     if (value.refcount() != PERM_REFCOUNT) {
-      return AllocateHeap(alloc_size, mtSymbol);
+      // Allocate to global arena
+      MutexLocker ml(SymbolArena_lock, Mutex::_no_safepoint_check_flag); // Protect arena
+      return SymbolTable::arena()->Amalloc(alloc_size);
     } else {
       // Allocate to global arena
       MutexLocker ml(SymbolArena_lock, Mutex::_no_safepoint_check_flag); // Protect arena
