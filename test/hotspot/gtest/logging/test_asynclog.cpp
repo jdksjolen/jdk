@@ -272,8 +272,9 @@ TEST_VM_F(AsyncLogTest, stdoutOutput) {
     return;
   }
 
-  bool async = AsyncLogWriter::instance() != nullptr;
-  if (async) {
+  bool async_drop_mode = AsyncLogWriter::instance() != nullptr
+                         && LogConfiguration::async_mode() == LogConfiguration::AsyncMode::Drop;
+  if (async_drop_mode) {
     test_asynclog_drop_messages();
     AsyncLogWriter::flush();
   } else {
@@ -289,7 +290,7 @@ TEST_VM_F(AsyncLogTest, stdoutOutput) {
   EXPECT_TRUE(file_contains_substring(TestLogFileName, "logStream msg1-msg2-msg3"));
   EXPECT_TRUE(file_contains_substring(TestLogFileName, "logStream newline"));
 
-  if (async) {
+  if (async_drop_mode) {
     EXPECT_TRUE(file_contains_substring(TestLogFileName, "messages dropped due to async logging"));
   }
 }
@@ -301,8 +302,9 @@ TEST_VM_F(AsyncLogTest, stderrOutput) {
     return;
   }
 
-  bool async = AsyncLogWriter::instance() != nullptr;
-  if (async) {
+  bool async_drop_mode = AsyncLogWriter::instance() != nullptr
+                         && LogConfiguration::async_mode() == LogConfiguration::AsyncMode::Drop;
+  if (async_drop_mode) {
     test_asynclog_drop_messages();
     AsyncLogWriter::flush();
   } else {
@@ -318,7 +320,7 @@ TEST_VM_F(AsyncLogTest, stderrOutput) {
   EXPECT_TRUE(file_contains_substring(TestLogFileName, "logStream msg1-msg2-msg3"));
   EXPECT_TRUE(file_contains_substring(TestLogFileName, "logStream newline"));
 
-  if (async) {
+  if (async_drop_mode) {
     EXPECT_TRUE(file_contains_substring(TestLogFileName, "messages dropped due to async logging"));
   }
 }
