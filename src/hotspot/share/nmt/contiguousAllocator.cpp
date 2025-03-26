@@ -11,7 +11,7 @@ char* ContiguousAllocator::allocate_virtual_address_range() {
     return nullptr;
   }
 
-  MemTracker::record_virtual_memory_reserve(addr, _size, CURRENT_PC);
+  // MemTracker::record_virtual_memory_reserve(addr, _size, CURRENT_PC);
   return addr;
 }
 
@@ -33,7 +33,7 @@ ContiguousAllocator::AllocationResult ContiguousAllocator::populate_chunk(size_t
   if (addr == MAP_FAILED) {
     return {nullptr, 0};
   }
-  MemTracker::record_virtual_memory_commit(addr, chunk_aligned_size, CALLER_PC);
+  // MemTracker::record_virtual_memory_commit(addr, chunk_aligned_size, CALLER_PC);
 
   this->_committed_boundary += chunk_aligned_size;
 
@@ -45,5 +45,5 @@ ContiguousAllocator::~ContiguousAllocator() {
   if (is_reserved()) {
     unreserve();
   }
-  MemTracker::record_virtual_memory_release(_start, _size);
+  // MemTracker::record_virtual_memory_release(_start, _size);
 }
