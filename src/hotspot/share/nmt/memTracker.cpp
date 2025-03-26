@@ -51,7 +51,7 @@ NMT_TrackingLevel MemTracker::_tracking_level = NMT_unknown;
 
 MemBaseline MemTracker::_baseline;
 
-bool MemTracker::NmtVirtualMemoryLocker::_safe_to_use;
+bool NmtVirtualMemoryLocker::_safe_to_use;
 
 void MemTracker::initialize() {
   bool rc = true;
