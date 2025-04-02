@@ -851,4 +851,12 @@ TEST_VM_F(NMTVMATreeTest, SeparateStacksForCommitAndReserve) {
     tree.reserve_mapping(0, 100, call_stack_2);
     expected(tree, 0, si_2, -1, __LINE__);
   }
+
+  { // Uncommit should save reserve call stack
+    Tree tree;
+    tree.reserve_mapping(0, 100, call_stack_1);
+    tree.commit_mapping(0, 100, call_stack_2);
+    tree.uncommit_mapping(10, 10, call_stack_2);
+    expected(tree, 10, si_1, -1, __LINE__);
+  }
 }
