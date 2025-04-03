@@ -38,18 +38,25 @@ class BootstrapInfo : public StackObj {
   Symbol*     _name;            // extracted from JVM_CONSTANT_NameAndType
   Symbol*     _signature;
 
-  // pre-bootstrap resolution state:
-  Handle      _bsm;             // resolved bootstrap method
-  Handle      _name_arg;        // resolved String
-  Handle      _type_arg;        // resolved Class or MethodType
-  Handle      _arg_values;      // array of static arguments; null implies either
-                                // uresolved or zero static arguments are specified
-
+  struct PreBootstrapResolutionState {
+    Handle _bsm; // resolved bootstrap method
+    Handle _name_arg; // resolved String
+    Handle _type_arg; // resolved Class or MethodType
+    Handle _arg_values; // array of static arguments; null implies either
+        // uresolved or zero static arguments are specified
+  };
+  struct PostBootstrapResolutionState {
+    Handle _resolved_value; // bind this as condy constant
+    methodHandle _resolved_method; // bind this as indy behavior
+    Handle _resolved_appendix; // extra opaque static argument for _resolved_method
+  };
   // post-bootstrap resolution state:
   bool        _is_resolved;       // set true when any of the next fields are set
-  Handle      _resolved_value;    // bind this as condy constant
-  methodHandle _resolved_method;  // bind this as indy behavior
-  Handle      _resolved_appendix; // extra opaque static argument for _resolved_method
+  union {
+    PreBootstrapResolutionState pre;
+    PostBootstrapResolutionState post;
+  };
+
 
  public:
   BootstrapInfo(const constantPoolHandle& pool, int bss_index, int indy_index = -1);
@@ -64,14 +71,14 @@ class BootstrapInfo : public StackObj {
   Symbol* signature() const             { return _signature; }
 
   // accessors to lazy state
-  Handle bsm() const                    { return _bsm; }
-  Handle name_arg() const               { return _name_arg; }
-  Handle type_arg() const               { return _type_arg; }
-  Handle arg_values() const             { return _arg_values; }
+  Handle bsm() const                    { return pre._bsm; }
+  Handle name_arg() const               { return pre._name_arg; }
+  Handle type_arg() const               { return pre._type_arg; }
+  Handle arg_values() const             { return pre._arg_values; }
   bool is_resolved() const              { return _is_resolved; }
-  Handle resolved_value() const         { assert(!is_method_call(), ""); return _resolved_value; }
-  methodHandle resolved_method() const  { assert(is_method_call(), "");  return _resolved_method; }
-  Handle resolved_appendix() const      { assert(is_method_call(), "");  return _resolved_appendix; }
+  Handle resolved_value() const         { assert(!is_method_call(), ""); return post._resolved_value; }
+  methodHandle resolved_method() const  { assert(is_method_call(), "");  return post._resolved_method; }
+  Handle resolved_appendix() const      { assert(is_method_call(), "");  return post._resolved_appendix; }
 
   // derived accessors
   InstanceKlass* caller() const         { return _pool->pool_holder(); }
@@ -97,13 +104,13 @@ class BootstrapInfo : public StackObj {
   void set_resolved_value(Handle value) {
     assert(!is_resolved() && !is_method_call(), "");
     _is_resolved = true;
-    _resolved_value = value;
+    post._resolved_value = value;
   }
   void set_resolved_method(methodHandle method, Handle appendix) {
     assert(!is_resolved() && is_method_call(), "");
     _is_resolved = true;
-    _resolved_method = method;
-    _resolved_appendix = appendix;
+    post._resolved_method = method;
+    post._resolved_appendix = appendix;
   }
 
   void print() { print_msg_on(tty); }

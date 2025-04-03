@@ -50,11 +50,12 @@ BootstrapInfo::BootstrapInfo(const constantPoolHandle& pool, int bss_index, int 
     _bss_index(bss_index),
     _indy_index(indy_index),
     // derived and eagerly cached:
-    _argc(      pool->bootstrap_argument_count_at(bss_index) ),
-    _name(      pool->uncached_name_ref_at(bss_index) ),
-    _signature( pool->uncached_signature_ref_at(bss_index) )
+    _argc(pool->bootstrap_argument_count_at(bss_index)),
+    _name(pool->uncached_name_ref_at(bss_index)),
+    _signature(pool->uncached_signature_ref_at(bss_index)),
+    _is_resolved(false),
+    pre()
 {
-  _is_resolved = false;
   assert(pool->tag_at(bss_index).has_bootstrap(), "");
   assert(indy_index == -1 || pool->resolved_indy_entry_at(indy_index)->constant_pool_index() == bss_index, "invalid bootstrap specifier index");
 }
@@ -86,8 +87,9 @@ bool BootstrapInfo::resolve_previously_linked_invokedynamic(CallInfo& result, TR
 // - obtain the NameAndType description for the condy/indy
 // - prepare the BSM's static arguments
 Handle BootstrapInfo::resolve_bsm(TRAPS) {
-  if (_bsm.not_null()) {
-    return _bsm;
+  assert(!_is_resolved, "");
+  if (pre._bsm.not_null()) {
+    return pre._bsm;
   }
 
   bool is_indy = is_method_call();
@@ -99,7 +101,7 @@ Handle BootstrapInfo::resolve_bsm(TRAPS) {
   oop bsm_oop = _pool->resolve_possibly_cached_constant_at(bsm_index(), THREAD);
   Exceptions::wrap_dynamic_exception(is_indy, CHECK_NH);
   guarantee(java_lang_invoke_MethodHandle::is_instance(bsm_oop), "classfile must supply a valid BSM");
-  _bsm = Handle(THREAD, bsm_oop);
+  pre._bsm = Handle(THREAD, bsm_oop);
 
   // Obtain NameAndType information
   resolve_bss_name_and_type(THREAD);
@@ -109,7 +111,7 @@ Handle BootstrapInfo::resolve_bsm(TRAPS) {
   resolve_args(THREAD);
   Exceptions::wrap_dynamic_exception(is_indy, CHECK_NH);
 
-  return _bsm;
+  return pre._bsm;
 }
 
 // Resolve metadata from the JVM_Dynamic_info or JVM_InvokeDynamic_info's name and type information.
@@ -127,7 +129,8 @@ void BootstrapInfo::resolve_bss_name_and_type(TRAPS) {
 
 // Resolve the bootstrap method's static arguments and store the result in _arg_values.
 void BootstrapInfo::resolve_args(TRAPS) {
-  assert(_bsm.not_null(), "resolve_bsm first");
+  assert(!_is_resolved, "");
+  assert(pre._bsm.not_null(), "resolve_bsm first");
 
   // if there are no static arguments, return leaving _arg_values as null
   if (_argc == 0 && UseBootstrapCallInfo < 2) return;
@@ -144,7 +147,7 @@ void BootstrapInfo::resolve_args(TRAPS) {
     // since the JDK runtime will make up the difference either way.
     // For now, exercise the pull-mode path if the BSM is of arity 2,
     // or if there is a potential condy loop (see below).
-    oop mt_oop = java_lang_invoke_MethodHandle::type(_bsm());
+    oop mt_oop = java_lang_invoke_MethodHandle::type(pre._bsm());
     use_BSCI = (java_lang_invoke_MethodType::ptype_count(mt_oop) == 2);
     break;
   }
@@ -195,16 +198,16 @@ void BootstrapInfo::resolve_args(TRAPS) {
     if (arg_oop != nullptr && !arg_oop->is_array()) {
       // JVM treats arrays and nulls specially in this position,
       // but other things are just single arguments
-      _arg_values = Handle(THREAD, arg_oop);
+      pre._arg_values = Handle(THREAD, arg_oop);
     } else {
-      _arg_values = args;
+      pre._arg_values = args;
     }
   } else {
     // return {arg_count, pool_index}; JDK code must pull the arguments as needed
     typeArrayOop ints_oop = oopFactory::new_typeArray(T_INT, 2, CHECK);
     ints_oop->int_at_put(0, _argc);
     ints_oop->int_at_put(1, _bss_index);
-    _arg_values = Handle(THREAD, ints_oop);
+    pre._arg_values = Handle(THREAD, ints_oop);
   }
 }
 
@@ -243,10 +246,10 @@ void BootstrapInfo::print_msg_on(outputStream* st, const char* msg) {
                 _bss_index,
                 _name->as_C_string(),
                 _signature->as_C_string(),
-                (_type_arg.is_null() ? "" : "(resolved)"),
+                (pre._type_arg.is_null() ? "" : "(resolved)"),
                 bsms_attr_index(),
-                bsm_index(), (_bsm.is_null() ? "" : "(resolved)"),
-                _argc, (_arg_values.is_null() ? "" : "(resolved)"));
+                bsm_index(), (pre._bsm.is_null() ? "" : "(resolved)"),
+                _argc, (pre._arg_values.is_null() ? "" : "(resolved)"));
   if (_argc > 0) {
     char argbuf[80];
     argbuf[0] = 0;
@@ -261,16 +264,16 @@ void BootstrapInfo::print_msg_on(outputStream* st, const char* msg) {
     }
     st->print_cr("  argument indexes: {%s}", argbuf);
   }
-  if (_bsm.not_null()) {
-    st->print("  resolved BSM: "); _bsm->print_on(st);
+  if (pre._bsm.not_null()) {
+    st->print("  resolved BSM: "); pre._bsm->print_on(st);
   }
 
   // How the array of resolved arguments is printed depends highly
   // on how BootstrapInfo::resolve_args structures the array based on
   // the use_BSCI setting.
-  if (_arg_values.not_null()) {
+  if (pre._arg_values.not_null()) {
     // Find the static arguments within the first element of _arg_values.
-    objArrayOop static_args = (objArrayOop)_arg_values();
+    objArrayOop static_args = (objArrayOop)pre._arg_values();
     if (!static_args->is_array()) {
       assert(_argc == 1, "Invalid BSM _arg_values for non-array");
       st->print("  resolved arg[0]: "); static_args->print_on(st);
