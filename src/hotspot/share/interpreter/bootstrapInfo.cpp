@@ -116,14 +116,15 @@ Handle BootstrapInfo::resolve_bsm(TRAPS) {
 
 // Resolve metadata from the JVM_Dynamic_info or JVM_InvokeDynamic_info's name and type information.
 void BootstrapInfo::resolve_bss_name_and_type(TRAPS) {
-  assert(_bsm.not_null(), "resolve_bsm first");
+  assert(!_is_resolved, "");
+  assert(pre._bsm.not_null(), "resolve_bsm first");
   Symbol* name = this->name();
   Symbol* type = this->signature();
-  _name_arg = java_lang_String::create_from_symbol(name, CHECK);
+  pre._name_arg = java_lang_String::create_from_symbol(name, CHECK);
   if (type->char_at(0) == '(') {
-    _type_arg = SystemDictionary::find_method_handle_type(type, caller(), CHECK);
+    pre._type_arg = SystemDictionary::find_method_handle_type(type, caller(), CHECK);
   } else {
-    _type_arg = SystemDictionary::find_java_mirror_for_type(type, caller(), SignatureStream::NCDFError, CHECK);
+    pre._type_arg = SystemDictionary::find_java_mirror_for_type(type, caller(), SignatureStream::NCDFError, CHECK);
   }
 }
 
