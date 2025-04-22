@@ -267,6 +267,7 @@ TEST_VM_F(AsyncLogTest, droppingMessage) {
         line = read_line(fp);
       }
     }
+    fclose(fp);
 
     // The thread is null and deattached.
     // That means that UL degrades to synchronous logging for this thread, which means that no messages can be dropped.
