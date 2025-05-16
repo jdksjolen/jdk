@@ -77,6 +77,35 @@ public:
   }
 };
 
+class BSMAttributeEntry {
+  friend class ConstantPool;
+  u2 _bootstrap_method_index;
+  u2 _argument_count;
+
+  const u2* argument_indexes() const {
+    return reinterpret_cast<const u2*>(this + 1);
+  }
+  u2* argument_indexes() {
+    return reinterpret_cast<u2*>(this + 1);
+  }
+
+  // These are overlays on top of the operands array. Do not construct.
+  BSMAttributeEntry() = delete;
+
+public:
+  int bootstrap_method_index() const {
+    return _bootstrap_method_index;
+  }
+  int argument_count() const {
+    return _argument_count;
+  }
+
+  int argument_index(int n) const {
+    assert(checked_cast<u2>(n) < _argument_count, "oob");
+    return argument_indexes()[n];
+  }
+};
+
 class ConstantPool : public Metadata {
   friend class VMStructs;
   friend class JVMCIVMStructs;
@@ -573,27 +602,6 @@ class ConstantPool : public Metadata {
            "Corrupted CP operands");
     return operand_offset_at(operands(), bsms_attribute_index);
   }
-
-  class BSMAttributeEntry {
-    friend ConstantPool;
-    u2 _bootstrap_method_index;
-    u2 _argument_count;
-
-    const u2* argument_indexes() const { return reinterpret_cast<const u2*>(this+1); }
-    u2* argument_indexes() { return reinterpret_cast<u2*>(this+1); }
-
-    // These are overlays on top of the operands array. Do not construct.
-    BSMAttributeEntry() = delete;
-
-  public:
-    int bootstrap_method_index() const { return _bootstrap_method_index; }
-    int argument_count()         const { return _argument_count; }
-
-    int argument_index(int n) const {
-      assert(checked_cast<u2>(n) < _argument_count, "oob");
-      return argument_indexes()[n];
-    }
-  };
 
   BSMAttributeEntry* bsm_attribute_entry(int bsms_attribute_index) {
     int offset = operand_offset_at(bsms_attribute_index);
