@@ -228,7 +228,7 @@ public:
   // Total malloc'd memory used by arenas
   size_t total_arena() const;
 
-  void copy_to(MallocMemorySnapshot* s);
+  void copy_to(MallocMemorySnapshot** s);
 
   // Make adjustment by subtracting chunks used by arenas
   // from total chunks to get total free chunk size
